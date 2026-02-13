@@ -16,6 +16,7 @@ from .errors import (
 )
 from .types import (
     ClusterInfo,
+    RelatedMemorySummary,
     ConsolidateResult,
     DeleteResult,
     ExtractResult,
@@ -63,6 +64,7 @@ __all__ = [
     "RecallResponse",
     "RecallSignals",
     "Relation",
+    "RelatedMemorySummary",
     "RelationsResponse",
     "RelationType",
     "RelationWithMemory",
