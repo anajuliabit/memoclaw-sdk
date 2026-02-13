@@ -45,15 +45,22 @@ export class MemoClawError extends Error {
  * const results = await client.recall({ query: 'first' });
  * ```
  */
+/** Status codes that are safe to retry (transient errors). */
+const RETRYABLE_STATUS_CODES = new Set([408, 429, 500, 502, 503, 504]);
+
 export class MemoClawClient {
   private readonly baseUrl: string;
   private readonly wallet: string;
   private readonly _fetch: typeof globalThis.fetch;
+  private readonly maxRetries: number;
+  private readonly retryDelay: number;
 
   constructor(options: MemoClawOptions) {
     this.baseUrl = (options.baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, '');
     this.wallet = options.wallet;
     this._fetch = options.fetch ?? globalThis.fetch;
+    this.maxRetries = options.maxRetries ?? 2;
+    this.retryDelay = options.retryDelay ?? 500;
   }
 
   // ── Internal helpers ───────────────────────────────
@@ -72,28 +79,52 @@ export class MemoClawClient {
       headers['Content-Type'] = 'application/json';
     }
 
-    const res = await this._fetch(url, {
-      method,
-      headers,
-      body: body !== undefined ? JSON.stringify(body) : undefined,
-    });
+    const jsonBody = body !== undefined ? JSON.stringify(body) : undefined;
 
-    if (!res.ok) {
+    let lastError: MemoClawError | undefined;
+
+    for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
+      if (attempt > 0) {
+        // Exponential backoff with jitter
+        const delay = this.retryDelay * Math.pow(2, attempt - 1);
+        const jitter = delay * 0.25 * Math.random();
+        await new Promise((resolve) => setTimeout(resolve, delay + jitter));
+      }
+
+      let res: Response;
+      try {
+        res = await this._fetch(url, { method, headers, body: jsonBody });
+      } catch (err) {
+        // Network error — retry if attempts remain
+        if (attempt < this.maxRetries) continue;
+        throw err;
+      }
+
+      if (res.ok) {
+        return (await res.json()) as T;
+      }
+
       let errorBody: MemoClawErrorBody | undefined;
       try {
         errorBody = (await res.json()) as MemoClawErrorBody;
       } catch {
         // ignore parse failures
       }
-      throw new MemoClawError(
+
+      lastError = new MemoClawError(
         res.status,
         errorBody?.error?.code ?? 'UNKNOWN_ERROR',
         errorBody?.error?.message ?? `HTTP ${res.status}`,
         errorBody?.error?.details,
       );
+
+      // Only retry on transient errors
+      if (!RETRYABLE_STATUS_CODES.has(res.status)) {
+        throw lastError;
+      }
     }
 
-    return (await res.json()) as T;
+    throw lastError!;
   }
 
   // ── Public API ─────────────────────────────────────

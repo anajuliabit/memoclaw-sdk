@@ -232,4 +232,8 @@ export interface MemoClawOptions {
   wallet: string;
   /** Optional fetch implementation (defaults to globalThis.fetch) */
   fetch?: typeof globalThis.fetch;
+  /** Maximum number of retries for transient errors (default: 2) */
+  maxRetries?: number;
+  /** Base delay in ms for exponential backoff (default: 500) */
+  retryDelay?: number;
 }
