@@ -18,6 +18,7 @@ from .types import (
     Message,
     RecallResponse,
     Relation,
+    RelationWithMemory,
     RelationsResponse,
     RelationType,
     StoreBatchResult,
@@ -69,6 +70,7 @@ def _build_store_body(
     session_id: str | None,
     agent_id: str | None,
     expires_at: str | None,
+    pinned: bool | None,
     metadata: dict[str, Any] | None,
 ) -> dict[str, Any]:
     body: dict[str, Any] = {"content": content}
@@ -84,6 +86,8 @@ def _build_store_body(
         body["agent_id"] = agent_id
     if expires_at is not None:
         body["expires_at"] = expires_at
+    if pinned is not None:
+        body["pinned"] = pinned
     if tags is not None or metadata is not None:
         md: dict[str, Any] = metadata.copy() if metadata else {}
         if tags is not None:
@@ -139,6 +143,7 @@ class MemoClaw:
         session_id: str | None = None,
         agent_id: str | None = None,
         expires_at: str | None = None,
+        pinned: bool | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> StoreResult:
         """Store a memory."""
@@ -151,6 +156,7 @@ class MemoClaw:
             session_id=session_id,
             agent_id=agent_id,
             expires_at=expires_at,
+            pinned=pinned,
             metadata=metadata,
         )
         data = self._http.request("POST", "/v1/store", json=body)
@@ -182,6 +188,7 @@ class MemoClaw:
         session_id: str | None = None,
         agent_id: str | None = None,
         after: str | None = None,
+        memory_type: MemoryType | None = None,
     ) -> RecallResponse:
         """Semantic recall of memories matching a query."""
         body: dict[str, Any] = {"query": query}
@@ -197,12 +204,14 @@ class MemoClaw:
             body["agent_id"] = agent_id
         if include_relations is not None:
             body["include_relations"] = include_relations
-        if tags is not None or after is not None:
+        if tags is not None or after is not None or memory_type is not None:
             filters: dict[str, Any] = {}
             if tags is not None:
                 filters["tags"] = tags
             if after is not None:
                 filters["after"] = after
+            if memory_type is not None:
+                filters["memory_type"] = memory_type
             body["filters"] = filters
 
         data = self._http.request("POST", "/v1/recall", json=body)
@@ -245,7 +254,9 @@ class MemoClaw:
         importance: float | None = None,
         memory_type: MemoryType | None = None,
         namespace: str | None = None,
+        pinned: bool | None = None,
         expires_at: str | None = ...,  # type: ignore[assignment]
+        pinned: bool | None = None,
     ) -> Memory:
         """Update a memory by ID. Only provided fields are updated."""
         body: dict[str, Any] = {}
@@ -259,9 +270,13 @@ class MemoClaw:
             body["memory_type"] = memory_type
         if namespace is not None:
             body["namespace"] = namespace
+        if pinned is not None:
+            body["pinned"] = pinned
         # expires_at uses sentinel so users can pass None to clear it
         if expires_at is not ...:
             body["expires_at"] = expires_at
+        if pinned is not None:
+            body["pinned"] = pinned
 
         data = self._http.request("PATCH", f"/v1/memories/{memory_id}", json=body)
         return Memory.model_validate(data)
@@ -399,7 +414,7 @@ class MemoClaw:
         )
         return Relation.model_validate(data)
 
-    def list_relations(self, memory_id: str) -> list[RelationsResponse]:
+    def list_relations(self, memory_id: str) -> list[RelationWithMemory]:
         """List all relationships for a memory."""
         data = self._http.request("GET", f"/v1/memories/{memory_id}/relations")
         resp = RelationsResponse.model_validate(data)
@@ -467,6 +482,7 @@ class AsyncMemoClaw:
         session_id: str | None = None,
         agent_id: str | None = None,
         expires_at: str | None = None,
+        pinned: bool | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> StoreResult:
         """Store a memory."""
@@ -479,6 +495,7 @@ class AsyncMemoClaw:
             session_id=session_id,
             agent_id=agent_id,
             expires_at=expires_at,
+            pinned=pinned,
             metadata=metadata,
         )
         data = await self._http.request("POST", "/v1/store", json=body)
@@ -512,6 +529,7 @@ class AsyncMemoClaw:
         session_id: str | None = None,
         agent_id: str | None = None,
         after: str | None = None,
+        memory_type: MemoryType | None = None,
     ) -> RecallResponse:
         """Semantic recall of memories matching a query."""
         body: dict[str, Any] = {"query": query}
@@ -527,12 +545,14 @@ class AsyncMemoClaw:
             body["agent_id"] = agent_id
         if include_relations is not None:
             body["include_relations"] = include_relations
-        if tags is not None or after is not None:
+        if tags is not None or after is not None or memory_type is not None:
             filters: dict[str, Any] = {}
             if tags is not None:
                 filters["tags"] = tags
             if after is not None:
                 filters["after"] = after
+            if memory_type is not None:
+                filters["memory_type"] = memory_type
             body["filters"] = filters
 
         data = await self._http.request("POST", "/v1/recall", json=body)
@@ -575,7 +595,9 @@ class AsyncMemoClaw:
         importance: float | None = None,
         memory_type: MemoryType | None = None,
         namespace: str | None = None,
+        pinned: bool | None = None,
         expires_at: str | None = ...,  # type: ignore[assignment]
+        pinned: bool | None = None,
     ) -> Memory:
         """Update a memory by ID. Only provided fields are updated."""
         body: dict[str, Any] = {}
@@ -589,8 +611,12 @@ class AsyncMemoClaw:
             body["memory_type"] = memory_type
         if namespace is not None:
             body["namespace"] = namespace
+        if pinned is not None:
+            body["pinned"] = pinned
         if expires_at is not ...:
             body["expires_at"] = expires_at
+        if pinned is not None:
+            body["pinned"] = pinned
 
         data = await self._http.request(
             "PATCH", f"/v1/memories/{memory_id}", json=body
@@ -732,7 +758,7 @@ class AsyncMemoClaw:
         )
         return Relation.model_validate(data)
 
-    async def list_relations(self, memory_id: str) -> list[RelationsResponse]:
+    async def list_relations(self, memory_id: str) -> list[RelationWithMemory]:
         """List all relationships for a memory."""
         data = await self._http.request(
             "GET", f"/v1/memories/{memory_id}/relations"
