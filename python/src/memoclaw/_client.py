@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import time
 from typing import Any
 
@@ -14,6 +15,10 @@ from .errors import APIError, PaymentRequiredError
 DEFAULT_BASE_URL = "https://api.memoclaw.com"
 DEFAULT_TIMEOUT = 30.0
 DEFAULT_MAX_RETRIES = 1
+_RETRY_BASE_DELAY = 0.5  # seconds
+_RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 504}
+
+logger = logging.getLogger("memoclaw")
 
 
 def _generate_wallet_auth(account: Account) -> str:
@@ -79,26 +84,48 @@ class _SyncHTTPClient:
         params: dict[str, Any] | None = None,
     ) -> Any:
         url = f"{self._base_url}{path}"
-        headers = {"x-wallet-auth": _generate_wallet_auth(self._account)}
+        last_error: Exception | None = None
 
-        response = self._http.request(
-            method, url, headers=headers, json=json, params=params
-        )
+        for attempt in range(self._max_retries + 1):
+            headers = {"x-wallet-auth": _generate_wallet_auth(self._account)}
 
-        # 402 → attempt x402 payment and retry once
-        if response.status_code == 402:
-            payment_headers = _try_x402_payment(response)
-            if payment_headers:
-                headers.update(payment_headers)
+            try:
                 response = self._http.request(
                     method, url, headers=headers, json=json, params=params
                 )
+            except httpx.TransportError as exc:
+                last_error = exc
+                if attempt < self._max_retries:
+                    delay = _RETRY_BASE_DELAY * (2 ** attempt)
+                    logger.debug("Request failed (attempt %d/%d), retrying in %.1fs: %s", attempt + 1, self._max_retries + 1, delay, exc)
+                    time.sleep(delay)
+                    continue
+                raise APIError.from_response(0, {"error": {"code": "TRANSPORT_ERROR", "message": str(exc)}})
 
-        _raise_for_status(response)
+            # 402 → attempt x402 payment and retry once
+            if response.status_code == 402:
+                payment_headers = _try_x402_payment(response)
+                if payment_headers:
+                    headers.update(payment_headers)
+                    response = self._http.request(
+                        method, url, headers=headers, json=json, params=params
+                    )
 
-        if response.status_code == 204:
-            return {}
-        return response.json()
+            # Retry on transient server errors
+            if response.status_code in _RETRYABLE_STATUS_CODES and attempt < self._max_retries:
+                delay = _RETRY_BASE_DELAY * (2 ** attempt)
+                logger.debug("HTTP %d (attempt %d/%d), retrying in %.1fs", response.status_code, attempt + 1, self._max_retries + 1, delay)
+                time.sleep(delay)
+                continue
+
+            _raise_for_status(response)
+
+            if response.status_code == 204:
+                return {}
+            return response.json()
+
+        # Should not reach here, but just in case
+        raise last_error or APIError.from_response(0, {"error": {"code": "MAX_RETRIES", "message": "Max retries exceeded"}})
 
     def close(self) -> None:
         self._http.close()
@@ -135,26 +162,48 @@ class _AsyncHTTPClient:
         json: dict[str, Any] | None = None,
         params: dict[str, Any] | None = None,
     ) -> Any:
+        import asyncio
+
         url = f"{self._base_url}{path}"
-        headers = {"x-wallet-auth": _generate_wallet_auth(self._account)}
+        last_error: Exception | None = None
 
-        response = await self._http.request(
-            method, url, headers=headers, json=json, params=params
-        )
+        for attempt in range(self._max_retries + 1):
+            headers = {"x-wallet-auth": _generate_wallet_auth(self._account)}
 
-        if response.status_code == 402:
-            payment_headers = _try_x402_payment(response)
-            if payment_headers:
-                headers.update(payment_headers)
+            try:
                 response = await self._http.request(
                     method, url, headers=headers, json=json, params=params
                 )
+            except httpx.TransportError as exc:
+                last_error = exc
+                if attempt < self._max_retries:
+                    delay = _RETRY_BASE_DELAY * (2 ** attempt)
+                    logger.debug("Request failed (attempt %d/%d), retrying in %.1fs: %s", attempt + 1, self._max_retries + 1, delay, exc)
+                    await asyncio.sleep(delay)
+                    continue
+                raise APIError.from_response(0, {"error": {"code": "TRANSPORT_ERROR", "message": str(exc)}})
 
-        _raise_for_status(response)
+            if response.status_code == 402:
+                payment_headers = _try_x402_payment(response)
+                if payment_headers:
+                    headers.update(payment_headers)
+                    response = await self._http.request(
+                        method, url, headers=headers, json=json, params=params
+                    )
 
-        if response.status_code == 204:
-            return {}
-        return response.json()
+            if response.status_code in _RETRYABLE_STATUS_CODES and attempt < self._max_retries:
+                delay = _RETRY_BASE_DELAY * (2 ** attempt)
+                logger.debug("HTTP %d (attempt %d/%d), retrying in %.1fs", response.status_code, attempt + 1, self._max_retries + 1, delay)
+                await asyncio.sleep(delay)
+                continue
+
+            _raise_for_status(response)
+
+            if response.status_code == 204:
+                return {}
+            return response.json()
+
+        raise last_error or APIError.from_response(0, {"error": {"code": "MAX_RETRIES", "message": "Max retries exceeded"}})
 
     async def close(self) -> None:
         await self._http.aclose()
