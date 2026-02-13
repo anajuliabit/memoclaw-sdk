@@ -1,4 +1,15 @@
-export { MemoClawClient, MemoClawError } from './client.js';
+export { MemoClawClient } from './client.js';
+export {
+  MemoClawError,
+  AuthenticationError,
+  PaymentRequiredError,
+  ForbiddenError,
+  NotFoundError,
+  ValidationError,
+  RateLimitError,
+  InternalServerError,
+  createError,
+} from './errors.js';
 export type {
   MemoClawOptions,
   MemoryType,
