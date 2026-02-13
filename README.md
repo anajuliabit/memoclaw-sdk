@@ -21,4 +21,4 @@ MemoClaw is a semantic memory layer for AI agents. Store, recall, and relate mem
 
 - [Documentation](https://memoclaw.com/docs)
 - [API Reference](https://memoclaw.com/docs/api)
-- [MCP Server](https://github.com/memoclaw/memoclaw-mcp)
+- [MCP Server](https://github.com/anajuliabit/memoclaw-mcp)

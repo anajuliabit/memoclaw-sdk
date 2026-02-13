@@ -288,15 +288,6 @@ export interface MemoClawErrorBody {
   };
 }
 
-// ── Free-tier status ───────────────────────────────────
-
-export interface FreeTierStatus {
-  wallet: string;
-  free_tier_remaining: number;
-  free_tier_total: number;
-  free_tier_used: number;
-}
-
 // ── Client Options ─────────────────────────────────────
 
 export interface MemoClawOptions {
