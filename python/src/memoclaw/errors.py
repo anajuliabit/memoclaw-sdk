@@ -9,13 +9,34 @@ class MemoClawError(Exception):
     """Base exception for all MemoClaw SDK errors."""
 
 
+# ── Suggestions for common errors ────────────────────────────────────────────
+
+_ERROR_SUGGESTIONS: dict[tuple[int, str], str] = {
+    (401, "AUTH_ERROR"): "Check that your private key is correct and the signature hasn't expired. Ensure system clock is synced.",
+    (402, "PAYMENT_REQUIRED"): "Free tier exhausted. Install x402 (`pip install memoclaw[x402]`) for automatic payment, or upgrade your plan.",
+    (404, "NOT_FOUND"): "The memory ID may have been deleted or never existed. Use client.list() to verify.",
+    (422, "VALIDATION_ERROR"): "Check request payload — content max length is 8192 chars, importance must be 0.0-1.0.",
+    (429, "RATE_LIMITED"): "Too many requests. The SDK retries automatically, but consider adding delays between batch operations.",
+    (500, "INTERNAL_ERROR"): "Server error — this is usually transient. The SDK will retry automatically.",
+}
+
+
 class APIError(MemoClawError):
-    """Raised when the API returns a non-2xx response."""
+    """Raised when the API returns a non-2xx response.
+
+    Attributes:
+        status_code: HTTP status code.
+        code: Error code from the API (e.g. ``"NOT_FOUND"``).
+        message: Human-readable error message.
+        details: Optional structured error details.
+        suggestion: Actionable suggestion for fixing the error.
+    """
 
     status_code: int
     code: str
     message: str
     details: dict[str, Any] | None
+    suggestion: str | None
 
     def __init__(
         self,
@@ -28,7 +49,11 @@ class APIError(MemoClawError):
         self.code = code
         self.message = message
         self.details = details
-        super().__init__(f"[{status_code}] {code}: {message}")
+        self.suggestion = _ERROR_SUGGESTIONS.get((status_code, code))
+        msg = f"[{status_code}] {code}: {message}"
+        if self.suggestion:
+            msg += f"\n  💡 {self.suggestion}"
+        super().__init__(msg)
 
     @classmethod
     def from_response(cls, status_code: int, body: dict[str, Any]) -> APIError:
