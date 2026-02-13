@@ -1,0 +1,35 @@
+{
+  "name": "@memoclaw/sdk",
+  "version": "0.1.0",
+  "description": "Official TypeScript SDK for the MemoClaw memory API",
+  "type": "module",
+  "main": "dist/index.js",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": ["dist", "README.md"],
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "bun run build"
+  },
+  "keywords": ["memoclaw", "memory", "ai", "sdk", "semantic-search"],
+  "license": "MIT",
+  "author": "MemoClaw",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/memoclaw/memoclaw-sdk",
+    "directory": "typescript"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "devDependencies": {
+    "typescript": "^5"
+  }
+}

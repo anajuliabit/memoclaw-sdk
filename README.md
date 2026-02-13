@@ -4,10 +4,10 @@ Official SDKs for the [MemoClaw](https://memoclaw.com) memory API.
 
 ## Available SDKs
 
-| Language | Package | Status |
-|----------|---------|--------|
-| Python | [`memoclaw`](./python/) | Available |
-| TypeScript | `@memoclaw/sdk` | Coming soon |
+| Language | Package | Directory |
+|----------|---------|-----------|
+| Python | [`memoclaw`](https://pypi.org/project/memoclaw/) | [`./python`](./python/) |
+| TypeScript | [`@memoclaw/sdk`](https://www.npmjs.com/package/@memoclaw/sdk) | [`./typescript`](./typescript/) |
 
 ## What is MemoClaw?
 
