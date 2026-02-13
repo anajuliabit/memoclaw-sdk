@@ -50,6 +50,7 @@ export interface RecallRequest {
   filters?: {
     tags?: string[];
     after?: string;
+    memory_type?: MemoryType;
   };
 }
 

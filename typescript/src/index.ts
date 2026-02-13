@@ -9,6 +9,15 @@ export {
   type AfterResponseHook,
   type OnErrorHook,
 } from './client.js';
+export {
+  RecallQuery,
+  MemoryFilter,
+  AsyncMemoryFilter,
+  RelationBuilder,
+  AsyncRelationBuilder,
+  BatchStore,
+  StreamingRecall,
+} from './builders.js';
 export type {
   MemoClawOptions,
   MemoryType,

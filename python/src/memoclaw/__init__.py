@@ -40,6 +40,14 @@ from .types import (
     SuggestedMemory,
     SuggestedResponse,
 )
+from .builders import (
+    AsyncMemoryFilter,
+    AsyncRecallQuery,
+    BatchStore,
+    MemoryFilter,
+    RecallQuery,
+    RelationBuilder,
+)
 
 __all__ = [
     "__version__",
@@ -81,4 +89,11 @@ __all__ = [
     "SuggestedResponse",
     "SuggestedCategory",
     "FreeTierStatus",
+    # Builders
+    "RecallQuery",
+    "AsyncRecallQuery",
+    "MemoryFilter",
+    "AsyncMemoryFilter",
+    "RelationBuilder",
+    "BatchStore",
 ]

@@ -342,7 +342,7 @@ class MemoClaw:
 
     def get(self, memory_id: str) -> Memory:
         """Retrieve a single memory by ID."""
-        data = self._http.request("GET", f"/v1/memories/{memory_id}")
+        data = self._run_request("GET", f"/v1/memories/{memory_id}")
         return Memory.model_validate(data)
 
     # ── Update ───────────────────────────────────────────────────────────
@@ -386,6 +386,17 @@ class MemoClaw:
         """Delete a memory by ID."""
         data = self._run_request("DELETE", f"/v1/memories/{memory_id}")
         return DeleteResult.model_validate(data)
+
+    def delete_batch(self, memory_ids: list[str]) -> list[DeleteResult]:
+        """Delete multiple memories by ID.
+
+        Convenience method that deletes each memory sequentially.
+        Returns a list of :class:`DeleteResult` objects.
+        """
+        return [self.delete(mid) for mid in memory_ids]
+
+    #: Alias for :meth:`recall` — matches Mem0/Pinecone ``search`` convention.
+    search = recall
 
     # ── Ingest ───────────────────────────────────────────────────────────
 
@@ -533,40 +544,8 @@ class MemoClaw:
         data = self._run_request("GET", "/v1/free-tier/status")
         return FreeTierStatus.model_validate(data)
 
-    # ── Pagination iterator ──────────────────────────────────────────────
-
-    def list_all(
-        self,
-        *,
-        batch_size: int = 50,
-        namespace: str | None = None,
-        tags: list[str] | None = None,
-        session_id: str | None = None,
-        agent_id: str | None = None,
-    ) -> Iterator[Memory]:
-        """Iterate over all memories with automatic pagination.
-
-        Yields :class:`Memory` objects one at a time, fetching pages lazily.
-
-        Example::
-
-            for memory in client.list_all(namespace="project"):
-                print(memory.content)
-        """
-        offset = 0
-        while True:
-            page = self.list(
-                limit=batch_size,
-                offset=offset,
-                namespace=namespace,
-                tags=tags,
-                session_id=session_id,
-                agent_id=agent_id,
-            )
-            yield from page.memories
-            offset += len(page.memories)
-            if offset >= page.total or len(page.memories) == 0:
-                break
+    #: Alias for :meth:`iter_memories` — iterate over all memories.
+    list_all = iter_memories
 
     # ── Graph helpers ────────────────────────────────────────────────────
 
@@ -859,7 +838,7 @@ class AsyncMemoClaw:
 
     async def get(self, memory_id: str) -> Memory:
         """Retrieve a single memory by ID."""
-        data = await self._http.request("GET", f"/v1/memories/{memory_id}")
+        data = await self._run_request("GET", f"/v1/memories/{memory_id}")
         return Memory.model_validate(data)
 
     # ── Update ───────────────────────────────────────────────────────────
@@ -904,6 +883,17 @@ class AsyncMemoClaw:
         """Delete a memory by ID."""
         data = await self._run_request("DELETE", f"/v1/memories/{memory_id}")
         return DeleteResult.model_validate(data)
+
+    async def delete_batch(self, memory_ids: list[str]) -> list[DeleteResult]:
+        """Delete multiple memories by ID.
+
+        Convenience method that deletes each memory sequentially.
+        Returns a list of :class:`DeleteResult` objects.
+        """
+        return [await self.delete(mid) for mid in memory_ids]
+
+    #: Alias for :meth:`recall` — matches Mem0/Pinecone ``search`` convention.
+    search = recall
 
     # ── Ingest ───────────────────────────────────────────────────────────
 
@@ -1057,39 +1047,8 @@ class AsyncMemoClaw:
         data = await self._run_request("GET", "/v1/free-tier/status")
         return FreeTierStatus.model_validate(data)
 
-    # ── Async pagination iterator ────────────────────────────────────────
-
-    async def list_all(
-        self,
-        *,
-        batch_size: int = 50,
-        namespace: str | None = None,
-        tags: list[str] | None = None,
-        session_id: str | None = None,
-        agent_id: str | None = None,
-    ) -> AsyncIterator[Memory]:
-        """Async iterate over all memories with automatic pagination.
-
-        Example::
-
-            async for memory in client.list_all(namespace="project"):
-                print(memory.content)
-        """
-        offset = 0
-        while True:
-            page = await self.list(
-                limit=batch_size,
-                offset=offset,
-                namespace=namespace,
-                tags=tags,
-                session_id=session_id,
-                agent_id=agent_id,
-            )
-            for memory in page.memories:
-                yield memory
-            offset += len(page.memories)
-            if offset >= page.total or len(page.memories) == 0:
-                break
+    #: Alias for :meth:`iter_memories` — async iterate over all memories.
+    list_all = iter_memories
 
     # ── Graph helpers ────────────────────────────────────────────────────
 
