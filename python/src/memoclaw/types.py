@@ -102,6 +102,7 @@ class RecallMemory(BaseModel):
     pinned: bool = False
     created_at: str
     access_count: int
+    pinned: bool = False
     relations: list[RelationWithMemory] | None = None
     signals: RecallSignals | None = Field(default=None, alias="_signals")
 
