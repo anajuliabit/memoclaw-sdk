@@ -1,35 +1,35 @@
-"""Basic MemoClaw usage — store, recall, and iterate memories."""
+"""Basic MemoClaw usage — store, recall, and manage memories."""
 
 from memoclaw import MemoClaw
 
-# Initialize (reads MEMOCLAW_PRIVATE_KEY from env)
+# Initialize client (reads MEMOCLAW_PRIVATE_KEY from env)
 client = MemoClaw()
 
 # Store a memory
 result = client.store(
-    "User prefers dark mode and vim keybindings",
-    tags=["preferences", "editor"],
+    "User prefers dark mode and Vim keybindings",
     importance=0.8,
+    tags=["preferences", "editor"],
+    namespace="user-prefs",
     memory_type="preference",
 )
-print(f"Stored: {result.id} (tokens: {result.tokens_used})")
+print(f"Stored memory: {result.id}")
 
-# Semantic recall
-matches = client.recall("what editor settings does the user like?", limit=5)
-for mem in matches.memories:
+# Recall memories by semantic search
+recall = client.recall("What editor settings does the user like?", limit=5)
+for mem in recall.memories:
     print(f"  [{mem.similarity:.2f}] {mem.content}")
 
-# Batch store
-batch = client.store_batch([
-    {"content": "User's timezone is UTC-5", "memory_type": "preference"},
-    {"content": "Project deadline is March 2026", "memory_type": "project"},
-    {"content": "User prefers Python over JavaScript", "memory_type": "preference"},
-])
-print(f"Batch stored {batch.count} memories")
+# List all memories with pagination
+page = client.list(limit=10, namespace="user-prefs")
+print(f"Total memories: {page.total}")
 
-# Iterate all memories (auto-paginates)
-print("\nAll memories:")
-for mem in client.iter_memories(batch_size=10):
-    print(f"  [{mem.memory_type}] {mem.content[:60]}")
+# Update a memory
+updated = client.update(result.id, importance=0.95, pinned=True)
+print(f"Updated: {updated.content} (pinned={updated.pinned})")
+
+# Delete
+client.delete(result.id)
+print("Deleted!")
 
 client.close()
