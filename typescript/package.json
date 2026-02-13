@@ -16,6 +16,7 @@
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit",
+    "test": "bun test",
     "prepublishOnly": "bun run build"
   },
   "keywords": ["memoclaw", "memory", "ai", "sdk", "semantic-search"],
