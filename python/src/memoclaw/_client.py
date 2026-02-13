@@ -1,4 +1,4 @@
-"""Internal HTTP transport with wallet auth and x402 payment fallback."""
+"""Internal HTTP transport with wallet auth, x402 payment fallback, and retry logic."""
 
 from __future__ import annotations
 
@@ -13,7 +13,13 @@ from .errors import APIError, PaymentRequiredError
 
 DEFAULT_BASE_URL = "https://api.memoclaw.com"
 DEFAULT_TIMEOUT = 30.0
-DEFAULT_MAX_RETRIES = 1
+DEFAULT_MAX_RETRIES = 2
+
+# Status codes that are safe to retry (transient server errors)
+_RETRYABLE_STATUS_CODES = {502, 503, 504}
+
+# Base delay between retries in seconds (exponential backoff: base * 2^attempt)
+_RETRY_BASE_DELAY = 0.5
 
 
 def _generate_wallet_auth(account: Account) -> str:
@@ -33,6 +39,11 @@ def _raise_for_status(response: httpx.Response) -> None:
     except Exception:
         body = {"error": {"code": "UNKNOWN", "message": response.text}}
     raise APIError.from_response(response.status_code, body)
+
+
+def _is_retryable(exc: BaseException) -> bool:
+    """Check if an exception is retryable (network errors)."""
+    return isinstance(exc, (httpx.ConnectError, httpx.ReadTimeout, httpx.WriteTimeout))
 
 
 def _try_x402_payment(
@@ -79,26 +90,47 @@ class _SyncHTTPClient:
         params: dict[str, Any] | None = None,
     ) -> Any:
         url = f"{self._base_url}{path}"
-        headers = {"x-wallet-auth": _generate_wallet_auth(self._account)}
+        last_exc: BaseException | None = None
 
-        response = self._http.request(
-            method, url, headers=headers, json=json, params=params
-        )
+        for attempt in range(self._max_retries + 1):
+            # Generate fresh auth header each attempt (timestamp-based)
+            headers = {"x-wallet-auth": _generate_wallet_auth(self._account)}
 
-        # 402 → attempt x402 payment and retry once
-        if response.status_code == 402:
-            payment_headers = _try_x402_payment(response)
-            if payment_headers:
-                headers.update(payment_headers)
+            try:
                 response = self._http.request(
                     method, url, headers=headers, json=json, params=params
                 )
+            except (httpx.ConnectError, httpx.ReadTimeout, httpx.WriteTimeout) as exc:
+                last_exc = exc
+                if attempt < self._max_retries:
+                    time.sleep(_RETRY_BASE_DELAY * (2**attempt))
+                    continue
+                raise
 
-        _raise_for_status(response)
+            # 402 → attempt x402 payment and retry once
+            if response.status_code == 402:
+                payment_headers = _try_x402_payment(response)
+                if payment_headers:
+                    headers.update(payment_headers)
+                    response = self._http.request(
+                        method, url, headers=headers, json=json, params=params
+                    )
 
-        if response.status_code == 204:
-            return {}
-        return response.json()
+            # Retry on transient server errors (502, 503, 504)
+            if response.status_code in _RETRYABLE_STATUS_CODES and attempt < self._max_retries:
+                time.sleep(_RETRY_BASE_DELAY * (2**attempt))
+                continue
+
+            _raise_for_status(response)
+
+            if response.status_code == 204:
+                return {}
+            return response.json()
+
+        # Should not reach here, but raise last error if we do
+        if last_exc is not None:
+            raise last_exc
+        _raise_for_status(response)  # type: ignore[possibly-undefined]
 
     def close(self) -> None:
         self._http.close()
@@ -135,26 +167,48 @@ class _AsyncHTTPClient:
         json: dict[str, Any] | None = None,
         params: dict[str, Any] | None = None,
     ) -> Any:
+        import asyncio
+
         url = f"{self._base_url}{path}"
-        headers = {"x-wallet-auth": _generate_wallet_auth(self._account)}
+        last_exc: BaseException | None = None
 
-        response = await self._http.request(
-            method, url, headers=headers, json=json, params=params
-        )
+        for attempt in range(self._max_retries + 1):
+            headers = {"x-wallet-auth": _generate_wallet_auth(self._account)}
 
-        if response.status_code == 402:
-            payment_headers = _try_x402_payment(response)
-            if payment_headers:
-                headers.update(payment_headers)
+            try:
                 response = await self._http.request(
                     method, url, headers=headers, json=json, params=params
                 )
+            except (httpx.ConnectError, httpx.ReadTimeout, httpx.WriteTimeout) as exc:
+                last_exc = exc
+                if attempt < self._max_retries:
+                    await asyncio.sleep(_RETRY_BASE_DELAY * (2**attempt))
+                    continue
+                raise
 
-        _raise_for_status(response)
+            # 402 → attempt x402 payment and retry once
+            if response.status_code == 402:
+                payment_headers = _try_x402_payment(response)
+                if payment_headers:
+                    headers.update(payment_headers)
+                    response = await self._http.request(
+                        method, url, headers=headers, json=json, params=params
+                    )
 
-        if response.status_code == 204:
-            return {}
-        return response.json()
+            # Retry on transient server errors
+            if response.status_code in _RETRYABLE_STATUS_CODES and attempt < self._max_retries:
+                await asyncio.sleep(_RETRY_BASE_DELAY * (2**attempt))
+                continue
+
+            _raise_for_status(response)
+
+            if response.status_code == 204:
+                return {}
+            return response.json()
+
+        if last_exc is not None:
+            raise last_exc
+        _raise_for_status(response)  # type: ignore[possibly-undefined]
 
     async def close(self) -> None:
         await self._http.aclose()
