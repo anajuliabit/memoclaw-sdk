@@ -7,7 +7,7 @@ Official SDKs for the [MemoClaw](https://memoclaw.com) memory API.
 | Language | Package | Status |
 |----------|---------|--------|
 | Python | [`memoclaw`](./python/) | Available |
-| TypeScript | `@memoclaw/sdk` | Coming soon |
+| TypeScript | [`@memoclaw/sdk`](https://github.com/anajuliabit/memocloud/tree/main/packages/sdk) | Available ([npm](https://www.npmjs.com/package/@memoclaw/sdk)) |
 
 ## What is MemoClaw?
 
