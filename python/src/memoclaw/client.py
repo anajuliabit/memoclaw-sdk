@@ -182,6 +182,7 @@ class MemoClaw:
         session_id: str | None = None,
         agent_id: str | None = None,
         after: str | None = None,
+        memory_type: MemoryType | None = None,
     ) -> RecallResponse:
         """Semantic recall of memories matching a query."""
         body: dict[str, Any] = {"query": query}
@@ -197,12 +198,14 @@ class MemoClaw:
             body["agent_id"] = agent_id
         if include_relations is not None:
             body["include_relations"] = include_relations
-        if tags is not None or after is not None:
+        if tags is not None or after is not None or memory_type is not None:
             filters: dict[str, Any] = {}
             if tags is not None:
                 filters["tags"] = tags
             if after is not None:
                 filters["after"] = after
+            if memory_type is not None:
+                filters["memory_type"] = memory_type
             body["filters"] = filters
 
         data = self._http.request("POST", "/v1/recall", json=body)
@@ -512,6 +515,7 @@ class AsyncMemoClaw:
         session_id: str | None = None,
         agent_id: str | None = None,
         after: str | None = None,
+        memory_type: MemoryType | None = None,
     ) -> RecallResponse:
         """Semantic recall of memories matching a query."""
         body: dict[str, Any] = {"query": query}
@@ -527,12 +531,14 @@ class AsyncMemoClaw:
             body["agent_id"] = agent_id
         if include_relations is not None:
             body["include_relations"] = include_relations
-        if tags is not None or after is not None:
+        if tags is not None or after is not None or memory_type is not None:
             filters: dict[str, Any] = {}
             if tags is not None:
                 filters["tags"] = tags
             if after is not None:
                 filters["after"] = after
+            if memory_type is not None:
+                filters["memory_type"] = memory_type
             body["filters"] = filters
 
         data = await self._http.request("POST", "/v1/recall", json=body)
