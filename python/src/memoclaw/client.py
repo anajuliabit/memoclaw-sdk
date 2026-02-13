@@ -18,6 +18,7 @@ from .types import (
     Message,
     RecallResponse,
     Relation,
+    RelationWithMemory,
     RelationsResponse,
     RelationType,
     StoreBatchResult,
@@ -399,7 +400,7 @@ class MemoClaw:
         )
         return Relation.model_validate(data)
 
-    def list_relations(self, memory_id: str) -> list[RelationsResponse]:
+    def list_relations(self, memory_id: str) -> list[RelationWithMemory]:
         """List all relationships for a memory."""
         data = self._http.request("GET", f"/v1/memories/{memory_id}/relations")
         resp = RelationsResponse.model_validate(data)
@@ -732,7 +733,7 @@ class AsyncMemoClaw:
         )
         return Relation.model_validate(data)
 
-    async def list_relations(self, memory_id: str) -> list[RelationsResponse]:
+    async def list_relations(self, memory_id: str) -> list[RelationWithMemory]:
         """List all relationships for a memory."""
         data = await self._http.request(
             "GET", f"/v1/memories/{memory_id}/relations"
