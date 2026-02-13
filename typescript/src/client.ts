@@ -17,21 +17,9 @@ import type {
   SuggestedParams,
   SuggestedResponse,
 } from './types.js';
+import { MemoClawError } from './errors.js';
 
 const DEFAULT_BASE_URL = 'https://api.memoclaw.com';
-
-/** Error thrown by the MemoClaw SDK when the API returns a non-2xx response. */
-export class MemoClawError extends Error {
-  constructor(
-    public readonly status: number,
-    public readonly code: string,
-    message: string,
-    public readonly details?: Record<string, unknown>,
-  ) {
-    super(message);
-    this.name = 'MemoClawError';
-  }
-}
 
 /**
  * Official TypeScript client for the MemoClaw memory API.
@@ -85,7 +73,7 @@ export class MemoClawClient {
       } catch {
         // ignore parse failures
       }
-      throw new MemoClawError(
+      throw MemoClawError.fromResponse(
         res.status,
         errorBody?.error?.code ?? 'UNKNOWN_ERROR',
         errorBody?.error?.message ?? `HTTP ${res.status}`,
