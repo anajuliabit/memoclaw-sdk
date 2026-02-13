@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from collections.abc import AsyncIterator, Callable, Iterator
 from typing import Any
 
 from ._client import DEFAULT_BASE_URL, DEFAULT_TIMEOUT, _AsyncHTTPClient, _SyncHTTPClient
@@ -96,6 +97,18 @@ def _build_store_body(
     return body
 
 
+# ── Middleware / Hooks ────────────────────────────────────────────────────────
+
+# Hook signatures:
+#   before_request(method: str, path: str, body: dict | None) -> dict | None
+#   after_response(method: str, path: str, result: Any) -> Any
+#   on_error(method: str, path: str, error: Exception) -> None
+
+BeforeRequestHook = Callable[[str, str, dict[str, Any] | None], dict[str, Any] | None]
+AfterResponseHook = Callable[[str, str, Any], Any]
+OnErrorHook = Callable[[str, str, Exception], None]
+
+
 class MemoClaw:
     """Synchronous MemoClaw client.
 
@@ -112,12 +125,62 @@ class MemoClaw:
         *,
         base_url: str = DEFAULT_BASE_URL,
         timeout: float = DEFAULT_TIMEOUT,
+        max_retries: int | None = None,
     ) -> None:
-        self._http = _SyncHTTPClient(
-            private_key=_get_private_key(private_key),
-            base_url=base_url,
-            timeout=timeout,
-        )
+        kwargs: dict[str, Any] = {
+            "private_key": _get_private_key(private_key),
+            "base_url": base_url,
+            "timeout": timeout,
+        }
+        if max_retries is not None:
+            kwargs["max_retries"] = max_retries
+        self._http = _SyncHTTPClient(**kwargs)
+        self._before_request_hooks: list[BeforeRequestHook] = []
+        self._after_response_hooks: list[AfterResponseHook] = []
+        self._on_error_hooks: list[OnErrorHook] = []
+
+    # ── Hooks API ────────────────────────────────────────────────────────
+
+    def on_before_request(self, hook: BeforeRequestHook) -> MemoClaw:
+        """Register a hook called before each request. Returns self for chaining."""
+        self._before_request_hooks.append(hook)
+        return self
+
+    def on_after_response(self, hook: AfterResponseHook) -> MemoClaw:
+        """Register a hook called after each successful response. Returns self for chaining."""
+        self._after_response_hooks.append(hook)
+        return self
+
+    def on_error(self, hook: OnErrorHook) -> MemoClaw:
+        """Register a hook called on errors. Returns self for chaining."""
+        self._on_error_hooks.append(hook)
+        return self
+
+    def _run_request(
+        self,
+        method: str,
+        path: str,
+        *,
+        json: dict[str, Any] | None = None,
+        params: dict[str, Any] | None = None,
+    ) -> Any:
+        """Internal request wrapper that invokes hooks."""
+        body = json
+        for hook in self._before_request_hooks:
+            result = hook(method, path, body)
+            if result is not None:
+                body = result
+        try:
+            data = self._http.request(method, path, json=body, params=params)
+        except Exception as exc:
+            for hook in self._on_error_hooks:
+                hook(method, path, exc)
+            raise
+        for hook in self._after_response_hooks:
+            transformed = hook(method, path, data)
+            if transformed is not None:
+                data = transformed
+        return data
 
     # ── Context manager ──────────────────────────────────────────────────
 
@@ -159,7 +222,7 @@ class MemoClaw:
             pinned=pinned,
             metadata=metadata,
         )
-        data = self._http.request("POST", "/v1/store", json=body)
+        data = self._run_request("POST", "/v1/store", json=body)
         return StoreResult.model_validate(data)
 
     def store_batch(
@@ -171,7 +234,7 @@ class MemoClaw:
             m.model_dump(exclude_none=True) if isinstance(m, StoreInput) else m
             for m in memories
         ]
-        data = self._http.request("POST", "/v1/store/batch", json={"memories": items})
+        data = self._run_request("POST", "/v1/store/batch", json={"memories": items})
         return StoreBatchResult.model_validate(data)
 
     # ── Recall ───────────────────────────────────────────────────────────
@@ -214,7 +277,7 @@ class MemoClaw:
                 filters["memory_type"] = memory_type
             body["filters"] = filters
 
-        data = self._http.request("POST", "/v1/recall", json=body)
+        data = self._run_request("POST", "/v1/recall", json=body)
         return RecallResponse.model_validate(data)
 
     # ── List ─────────────────────────────────────────────────────────────
@@ -240,7 +303,7 @@ class MemoClaw:
                 "agent_id": agent_id,
             }
         )
-        data = self._http.request("GET", "/v1/memories", params=params)
+        data = self._run_request("GET", "/v1/memories", params=params)
         return ListResponse.model_validate(data)
 
     # ── Update ───────────────────────────────────────────────────────────
@@ -275,14 +338,14 @@ class MemoClaw:
         if expires_at is not ...:
             body["expires_at"] = expires_at
 
-        data = self._http.request("PATCH", f"/v1/memories/{memory_id}", json=body)
+        data = self._run_request("PATCH", f"/v1/memories/{memory_id}", json=body)
         return Memory.model_validate(data)
 
     # ── Delete ───────────────────────────────────────────────────────────
 
     def delete(self, memory_id: str) -> DeleteResult:
         """Delete a memory by ID."""
-        data = self._http.request("DELETE", f"/v1/memories/{memory_id}")
+        data = self._run_request("DELETE", f"/v1/memories/{memory_id}")
         return DeleteResult.model_validate(data)
 
     # ── Ingest ───────────────────────────────────────────────────────────
@@ -314,7 +377,7 @@ class MemoClaw:
         if auto_relate is not None:
             body["auto_relate"] = auto_relate
 
-        data = self._http.request("POST", "/v1/ingest", json=body)
+        data = self._run_request("POST", "/v1/ingest", json=body)
         return IngestResult.model_validate(data)
 
     # ── Extract ──────────────────────────────────────────────────────────
@@ -340,7 +403,7 @@ class MemoClaw:
         if agent_id is not None:
             body["agent_id"] = agent_id
 
-        data = self._http.request("POST", "/v1/memories/extract", json=body)
+        data = self._run_request("POST", "/v1/memories/extract", json=body)
         return ExtractResult.model_validate(data)
 
     # ── Consolidate ──────────────────────────────────────────────────────
@@ -362,7 +425,7 @@ class MemoClaw:
                 "dry_run": dry_run,
             }
         )
-        data = self._http.request("POST", "/v1/memories/consolidate", json=body)
+        data = self._run_request("POST", "/v1/memories/consolidate", json=body)
         return ConsolidateResult.model_validate(data)
 
     # ── Suggested ────────────────────────────────────────────────────────
@@ -386,7 +449,7 @@ class MemoClaw:
                 "category": category,
             }
         )
-        data = self._http.request("GET", "/v1/suggested", params=params)
+        data = self._run_request("GET", "/v1/suggested", params=params)
         return SuggestedResponse.model_validate(data)
 
     # ── Relations ────────────────────────────────────────────────────────
@@ -406,20 +469,20 @@ class MemoClaw:
         }
         if metadata is not None:
             body["metadata"] = metadata
-        data = self._http.request(
+        data = self._run_request(
             "POST", f"/v1/memories/{memory_id}/relations", json=body
         )
         return Relation.model_validate(data)
 
     def list_relations(self, memory_id: str) -> list[RelationWithMemory]:
         """List all relationships for a memory."""
-        data = self._http.request("GET", f"/v1/memories/{memory_id}/relations")
+        data = self._run_request("GET", f"/v1/memories/{memory_id}/relations")
         resp = RelationsResponse.model_validate(data)
         return resp.relations  # type: ignore[return-value]
 
     def delete_relation(self, memory_id: str, relation_id: str) -> DeleteResult:
         """Delete a memory relationship."""
-        data = self._http.request(
+        data = self._run_request(
             "DELETE", f"/v1/memories/{memory_id}/relations/{relation_id}"
         )
         return DeleteResult.model_validate(data)
@@ -428,8 +491,101 @@ class MemoClaw:
 
     def status(self) -> FreeTierStatus:
         """Check free tier remaining calls."""
-        data = self._http.request("GET", "/v1/free-tier/status")
+        data = self._run_request("GET", "/v1/free-tier/status")
         return FreeTierStatus.model_validate(data)
+
+    # ── Pagination iterator ──────────────────────────────────────────────
+
+    def list_all(
+        self,
+        *,
+        batch_size: int = 50,
+        namespace: str | None = None,
+        tags: list[str] | None = None,
+        session_id: str | None = None,
+        agent_id: str | None = None,
+    ) -> Iterator[Memory]:
+        """Iterate over all memories with automatic pagination.
+
+        Yields :class:`Memory` objects one at a time, fetching pages lazily.
+
+        Example::
+
+            for memory in client.list_all(namespace="project"):
+                print(memory.content)
+        """
+        offset = 0
+        while True:
+            page = self.list(
+                limit=batch_size,
+                offset=offset,
+                namespace=namespace,
+                tags=tags,
+                session_id=session_id,
+                agent_id=agent_id,
+            )
+            yield from page.memories
+            offset += len(page.memories)
+            if offset >= page.total or len(page.memories) == 0:
+                break
+
+    # ── Graph helpers ────────────────────────────────────────────────────
+
+    def get_memory_graph(
+        self,
+        memory_id: str,
+        *,
+        depth: int = 1,
+    ) -> dict[str, list[RelationWithMemory]]:
+        """Traverse the memory graph from a starting node.
+
+        Returns a dict mapping memory IDs to their relations, up to ``depth`` hops.
+
+        Example::
+
+            graph = client.get_memory_graph("mem-123", depth=2)
+            for mid, rels in graph.items():
+                print(f"{mid}: {len(rels)} relations")
+        """
+        visited: dict[str, list[RelationWithMemory]] = {}
+        frontier = [memory_id]
+
+        for _ in range(depth):
+            next_frontier: list[str] = []
+            for mid in frontier:
+                if mid in visited:
+                    continue
+                rels = self.list_relations(mid)
+                visited[mid] = rels
+                for rel in rels:
+                    neighbor_id = rel.memory.id
+                    if neighbor_id not in visited:
+                        next_frontier.append(neighbor_id)
+            frontier = next_frontier
+            if not frontier:
+                break
+
+        return visited
+
+    def find_related(
+        self,
+        memory_id: str,
+        *,
+        relation_type: RelationType | None = None,
+        direction: str | None = None,
+    ) -> list[RelationWithMemory]:
+        """Find relations for a memory, optionally filtered by type and direction.
+
+        Example::
+
+            contradictions = client.find_related("mem-123", relation_type="contradicts")
+        """
+        rels = self.list_relations(memory_id)
+        if relation_type is not None:
+            rels = [r for r in rels if r.relation_type == relation_type]
+        if direction is not None:
+            rels = [r for r in rels if r.direction == direction]
+        return rels
 
 
 class AsyncMemoClaw:
@@ -448,12 +604,62 @@ class AsyncMemoClaw:
         *,
         base_url: str = DEFAULT_BASE_URL,
         timeout: float = DEFAULT_TIMEOUT,
+        max_retries: int | None = None,
     ) -> None:
-        self._http = _AsyncHTTPClient(
-            private_key=_get_private_key(private_key),
-            base_url=base_url,
-            timeout=timeout,
-        )
+        kwargs: dict[str, Any] = {
+            "private_key": _get_private_key(private_key),
+            "base_url": base_url,
+            "timeout": timeout,
+        }
+        if max_retries is not None:
+            kwargs["max_retries"] = max_retries
+        self._http = _AsyncHTTPClient(**kwargs)
+        self._before_request_hooks: list[BeforeRequestHook] = []
+        self._after_response_hooks: list[AfterResponseHook] = []
+        self._on_error_hooks: list[OnErrorHook] = []
+
+    # ── Hooks API ────────────────────────────────────────────────────────
+
+    def on_before_request(self, hook: BeforeRequestHook) -> AsyncMemoClaw:
+        """Register a hook called before each request. Returns self for chaining."""
+        self._before_request_hooks.append(hook)
+        return self
+
+    def on_after_response(self, hook: AfterResponseHook) -> AsyncMemoClaw:
+        """Register a hook called after each successful response. Returns self for chaining."""
+        self._after_response_hooks.append(hook)
+        return self
+
+    def on_error(self, hook: OnErrorHook) -> AsyncMemoClaw:
+        """Register a hook called on errors. Returns self for chaining."""
+        self._on_error_hooks.append(hook)
+        return self
+
+    async def _run_request(
+        self,
+        method: str,
+        path: str,
+        *,
+        json: dict[str, Any] | None = None,
+        params: dict[str, Any] | None = None,
+    ) -> Any:
+        """Internal request wrapper that invokes hooks."""
+        body = json
+        for hook in self._before_request_hooks:
+            result = hook(method, path, body)
+            if result is not None:
+                body = result
+        try:
+            data = await self._http.request(method, path, json=body, params=params)
+        except Exception as exc:
+            for hook in self._on_error_hooks:
+                hook(method, path, exc)
+            raise
+        for hook in self._after_response_hooks:
+            transformed = hook(method, path, data)
+            if transformed is not None:
+                data = transformed
+        return data
 
     # ── Context manager ──────────────────────────────────────────────────
 
@@ -495,7 +701,7 @@ class AsyncMemoClaw:
             pinned=pinned,
             metadata=metadata,
         )
-        data = await self._http.request("POST", "/v1/store", json=body)
+        data = await self._run_request("POST", "/v1/store", json=body)
         return StoreResult.model_validate(data)
 
     async def store_batch(
@@ -507,7 +713,7 @@ class AsyncMemoClaw:
             m.model_dump(exclude_none=True) if isinstance(m, StoreInput) else m
             for m in memories
         ]
-        data = await self._http.request(
+        data = await self._run_request(
             "POST", "/v1/store/batch", json={"memories": items}
         )
         return StoreBatchResult.model_validate(data)
@@ -552,7 +758,7 @@ class AsyncMemoClaw:
                 filters["memory_type"] = memory_type
             body["filters"] = filters
 
-        data = await self._http.request("POST", "/v1/recall", json=body)
+        data = await self._run_request("POST", "/v1/recall", json=body)
         return RecallResponse.model_validate(data)
 
     # ── List ─────────────────────────────────────────────────────────────
@@ -578,7 +784,7 @@ class AsyncMemoClaw:
                 "agent_id": agent_id,
             }
         )
-        data = await self._http.request("GET", "/v1/memories", params=params)
+        data = await self._run_request("GET", "/v1/memories", params=params)
         return ListResponse.model_validate(data)
 
     # ── Update ───────────────────────────────────────────────────────────
@@ -612,7 +818,7 @@ class AsyncMemoClaw:
         if expires_at is not ...:
             body["expires_at"] = expires_at
 
-        data = await self._http.request(
+        data = await self._run_request(
             "PATCH", f"/v1/memories/{memory_id}", json=body
         )
         return Memory.model_validate(data)
@@ -621,7 +827,7 @@ class AsyncMemoClaw:
 
     async def delete(self, memory_id: str) -> DeleteResult:
         """Delete a memory by ID."""
-        data = await self._http.request("DELETE", f"/v1/memories/{memory_id}")
+        data = await self._run_request("DELETE", f"/v1/memories/{memory_id}")
         return DeleteResult.model_validate(data)
 
     # ── Ingest ───────────────────────────────────────────────────────────
@@ -653,7 +859,7 @@ class AsyncMemoClaw:
         if auto_relate is not None:
             body["auto_relate"] = auto_relate
 
-        data = await self._http.request("POST", "/v1/ingest", json=body)
+        data = await self._run_request("POST", "/v1/ingest", json=body)
         return IngestResult.model_validate(data)
 
     # ── Extract ──────────────────────────────────────────────────────────
@@ -679,7 +885,7 @@ class AsyncMemoClaw:
         if agent_id is not None:
             body["agent_id"] = agent_id
 
-        data = await self._http.request("POST", "/v1/memories/extract", json=body)
+        data = await self._run_request("POST", "/v1/memories/extract", json=body)
         return ExtractResult.model_validate(data)
 
     # ── Consolidate ──────────────────────────────────────────────────────
@@ -701,7 +907,7 @@ class AsyncMemoClaw:
                 "dry_run": dry_run,
             }
         )
-        data = await self._http.request(
+        data = await self._run_request(
             "POST", "/v1/memories/consolidate", json=body
         )
         return ConsolidateResult.model_validate(data)
@@ -727,7 +933,7 @@ class AsyncMemoClaw:
                 "category": category,
             }
         )
-        data = await self._http.request("GET", "/v1/suggested", params=params)
+        data = await self._run_request("GET", "/v1/suggested", params=params)
         return SuggestedResponse.model_validate(data)
 
     # ── Relations ────────────────────────────────────────────────────────
@@ -747,14 +953,14 @@ class AsyncMemoClaw:
         }
         if metadata is not None:
             body["metadata"] = metadata
-        data = await self._http.request(
+        data = await self._run_request(
             "POST", f"/v1/memories/{memory_id}/relations", json=body
         )
         return Relation.model_validate(data)
 
     async def list_relations(self, memory_id: str) -> list[RelationWithMemory]:
         """List all relationships for a memory."""
-        data = await self._http.request(
+        data = await self._run_request(
             "GET", f"/v1/memories/{memory_id}/relations"
         )
         resp = RelationsResponse.model_validate(data)
@@ -764,7 +970,7 @@ class AsyncMemoClaw:
         self, memory_id: str, relation_id: str
     ) -> DeleteResult:
         """Delete a memory relationship."""
-        data = await self._http.request(
+        data = await self._run_request(
             "DELETE", f"/v1/memories/{memory_id}/relations/{relation_id}"
         )
         return DeleteResult.model_validate(data)
@@ -773,5 +979,83 @@ class AsyncMemoClaw:
 
     async def status(self) -> FreeTierStatus:
         """Check free tier remaining calls."""
-        data = await self._http.request("GET", "/v1/free-tier/status")
+        data = await self._run_request("GET", "/v1/free-tier/status")
         return FreeTierStatus.model_validate(data)
+
+    # ── Async pagination iterator ────────────────────────────────────────
+
+    async def list_all(
+        self,
+        *,
+        batch_size: int = 50,
+        namespace: str | None = None,
+        tags: list[str] | None = None,
+        session_id: str | None = None,
+        agent_id: str | None = None,
+    ) -> AsyncIterator[Memory]:
+        """Async iterate over all memories with automatic pagination.
+
+        Example::
+
+            async for memory in client.list_all(namespace="project"):
+                print(memory.content)
+        """
+        offset = 0
+        while True:
+            page = await self.list(
+                limit=batch_size,
+                offset=offset,
+                namespace=namespace,
+                tags=tags,
+                session_id=session_id,
+                agent_id=agent_id,
+            )
+            for memory in page.memories:
+                yield memory
+            offset += len(page.memories)
+            if offset >= page.total or len(page.memories) == 0:
+                break
+
+    # ── Graph helpers ────────────────────────────────────────────────────
+
+    async def get_memory_graph(
+        self,
+        memory_id: str,
+        *,
+        depth: int = 1,
+    ) -> dict[str, list[RelationWithMemory]]:
+        """Traverse the memory graph from a starting node. See sync version for details."""
+        visited: dict[str, list[RelationWithMemory]] = {}
+        frontier = [memory_id]
+
+        for _ in range(depth):
+            next_frontier: list[str] = []
+            for mid in frontier:
+                if mid in visited:
+                    continue
+                rels = await self.list_relations(mid)
+                visited[mid] = rels
+                for rel in rels:
+                    neighbor_id = rel.memory.id
+                    if neighbor_id not in visited:
+                        next_frontier.append(neighbor_id)
+            frontier = next_frontier
+            if not frontier:
+                break
+
+        return visited
+
+    async def find_related(
+        self,
+        memory_id: str,
+        *,
+        relation_type: RelationType | None = None,
+        direction: str | None = None,
+    ) -> list[RelationWithMemory]:
+        """Find relations for a memory, optionally filtered. See sync version for details."""
+        rels = await self.list_relations(memory_id)
+        if relation_type is not None:
+            rels = [r for r in rels if r.relation_type == relation_type]
+        if direction is not None:
+            rels = [r for r in rels if r.direction == direction]
+        return rels
