@@ -71,6 +71,7 @@ class Memory(BaseModel):
     access_count: int
     deleted_at: str | None = None
     expires_at: str | None = None
+    pinned: bool = False
 
 
 # ── Recall ────────────────────────────────────────────────────────────────────
@@ -99,6 +100,7 @@ class RecallMemory(BaseModel):
     agent_id: str | None = None
     created_at: str
     access_count: int
+    pinned: bool = False
     relations: list[RelationWithMemory] | None = None
     signals: RecallSignals | None = Field(default=None, alias="_signals")
 
