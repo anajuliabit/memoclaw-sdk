@@ -70,6 +70,12 @@ MemoClaw uses wallet-based authentication. Pass your wallet address when creatin
 | `update(id, req)` | Update a memory by ID |
 | `delete(id)` | Soft-delete a memory |
 | `ingest(req)` | Auto-extract memories from conversations |
+| `extract(req)` | Extract structured facts via LLM |
+| `consolidate(req?)` | Merge similar memories by clustering |
+| `createRelation(memoryId, req)` | Create a relationship between memories |
+| `listRelations(memoryId)` | List relationships for a memory |
+| `deleteRelation(memoryId, relationId)` | Delete a relationship |
+| `status()` | Check free tier remaining calls |
 | `suggested(params?)` | Get proactive memory suggestions |
 
 ### Error Handling

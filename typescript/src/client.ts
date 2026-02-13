@@ -16,6 +16,15 @@ import type {
   IngestResponse,
   SuggestedParams,
   SuggestedResponse,
+  ExtractRequest,
+  ExtractResponse,
+  ConsolidateRequest,
+  ConsolidateResponse,
+  CreateRelationRequest,
+  CreateRelationResponse,
+  ListRelationsResponse,
+  DeleteRelationResponse,
+  FreeTierStatus,
 } from './types.js';
 
 const DEFAULT_BASE_URL = 'https://api.memoclaw.com';
@@ -56,6 +65,9 @@ export class MemoClawClient {
   private readonly retryDelay: number;
 
   constructor(options: MemoClawOptions) {
+    if (!options.wallet) {
+      throw new Error('wallet is required');
+    }
     this.baseUrl = (options.baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, '');
     this.wallet = options.wallet;
     this._fetch = options.fetch ?? globalThis.fetch;
@@ -156,6 +168,11 @@ export class MemoClawClient {
     return this.request<ListMemoriesResponse>('GET', '/v1/memories', undefined, query);
   }
 
+  /** Retrieve a single memory by ID. */
+  async get(id: string): Promise<Memory> {
+    return this.request<Memory>('GET', `/v1/memories/${id}`);
+  }
+
   /** Update a memory by ID. */
   async update(id: string, request: UpdateMemoryRequest): Promise<Memory> {
     return this.request<Memory>('PATCH', `/v1/memories/${id}`, request);
@@ -169,6 +186,41 @@ export class MemoClawClient {
   /** Ingest a conversation or text and auto-extract memories. */
   async ingest(request: IngestRequest): Promise<IngestResponse> {
     return this.request<IngestResponse>('POST', '/v1/ingest', request);
+  }
+
+  /** Check free tier remaining calls. */
+  async status(): Promise<FreeTierStatus> {
+    return this.request<FreeTierStatus>('GET', '/v1/free-tier/status');
+  }
+
+  /** Extract structured facts from a conversation via LLM. */
+  async extract(request: ExtractRequest): Promise<ExtractResponse> {
+    return this.request<ExtractResponse>('POST', '/v1/memories/extract', request);
+  }
+
+  /** Merge similar memories by clustering. */
+  async consolidate(request: ConsolidateRequest = {}): Promise<ConsolidateResponse> {
+    return this.request<ConsolidateResponse>('POST', '/v1/memories/consolidate', request);
+  }
+
+  /** Create a relationship between two memories. */
+  async createRelation(memoryId: string, request: CreateRelationRequest): Promise<CreateRelationResponse> {
+    return this.request<CreateRelationResponse>('POST', `/v1/memories/${memoryId}/relations`, request);
+  }
+
+  /** List all relationships for a memory. */
+  async listRelations(memoryId: string): Promise<ListRelationsResponse> {
+    return this.request<ListRelationsResponse>('GET', `/v1/memories/${memoryId}/relations`);
+  }
+
+  /** Delete a relationship. */
+  async deleteRelation(memoryId: string, relationId: string): Promise<DeleteRelationResponse> {
+    return this.request<DeleteRelationResponse>('DELETE', `/v1/memories/${memoryId}/relations/${relationId}`);
+  }
+
+  /** Check free tier remaining calls for this wallet. */
+  async status(): Promise<FreeTierStatus> {
+    return this.request<FreeTierStatus>('GET', '/v1/free-tier/status');
   }
 
   /** Get proactive memory suggestions. */
