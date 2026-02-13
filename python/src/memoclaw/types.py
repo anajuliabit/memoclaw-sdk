@@ -69,6 +69,7 @@ class Memory(BaseModel):
     updated_at: str
     accessed_at: str
     access_count: int
+    pinned: bool = False
     deleted_at: str | None = None
     expires_at: str | None = None
     pinned: bool = False
@@ -98,6 +99,7 @@ class RecallMemory(BaseModel):
     namespace: str
     session_id: str | None = None
     agent_id: str | None = None
+    pinned: bool = False
     created_at: str
     access_count: int
     relations: list[RelationWithMemory] | None = None
