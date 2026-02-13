@@ -14,6 +14,11 @@ build/
 venv/
 env/
 
+# Environment
+.env
+.env.*
+!.env.example
+
 # IDE
 .idea/
 .vscode/
@@ -34,3 +39,9 @@ node_modules/
 
 # Distribution
 *.tar.gz
+node_modules/
+
+# Environment files
+.env
+.env.*
+!.env.example

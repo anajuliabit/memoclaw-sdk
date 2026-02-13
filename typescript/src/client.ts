@@ -1,6 +1,7 @@
 import type {
   MemoClawOptions,
   MemoClawErrorBody,
+  RelationType,
   StoreRequest,
   StoreResponse,
   StoreBatchRequest,
@@ -34,6 +35,53 @@ const MAX_BATCH_SIZE = 100;
 /** Status codes that are safe to retry (transient errors). */
 const RETRYABLE_STATUS_CODES = new Set([408, 429, 500, 502, 503, 504]);
 
+/** 401 Authentication error. */
+export class AuthenticationError extends MemoClawError {
+  constructor(code: string, message: string, details?: Record<string, unknown>) {
+    super(401, code, message, details);
+    this.name = 'AuthenticationError';
+  }
+}
+
+/** 404 Not found error. */
+export class NotFoundError extends MemoClawError {
+  constructor(code: string, message: string, details?: Record<string, unknown>) {
+    super(404, code, message, details);
+    this.name = 'NotFoundError';
+  }
+}
+
+/** 429 Rate limit error. */
+export class RateLimitError extends MemoClawError {
+  constructor(code: string, message: string, details?: Record<string, unknown>) {
+    super(429, code, message, details);
+    this.name = 'RateLimitError';
+  }
+}
+
+/** 422 Validation error. */
+export class ValidationError extends MemoClawError {
+  constructor(code: string, message: string, details?: Record<string, unknown>) {
+    super(422, code, message, details);
+    this.name = 'ValidationError';
+  }
+}
+
+type ErrorClassConstructor = new (code: string, message: string, details?: Record<string, unknown>) => MemoClawError;
+const ERROR_CLASS_MAP: Record<number, ErrorClassConstructor> = {
+  401: AuthenticationError,
+  404: NotFoundError,
+  422: ValidationError,
+  429: RateLimitError,
+};
+
+/** Hook called before each request. Can modify the body. */
+export type BeforeRequestHook = (method: string, path: string, body?: unknown) => unknown | void;
+/** Hook called after each successful response. */
+export type AfterResponseHook = (method: string, path: string, data: unknown) => unknown | void;
+/** Hook called on error. */
+export type OnErrorHook = (method: string, path: string, error: MemoClawError) => void;
+
 /**
  * Official TypeScript client for the MemoClaw memory API.
  *
@@ -52,6 +100,9 @@ export class MemoClawClient {
   private readonly _fetch: typeof globalThis.fetch;
   private readonly maxRetries: number;
   private readonly retryDelay: number;
+  private readonly _beforeRequestHooks: BeforeRequestHook[] = [];
+  private readonly _afterResponseHooks: AfterResponseHook[] = [];
+  private readonly _onErrorHooks: OnErrorHook[] = [];
 
   constructor(options: MemoClawOptions) {
     if (!options.wallet) {
@@ -62,6 +113,24 @@ export class MemoClawClient {
     this._fetch = options.fetch ?? globalThis.fetch;
     this.maxRetries = options.maxRetries ?? 2;
     this.retryDelay = options.retryDelay ?? 500;
+  }
+
+  /** Register a hook called before each request. Returns this for chaining. */
+  onBeforeRequest(hook: BeforeRequestHook): this {
+    this._beforeRequestHooks.push(hook);
+    return this;
+  }
+
+  /** Register a hook called after each successful response. Returns this for chaining. */
+  onAfterResponse(hook: AfterResponseHook): this {
+    this._afterResponseHooks.push(hook);
+    return this;
+  }
+
+  /** Register a hook called on errors. Returns this for chaining. */
+  onError(hook: OnErrorHook): this {
+    this._onErrorHooks.push(hook);
+    return this;
   }
 
   // ── Internal helpers ───────────────────────────────
@@ -79,14 +148,21 @@ export class MemoClawClient {
       url += `?${params.toString()}`;
     }
 
+    // Run before-request hooks
+    let processedBody = body;
+    for (const hook of this._beforeRequestHooks) {
+      const result = hook(method, path, processedBody);
+      if (result !== undefined) processedBody = result;
+    }
+
     const headers: Record<string, string> = {
       'X-Wallet': this.wallet,
     };
-    if (body !== undefined) {
+    if (processedBody !== undefined) {
       headers['Content-Type'] = 'application/json';
     }
 
-    const jsonBody = body !== undefined ? JSON.stringify(body) : undefined;
+    const jsonBody = processedBody !== undefined ? JSON.stringify(processedBody) : undefined;
 
     let lastError: MemoClawError | undefined;
 
@@ -107,7 +183,13 @@ export class MemoClawClient {
       }
 
       if (res.ok) {
-        return (await res.json()) as T;
+        let data = (await res.json()) as T;
+        // Run after-response hooks
+        for (const hook of this._afterResponseHooks) {
+          const result = hook(method, path, data);
+          if (result !== undefined) data = result as T;
+        }
+        return data;
       }
 
       let errorBody: MemoClawErrorBody | undefined;
@@ -124,10 +206,14 @@ export class MemoClawClient {
       lastError = createError(res.status, code, message, details);
 
       if (!RETRYABLE_STATUS_CODES.has(res.status)) {
+        for (const hook of this._onErrorHooks) hook(method, path, lastError);
         throw lastError;
       }
     }
 
+    if (lastError) {
+      for (const hook of this._onErrorHooks) hook(method, path, lastError);
+    }
     throw lastError!;
   }
 
@@ -179,6 +265,20 @@ export class MemoClawClient {
     if (params.session_id) query['session_id'] = params.session_id;
     if (params.agent_id) query['agent_id'] = params.agent_id;
     return this.request<ListMemoriesResponse>('GET', '/v1/memories', undefined, query, options?.signal);
+  }
+
+  /** Async iterator over all memories with automatic pagination. */
+  async *iterMemories(params: Omit<ListMemoriesParams, 'offset'> & { batchSize?: number } = {}): AsyncGenerator<Memory, void, unknown> {
+    const { batchSize = 50, ...rest } = params;
+    let offset = 0;
+    while (true) {
+      const page = await this.list({ ...rest, limit: batchSize, offset });
+      for (const mem of page.memories) {
+        yield mem;
+      }
+      offset += page.memories.length;
+      if (offset >= page.total || page.memories.length === 0) break;
+    }
   }
 
   /** Async iterator over all memories with automatic pagination. */
@@ -277,6 +377,61 @@ export class MemoClawClient {
     if (params.agent_id) query['agent_id'] = params.agent_id;
     if (params.category) query['category'] = params.category;
     return this.request<SuggestedResponse>('GET', '/v1/suggested', undefined, query, options?.signal);
+  }
+
+  // ── Pagination iterator ───────────────────────────────
+
+  /** Async iterate over all memories with automatic pagination. */
+  async *listAll(params: Omit<ListMemoriesParams, 'offset'> & { batchSize?: number } = {}): AsyncGenerator<Memory> {
+    const { batchSize = 50, ...listParams } = params;
+    let offset = 0;
+    while (true) {
+      const page = await this.list({ ...listParams, limit: batchSize, offset });
+      for (const memory of page.memories) {
+        yield memory;
+      }
+      offset += page.memories.length;
+      if (offset >= page.total || page.memories.length === 0) break;
+    }
+  }
+
+  // ── Graph helpers ─────────────────────────────────────
+
+  /** Traverse the memory graph from a starting node up to `depth` hops. */
+  async getMemoryGraph(memoryId: string, depth = 1): Promise<Map<string, ListRelationsResponse['relations']>> {
+    const visited = new Map<string, ListRelationsResponse['relations']>();
+    let frontier = [memoryId];
+
+    for (let d = 0; d < depth; d++) {
+      const nextFrontier: string[] = [];
+      for (const mid of frontier) {
+        if (visited.has(mid)) continue;
+        const { relations } = await this.listRelations(mid);
+        visited.set(mid, relations);
+        for (const rel of relations) {
+          if (!visited.has(rel.memory.id)) {
+            nextFrontier.push(rel.memory.id);
+          }
+        }
+      }
+      frontier = nextFrontier;
+      if (frontier.length === 0) break;
+    }
+
+    return visited;
+  }
+
+  /** Find relations for a memory, optionally filtered by type and/or direction. */
+  async findRelated(
+    memoryId: string,
+    options: { relationType?: RelationType; direction?: 'outgoing' | 'incoming' } = {},
+  ): Promise<ListRelationsResponse['relations']> {
+    const { relations } = await this.listRelations(memoryId);
+    return relations.filter((r) => {
+      if (options.relationType && r.relation_type !== options.relationType) return false;
+      if (options.direction && r.direction !== options.direction) return false;
+      return true;
+    });
   }
 }
 
