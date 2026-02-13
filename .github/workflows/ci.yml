@@ -22,7 +22,7 @@ jobs:
       - name: Install dependencies
         working-directory: python
         run: |
-          pip install -e ".[test]"
+          pip install -e ".[dev]"
 
       - name: Run tests
         working-directory: python
