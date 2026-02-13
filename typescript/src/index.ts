@@ -21,6 +21,7 @@ export {
   AsyncRelationBuilder,
   BatchStore,
   StreamingRecall,
+  StoreBuilder,
 } from './builders.js';
 export type {
   MemoClawOptions,

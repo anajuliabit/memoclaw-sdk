@@ -42,6 +42,7 @@ import {
   createError,
 } from './errors.js';
 import { loadConfig } from './config.js';
+import { StoreBuilder } from './builders.js';
 
 const DEFAULT_BASE_URL = 'https://api.memoclaw.com';
 const MAX_BATCH_SIZE = 100;
@@ -233,6 +234,11 @@ export class MemoClawClient {
       { memories } satisfies StoreBatchRequest,
       undefined, options?.signal,
     );
+  }
+
+  /** Create a StoreBuilder for fluent memory creation. */
+  storeBuilder(): StoreBuilder {
+    return new StoreBuilder(this);
   }
 
   /** Recall memories via semantic search. */

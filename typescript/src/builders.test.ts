@@ -11,6 +11,7 @@ import {
   RelationBuilder,
   AsyncRelationBuilder,
   BatchStore,
+  StoreBuilder,
 } from '../src/builders.js';
 import type { RecallResponse, Memory } from '../src/types.js';
 
@@ -462,5 +463,84 @@ describe('AsyncMemoryFilter', () => {
     expect(url).toContain('tags=tag1%2Ctag2');
     expect(url).toContain('session_id=session-123');
     expect(url).toContain('agent_id=agent-456');
+  });
+});
+
+describe('StoreBuilder', () => {
+  let client: MemoClawClient;
+
+  beforeEach(() => {
+    client = new MemoClawClient({ wallet: TEST_WALLET });
+    mockFetch.mockReset();
+  });
+
+  it('should build and execute a basic store', async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({
+        id: 'mem-123',
+        stored: true,
+        deduplicated: false,
+        tokens_used: 42,
+      }),
+    } as unknown as Response);
+
+    const result = await new StoreBuilder(client)
+      .content('User prefers dark mode')
+      .importance(0.9)
+      .tags(['preferences', 'ui'])
+      .namespace('user-prefs')
+      .execute();
+
+    expect(result.id).toBe('mem-123');
+    expect(result.stored).toBe(true);
+  });
+
+  it('should execute with all options', async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({
+        id: 'mem-456',
+        stored: true,
+        deduplicated: false,
+        tokens_used: 30,
+      }),
+    } as unknown as Response);
+
+    const result = await new StoreBuilder(client)
+      .content('Test content')
+      .importance(0.5)
+      .addTag('tag1')
+      .addTag('tag2')
+      .namespace('project')
+      .memoryType('preference')
+      .sessionId('sess1')
+      .agentId('agent1')
+      .pinned(true)
+      .metadata({ custom: 'value' })
+      .execute();
+
+    expect(result.id).toBe('mem-456');
+    
+    // Verify the request body
+    const callArgs = mockFetch.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(callArgs[1].body as string);
+    expect(body.content).toBe('Test content');
+    expect(body.importance).toBe(0.5);
+    expect(body.namespace).toBe('project');
+    expect(body.memory_type).toBe('preference');
+    expect(body.pinned).toBe(true);
+  });
+
+  it('should throw when executing without content', async () => {
+    await expect(
+      new StoreBuilder(client).execute()
+    ).rejects.toThrow('Content is required');
+  });
+
+  it('should throw on invalid importance', async () => {
+    expect(() => {
+      new StoreBuilder(client).content('test').importance(1.5);
+    }).toThrow('importance must be between 0.0 and 1.0');
   });
 });

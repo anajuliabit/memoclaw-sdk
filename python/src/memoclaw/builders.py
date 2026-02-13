@@ -8,8 +8,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Iterator
 
-from .client import AsyncMemoClaw, MemoClaw
-from .types import MemoryType, StoreInput, Memory, RecallResponse, RelationType
+from .types import MemoryType, StoreInput, Memory, RecallResponse, RelationType, StoreResult
+
+if TYPE_CHECKING:
+    from .client import AsyncMemoClaw, MemoClaw
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
@@ -257,7 +259,7 @@ class RecallQuery:
         ...     .execute())
     """
 
-    def __init__(self, client: MemoClaw) -> None:
+    def __init__(self, client: "MemoClaw") -> None:
         self._client = client
         self._query: str = ""
         self._limit: int | None = None
@@ -347,7 +349,7 @@ class RecallQuery:
 class AsyncRecallQuery:
     """Async version of RecallQuery for use with AsyncMemoClaw."""
 
-    def __init__(self, client: AsyncMemoClaw) -> None:
+    def __init__(self, client: "AsyncMemoClaw") -> None:
         self._client = client
         self._query: str = ""
         self._limit: int | None = None
@@ -430,7 +432,7 @@ class MemoryFilter:
         ...     print(memory.content)
     """
 
-    def __init__(self, client: MemoClaw) -> None:
+    def __init__(self, client: "MemoClaw") -> None:
         self._client = client
         self._namespace: str | None = None
         self._tags: list[str] | None = None
@@ -494,7 +496,7 @@ class MemoryFilter:
 class AsyncMemoryFilter:
     """Async version of MemoryFilter."""
 
-    def __init__(self, client: AsyncMemoClaw) -> None:
+    def __init__(self, client: "AsyncMemoClaw") -> None:
         self._client = client
         self._namespace: str | None = None
         self._tags: list[str] | None = None
@@ -561,7 +563,7 @@ class RelationBuilder:
         ...     .create_all())
     """
 
-    def __init__(self, client: MemoClaw, source_id: str) -> None:
+    def __init__(self, client: "MemoClaw", source_id: str) -> None:
         self._client = client
         self._source_id = source_id
         self._relations: list[tuple[str, RelationType, dict[str, Any] | None]] = []
@@ -605,7 +607,7 @@ class BatchStore:
 
     MAX_BATCH_SIZE = 100
 
-    def __init__(self, client: MemoClaw) -> None:
+    def __init__(self, client: "MemoClaw") -> None:
         self._client = client
         self._memories: list[dict[str, Any]] = []
 
@@ -678,6 +680,198 @@ class BatchStore:
             "deduplicated_count": total_deduped,
         }
 
+
+class StoreBuilder:
+    """Fluent builder for creating memories before storing.
+
+    Provides a chainable API for constructing memory objects
+    before executing the store operation.
+
+    Example:
+        >>> from memoclaw import MemoClaw
+        >>> from memoclaw.builders import StoreBuilder
+        >>>
+        >>> client = MemoClaw()
+        >>> result = (StoreBuilder(client)
+        ...     .content("User prefers dark mode")
+        ...     .importance(0.9)
+        ...     .tags(["preferences", "ui"])
+        ...     .namespace("user-prefs")
+        ...     .memory_type("preference")
+        ...     .execute())
+    """
+
+    def __init__(self, client: "MemoClaw") -> None:
+        self._client = client
+        self._content: str | None = None
+        self._importance: float | None = None
+        self._tags: list[str] | None = None
+        self._namespace: str | None = None
+        self._memory_type: MemoryType | None = None
+        self._session_id: str | None = None
+        self._agent_id: str | None = None
+        self._expires_at: str | None = None
+        self._pinned: bool | None = None
+        self._metadata: dict[str, Any] | None = None
+
+    def content(self, content: str) -> StoreBuilder:
+        """Set the memory content."""
+        self._content = content
+        return self
+
+    def importance(self, importance: float) -> StoreBuilder:
+        """Set importance (0.0 to 1.0)."""
+        if not 0.0 <= importance <= 1.0:
+            raise ValueError("importance must be between 0.0 and 1.0")
+        self._importance = importance
+        return self
+
+    def tags(self, tags: list[str]) -> StoreBuilder:
+        """Set tags for the memory."""
+        self._tags = tags
+        return self
+
+    def add_tag(self, tag: str) -> StoreBuilder:
+        """Add a single tag."""
+        if self._tags is None:
+            self._tags = []
+        self._tags.append(tag)
+        return self
+
+    def namespace(self, namespace: str) -> StoreBuilder:
+        """Set namespace."""
+        self._namespace = namespace
+        return self
+
+    def memory_type(self, memory_type: MemoryType) -> StoreBuilder:
+        """Set memory type."""
+        self._memory_type = memory_type
+        return self
+
+    def session_id(self, session_id: str) -> StoreBuilder:
+        """Set session ID."""
+        self._session_id = session_id
+        return self
+
+    def agent_id(self, agent_id: str) -> StoreBuilder:
+        """Set agent ID."""
+        self._agent_id = agent_id
+        return self
+
+    def expires_at(self, expires_at: str) -> StoreBuilder:
+        """Set expiration timestamp (ISO format)."""
+        self._expires_at = expires_at
+        return self
+
+    def pinned(self, pinned: bool = True) -> StoreBuilder:
+        """Pin the memory."""
+        self._pinned = pinned
+        return self
+
+    def metadata(self, metadata: dict[str, Any]) -> StoreBuilder:
+        """Set custom metadata."""
+        self._metadata = metadata
+        return self
+
+    def execute(self) -> StoreResult:
+        """Execute the store operation."""
+        if not self._content:
+            raise ValueError("Content is required. Use .content() to set it.")
+        return self._client.store(
+            self._content,
+            importance=self._importance,
+            tags=self._tags,
+            namespace=self._namespace,
+            memory_type=self._memory_type,
+            session_id=self._session_id,
+            agent_id=self._agent_id,
+            expires_at=self._expires_at,
+            pinned=self._pinned,
+            metadata=self._metadata,
+        )
+
+
+class AsyncStoreBuilder:
+    """Async version of StoreBuilder."""
+
+    def __init__(self, client: "AsyncMemoClaw") -> None:
+        self._client = client
+        self._content: str | None = None
+        self._importance: float | None = None
+        self._tags: list[str] | None = None
+        self._namespace: str | None = None
+        self._memory_type: MemoryType | None = None
+        self._session_id: str | None = None
+        self._agent_id: str | None = None
+        self._expires_at: str | None = None
+        self._pinned: bool | None = None
+        self._metadata: dict[str, Any] | None = None
+
+    def content(self, content: str) -> AsyncStoreBuilder:
+        self._content = content
+        return self
+
+    def importance(self, importance: float) -> AsyncStoreBuilder:
+        if not 0.0 <= importance <= 1.0:
+            raise ValueError("importance must be between 0.0 and 1.0")
+        self._importance = importance
+        return self
+
+    def tags(self, tags: list[str]) -> AsyncStoreBuilder:
+        self._tags = tags
+        return self
+
+    def add_tag(self, tag: str) -> AsyncStoreBuilder:
+        if self._tags is None:
+            self._tags = []
+        self._tags.append(tag)
+        return self
+
+    def namespace(self, namespace: str) -> AsyncStoreBuilder:
+        self._namespace = namespace
+        return self
+
+    def memory_type(self, memory_type: MemoryType) -> AsyncStoreBuilder:
+        self._memory_type = memory_type
+        return self
+
+    def session_id(self, session_id: str) -> AsyncStoreBuilder:
+        self._session_id = session_id
+        return self
+
+    def agent_id(self, agent_id: str) -> AsyncStoreBuilder:
+        self._agent_id = agent_id
+        return self
+
+    def expires_at(self, expires_at: str) -> AsyncStoreBuilder:
+        self._expires_at = expires_at
+        return self
+
+    def pinned(self, pinned: bool = True) -> AsyncStoreBuilder:
+        self._pinned = pinned
+        return self
+
+    def metadata(self, metadata: dict[str, Any]) -> AsyncStoreBuilder:
+        self._metadata = metadata
+        return self
+
+    async def execute(self) -> StoreResult:
+        if not self._content:
+            raise ValueError("Content is required. Use .content() to set it.")
+        return await self._client.store(
+            self._content,
+            importance=self._importance,
+            tags=self._tags,
+            namespace=self._namespace,
+            memory_type=self._memory_type,
+            session_id=self._session_id,
+            agent_id=self._agent_id,
+            expires_at=self._expires_at,
+            pinned=self._pinned,
+            metadata=self._metadata,
+        )
+
+
 __all__ = [
     "MemoryBuilder",
     "RecallBuilder",
@@ -687,4 +881,6 @@ __all__ = [
     "AsyncMemoryFilter",
     "RelationBuilder",
     "BatchStore",
+    "StoreBuilder",
+    "AsyncStoreBuilder",
 ]

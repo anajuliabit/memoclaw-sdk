@@ -305,6 +305,8 @@ import type {
   ListMemoriesParams,
   Memory,
   StoreBatchResponse,
+  MemoryType,
+  StoreResponse,
 } from './types.js';
 
 export class RecallQuery {
@@ -762,5 +764,128 @@ export class StreamingRecall {
     for (const memory of response.memories) {
       yield memory;
     }
+  }
+}
+
+/**
+ * Fluent builder for creating memories before storing.
+ * Provides a chainable API for constructing memory objects.
+ * 
+ * @example
+ * ```ts
+ * import { MemoClawClient, StoreBuilder } from '@memoclaw/sdk';
+ * 
+ * const client = new MemoClawClient({ wallet: '0x...' });
+ * const result = await new StoreBuilder(client)
+ *   .content('User prefers dark mode')
+ *   .importance(0.9)
+ *   .tags(['preferences', 'ui'])
+ *   .namespace('user-prefs')
+ *   .memoryType('preference')
+ *   .execute();
+ * ```
+ */
+export class StoreBuilder {
+  private _content?: string;
+  private _importance?: number;
+  private _tags?: string[];
+  private _namespace?: string;
+  private _memoryType?: MemoryType;
+  private _sessionId?: string;
+  private _agentId?: string;
+  private _expiresAt?: string;
+  private _pinned?: boolean;
+  private _metadata?: Record<string, unknown>;
+
+  constructor(private client: MemoClawClient) {}
+
+  /** Set the memory content. */
+  content(content: string): StoreBuilder {
+    this._content = content;
+    return this;
+  }
+
+  /** Set importance (0.0 to 1.0). */
+  importance(importance: number): StoreBuilder {
+    if (importance < 0 || importance > 1) {
+      throw new Error('importance must be between 0.0 and 1.0');
+    }
+    this._importance = importance;
+    return this;
+  }
+
+  /** Set tags for the memory. */
+  tags(tags: string[]): StoreBuilder {
+    this._tags = tags;
+    return this;
+  }
+
+  /** Add a single tag. */
+  addTag(tag: string): StoreBuilder {
+    if (!this._tags) {
+      this._tags = [];
+    }
+    this._tags.push(tag);
+    return this;
+  }
+
+  /** Set namespace. */
+  namespace(namespace: string): StoreBuilder {
+    this._namespace = namespace;
+    return this;
+  }
+
+  /** Set memory type. */
+  memoryType(memoryType: MemoryType): StoreBuilder {
+    this._memoryType = memoryType;
+    return this;
+  }
+
+  /** Set session ID. */
+  sessionId(sessionId: string): StoreBuilder {
+    this._sessionId = sessionId;
+    return this;
+  }
+
+  /** Set agent ID. */
+  agentId(agentId: string): StoreBuilder {
+    this._agentId = agentId;
+    return this;
+  }
+
+  /** Set expiration timestamp (ISO format). */
+  expiresAt(expiresAt: string): StoreBuilder {
+    this._expiresAt = expiresAt;
+    return this;
+  }
+
+  /** Pin the memory. */
+  pinned(pinned = true): StoreBuilder {
+    this._pinned = pinned;
+    return this;
+  }
+
+  /** Set custom metadata. */
+  metadata(metadata: Record<string, unknown>): StoreBuilder {
+    this._metadata = metadata;
+    return this;
+  }
+
+  /** Execute the store operation. */
+  async execute(): Promise<StoreResponse> {
+    if (!this._content) {
+      throw new Error("Content is required. Use .content() to set it.");
+    }
+    const request: StoreRequest = { content: this._content };
+    if (this._importance !== undefined) request.importance = this._importance;
+    if (this._tags) request.metadata = { ...request.metadata, tags: this._tags };
+    if (this._namespace) request.namespace = this._namespace;
+    if (this._memoryType) request.memory_type = this._memoryType;
+    if (this._sessionId) request.session_id = this._sessionId;
+    if (this._agentId) request.agent_id = this._agentId;
+    if (this._expiresAt) request.expires_at = this._expiresAt;
+    if (this._pinned !== undefined) request.pinned = this._pinned;
+    if (this._metadata) request.metadata = { ...request.metadata, ...this._metadata };
+    return this.client.store(request);
   }
 }

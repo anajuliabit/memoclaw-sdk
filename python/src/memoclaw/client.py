@@ -17,6 +17,7 @@ from ._client import (
     _AsyncHTTPClient,
     _SyncHTTPClient,
 )
+from .builders import StoreBuilder, AsyncStoreBuilder
 from .config import load_config, resolve_base_url, resolve_private_key
 from .types import (
     ConsolidateResult,
@@ -265,6 +266,18 @@ class MemoClaw:
         ]
         data = self._run_request("POST", "/v1/store/batch", json={"memories": items})
         return StoreBatchResult.model_validate(data)
+
+    def store_builder(self) -> StoreBuilder:
+        """Create a StoreBuilder for fluent memory creation.
+
+        Example:
+            >>> result = (client.store_builder()
+            ...     .content("User prefers dark mode")
+            ...     .importance(0.9)
+            ...     .tags(["preferences"])
+            ...     .execute())
+        """
+        return StoreBuilder(self)
 
     # ── Recall ───────────────────────────────────────────────────────────
 
@@ -891,6 +904,18 @@ class AsyncMemoClaw:
             "POST", "/v1/store/batch", json={"memories": items}
         )
         return StoreBatchResult.model_validate(data)
+
+    def store_builder(self) -> AsyncStoreBuilder:
+        """Create an AsyncStoreBuilder for fluent memory creation.
+
+        Example:
+            >>> result = await (client.store_builder()
+            ...     .content("User prefers dark mode")
+            ...     .importance(0.9)
+            ...     .tags(["preferences"])
+            ...     .execute())
+        """
+        return AsyncStoreBuilder(self)
 
     # ── Recall ───────────────────────────────────────────────────────────
 

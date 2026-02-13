@@ -160,10 +160,12 @@ import httpx
 from memoclaw.builders import (
     AsyncMemoryFilter,
     AsyncRecallQuery,
+    AsyncStoreBuilder,
     BatchStore,
     MemoryFilter,
     RecallQuery,
     RelationBuilder,
+    StoreBuilder,
 )
 
 # Test private key
@@ -521,3 +523,77 @@ class TestBatchStore:
         
         assert result["count"] == 0
         assert result["ids"] == []
+
+
+class TestStoreBuilder:
+    """Tests for StoreBuilder."""
+
+    @respx.mock
+    def test_store_basic(self, client: MemoClaw):
+        """Test basic store with builder."""
+        respx.post(f"{BASE_URL}/v1/store").mock(
+            return_value=httpx.Response(
+                201,
+                json={
+                    "id": "mem-123",
+                    "stored": True,
+                    "deduplicated": False,
+                    "tokens_used": 42,
+                },
+            )
+        )
+        
+        result = (StoreBuilder(client)
+            .content("User prefers dark mode")
+            .importance(0.9)
+            .tags(["preferences", "ui"])
+            .namespace("user-prefs")
+            .execute())
+        
+        assert result.id == "mem-123"
+        assert result.stored is True
+
+    @respx.mock
+    def test_store_with_all_options(self, client: MemoClaw):
+        """Test store with all options."""
+        route = respx.post(f"{BASE_URL}/v1/store").mock(
+            return_value=httpx.Response(
+                201,
+                json={
+                    "id": "mem-456",
+                    "stored": True,
+                    "deduplicated": False,
+                    "tokens_used": 30,
+                },
+            )
+        )
+        
+        result = (StoreBuilder(client)
+            .content("Test content")
+            .importance(0.5)
+            .add_tag("tag1")
+            .add_tag("tag2")
+            .namespace("project")
+            .memory_type("preference")
+            .session_id("sess1")
+            .agent_id("agent1")
+            .pinned(True)
+            .metadata({"custom": "value"})
+            .execute())
+        
+        assert result.id == "mem-456"
+        # Verify body was sent correctly
+        body = route.calls[0].request.content
+        assert b"Test content" in body
+        assert b"tag1" in body
+        assert b"tag2" in body
+
+    def test_store_without_content_raises(self, client: MemoClaw):
+        """Test that executing without content raises ValueError."""
+        with pytest.raises(ValueError, match="Content is required"):
+            StoreBuilder(client).execute()
+
+    def test_invalid_importance_raises(self, client: MemoClaw):
+        """Test that invalid importance raises ValueError."""
+        with pytest.raises(ValueError, match="importance must be between"):
+            StoreBuilder(client).content("test").importance(1.5)

@@ -46,10 +46,12 @@ from .types import (
 from .builders import (
     AsyncMemoryFilter,
     AsyncRecallQuery,
+    AsyncStoreBuilder,
     BatchStore,
     MemoryFilter,
     RecallQuery,
     RelationBuilder,
+    StoreBuilder,
 )
 
 __all__ = [
@@ -105,4 +107,6 @@ __all__ = [
     "AsyncMemoryFilter",
     "RelationBuilder",
     "BatchStore",
+    "StoreBuilder",
+    "AsyncStoreBuilder",
 ]
