@@ -273,6 +273,20 @@ export class MemoClawClient {
     return this.request<ListMemoriesResponse>('GET', '/v1/memories', undefined, query);
   }
 
+  /** Async iterator over all memories with automatic pagination. */
+  async *iterMemories(params: Omit<ListMemoriesParams, 'offset'> & { batchSize?: number } = {}): AsyncGenerator<Memory, void, unknown> {
+    const { batchSize = 50, ...rest } = params;
+    let offset = 0;
+    while (true) {
+      const page = await this.list({ ...rest, limit: batchSize, offset });
+      for (const mem of page.memories) {
+        yield mem;
+      }
+      offset += page.memories.length;
+      if (offset >= page.total || page.memories.length === 0) break;
+    }
+  }
+
   /** Retrieve a single memory by ID. */
   async get(id: string): Promise<Memory> {
     return this.request<Memory>('GET', `/v1/memories/${id}`);

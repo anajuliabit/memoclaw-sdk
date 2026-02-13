@@ -12,13 +12,22 @@
       "types": "./dist/index.d.ts"
     }
   },
-  "files": ["dist", "README.md"],
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit",
     "prepublishOnly": "bun run build"
   },
-  "keywords": ["memoclaw", "memory", "ai", "sdk", "semantic-search"],
+  "keywords": [
+    "memoclaw",
+    "memory",
+    "ai",
+    "sdk",
+    "semantic-search"
+  ],
   "license": "MIT",
   "author": "MemoClaw",
   "repository": {
@@ -30,6 +39,7 @@
     "typescript": "^5"
   },
   "devDependencies": {
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.0.18"
   }
 }

@@ -69,7 +69,6 @@ class Memory(BaseModel):
     updated_at: str
     accessed_at: str
     access_count: int
-    pinned: bool = False
     deleted_at: str | None = None
     expires_at: str | None = None
 
