@@ -247,3 +247,4 @@ class StoreInput(BaseModel):
     session_id: str | None = None
     agent_id: str | None = None
     expires_at: str | None = None
+    pinned: bool | None = None
