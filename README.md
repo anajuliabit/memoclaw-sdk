@@ -1,5 +1,9 @@
 # MemoClaw SDKs
 
+[![CI](https://github.com/anajuliabit/memoclaw-sdk/actions/workflows/ci.yml/badge.svg)](https://github.com/anajuliabit/memoclaw-sdk/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/memoclaw)](https://pypi.org/project/memoclaw/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 Official SDKs for the [MemoClaw](https://memoclaw.com) memory API.
 
 ## Available SDKs
