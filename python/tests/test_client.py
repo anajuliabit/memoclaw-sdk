@@ -519,6 +519,39 @@ class TestContextManager:
             assert result.free_tier_remaining == 1000
 
 
+class TestIterMemories:
+    @respx.mock
+    def test_iter_memories_pagination(self, client: MemoClaw):
+        """iter_memories should auto-paginate through all memories."""
+        mem_json = lambda i: {
+            "id": f"m{i}", "user_id": "u1", "namespace": "default",
+            "content": f"mem {i}", "embedding_model": "text-embedding-3-small",
+            "metadata": {}, "importance": 0.5, "memory_type": "general",
+            "session_id": None, "agent_id": None,
+            "created_at": "2025-01-01T00:00:00Z",
+            "updated_at": "2025-01-01T00:00:00Z",
+            "accessed_at": "2025-01-01T00:00:00Z",
+            "access_count": 0, "deleted_at": None, "expires_at": None,
+            "pinned": False,
+        }
+        route = respx.get(f"{BASE_URL}/v1/memories").mock(
+            side_effect=[
+                httpx.Response(200, json={
+                    "memories": [mem_json(1), mem_json(2)],
+                    "total": 3, "limit": 2, "offset": 0,
+                }),
+                httpx.Response(200, json={
+                    "memories": [mem_json(3)],
+                    "total": 3, "limit": 2, "offset": 2,
+                }),
+            ]
+        )
+        memories = list(client.iter_memories(batch_size=2))
+        assert len(memories) == 3
+        assert [m.id for m in memories] == ["m1", "m2", "m3"]
+        assert route.call_count == 2
+
+
 class TestAsyncClient:
     @respx.mock
     @pytest.mark.asyncio

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from collections.abc import AsyncIterator, Iterator
 from typing import Any
 
 from ._client import DEFAULT_BASE_URL, DEFAULT_TIMEOUT, _AsyncHTTPClient, _SyncHTTPClient
@@ -242,6 +243,34 @@ class MemoClaw:
         )
         data = self._http.request("GET", "/v1/memories", params=params)
         return ListResponse.model_validate(data)
+
+    def iter_memories(
+        self,
+        *,
+        batch_size: int = 50,
+        namespace: str | None = None,
+        tags: list[str] | None = None,
+        session_id: str | None = None,
+        agent_id: str | None = None,
+    ) -> Iterator[Memory]:
+        """Iterate over all memories with automatic pagination.
+
+        Yields individual :class:`Memory` objects, fetching pages transparently.
+        """
+        offset = 0
+        while True:
+            page = self.list(
+                limit=batch_size,
+                offset=offset,
+                namespace=namespace,
+                tags=tags,
+                session_id=session_id,
+                agent_id=agent_id,
+            )
+            yield from page.memories
+            offset += len(page.memories)
+            if offset >= page.total or not page.memories:
+                break
 
     # ── Get ──────────────────────────────────────────────────────────────
 
@@ -587,6 +616,35 @@ class AsyncMemoClaw:
         )
         data = await self._http.request("GET", "/v1/memories", params=params)
         return ListResponse.model_validate(data)
+
+    async def iter_memories(
+        self,
+        *,
+        batch_size: int = 50,
+        namespace: str | None = None,
+        tags: list[str] | None = None,
+        session_id: str | None = None,
+        agent_id: str | None = None,
+    ) -> AsyncIterator[Memory]:
+        """Iterate over all memories with automatic pagination.
+
+        Yields individual :class:`Memory` objects, fetching pages transparently.
+        """
+        offset = 0
+        while True:
+            page = await self.list(
+                limit=batch_size,
+                offset=offset,
+                namespace=namespace,
+                tags=tags,
+                session_id=session_id,
+                agent_id=agent_id,
+            )
+            for mem in page.memories:
+                yield mem
+            offset += len(page.memories)
+            if offset >= page.total or not page.memories:
+                break
 
     # ── Get ──────────────────────────────────────────────────────────────
 
