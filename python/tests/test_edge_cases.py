@@ -91,7 +91,27 @@ class TestServerErrors:
 
 class TestRateLimiting:
     @respx.mock
-    def test_429_raises_rate_limit_error(self, client: MemoClaw):
+    def test_429_retries_then_succeeds(self, client: MemoClaw):
+        """429 should be retried (now in retryable set)."""
+        route = respx.post(f"{BASE_URL}/v1/recall").mock(
+            side_effect=[
+                httpx.Response(
+                    429,
+                    json={"error": {"code": "RATE_LIMITED", "message": "Too many requests"}},
+                ),
+                httpx.Response(
+                    200,
+                    json={"memories": [], "query_tokens": 3},
+                ),
+            ]
+        )
+        result = client.recall("test query")
+        assert route.call_count == 2
+        assert result.query_tokens == 3
+
+    @respx.mock
+    def test_429_exhausts_retries(self, client: MemoClaw):
+        """429 that persists through all retries should raise RateLimitError."""
         respx.post(f"{BASE_URL}/v1/recall").mock(
             return_value=httpx.Response(
                 429,

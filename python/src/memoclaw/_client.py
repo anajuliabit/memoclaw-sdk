@@ -16,7 +16,7 @@ DEFAULT_TIMEOUT = 30.0
 DEFAULT_MAX_RETRIES = 2
 
 # Status codes that are safe to retry (transient server errors)
-_RETRYABLE_STATUS_CODES = {502, 503, 504}
+_RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 504}
 
 # Base delay between retries in seconds (exponential backoff: base * 2^attempt)
 _RETRY_BASE_DELAY = 0.5
@@ -116,9 +116,14 @@ class _SyncHTTPClient:
                         method, url, headers=headers, json=json, params=params
                     )
 
-            # Retry on transient server errors (502, 503, 504)
+            # Retry on transient server errors (429, 500, 502, 503, 504)
             if response.status_code in _RETRYABLE_STATUS_CODES and attempt < self._max_retries:
-                time.sleep(_RETRY_BASE_DELAY * (2**attempt))
+                retry_after = response.headers.get("retry-after")
+                if retry_after and retry_after.isdigit():
+                    delay = float(retry_after)
+                else:
+                    delay = _RETRY_BASE_DELAY * (2**attempt)
+                time.sleep(delay)
                 continue
 
             _raise_for_status(response)
@@ -195,9 +200,14 @@ class _AsyncHTTPClient:
                         method, url, headers=headers, json=json, params=params
                     )
 
-            # Retry on transient server errors
+            # Retry on transient server errors (429, 500, 502, 503, 504)
             if response.status_code in _RETRYABLE_STATUS_CODES and attempt < self._max_retries:
-                await asyncio.sleep(_RETRY_BASE_DELAY * (2**attempt))
+                retry_after = response.headers.get("retry-after")
+                if retry_after and retry_after.isdigit():
+                    delay = float(retry_after)
+                else:
+                    delay = _RETRY_BASE_DELAY * (2**attempt)
+                await asyncio.sleep(delay)
                 continue
 
             _raise_for_status(response)

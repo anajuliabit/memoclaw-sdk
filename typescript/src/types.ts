@@ -213,6 +213,71 @@ export interface RelationWithMemory {
   created_at: string;
 }
 
+// ── Extract ────────────────────────────────────────────
+
+export interface ExtractRequest {
+  messages: { role: string; content: string }[];
+  namespace?: string;
+  session_id?: string;
+  agent_id?: string;
+}
+
+export interface ExtractResponse {
+  memory_ids: string[];
+  facts_extracted: number;
+  facts_stored: number;
+  facts_deduplicated: number;
+  tokens_used: number;
+}
+
+// ── Consolidate ────────────────────────────────────────
+
+export interface ConsolidateRequest {
+  namespace?: string;
+  min_similarity?: number;
+  mode?: string;
+  dry_run?: boolean;
+}
+
+export interface ConsolidateResponse {
+  clusters: number;
+  merged: number;
+  tokens_used: number;
+  dry_run: boolean;
+  details?: unknown[];
+}
+
+// ── Relations (mutations) ──────────────────────────────
+
+export interface CreateRelationRequest {
+  target_id: string;
+  relation_type: RelationType;
+  metadata?: Record<string, unknown>;
+}
+
+export interface CreateRelationResponse {
+  id: string;
+  created: boolean;
+}
+
+export interface ListRelationsResponse {
+  relations: RelationWithMemory[];
+}
+
+export interface DeleteRelationResponse {
+  deleted: boolean;
+  id: string;
+}
+
+// ── Free Tier Status ───────────────────────────────────
+
+export interface FreeTierStatus {
+  wallet: string;
+  free_tier_remaining: number;
+  free_tier_total: number;
+  free_tier_used: number;
+}
+
 // ── Errors ─────────────────────────────────────────────
 
 export interface MemoClawErrorBody {
@@ -221,6 +286,15 @@ export interface MemoClawErrorBody {
     message: string;
     details?: Record<string, unknown>;
   };
+}
+
+// ── Free-tier status ───────────────────────────────────
+
+export interface FreeTierStatus {
+  wallet: string;
+  free_tier_remaining: number;
+  free_tier_total: number;
+  free_tier_used: number;
 }
 
 // ── Client Options ─────────────────────────────────────
