@@ -256,7 +256,6 @@ class MemoClaw:
         namespace: str | None = None,
         pinned: bool | None = None,
         expires_at: str | None = ...,  # type: ignore[assignment]
-        pinned: bool | None = None,
     ) -> Memory:
         """Update a memory by ID. Only provided fields are updated."""
         body: dict[str, Any] = {}
@@ -275,8 +274,6 @@ class MemoClaw:
         # expires_at uses sentinel so users can pass None to clear it
         if expires_at is not ...:
             body["expires_at"] = expires_at
-        if pinned is not None:
-            body["pinned"] = pinned
 
         data = self._http.request("PATCH", f"/v1/memories/{memory_id}", json=body)
         return Memory.model_validate(data)
@@ -597,7 +594,6 @@ class AsyncMemoClaw:
         namespace: str | None = None,
         pinned: bool | None = None,
         expires_at: str | None = ...,  # type: ignore[assignment]
-        pinned: bool | None = None,
     ) -> Memory:
         """Update a memory by ID. Only provided fields are updated."""
         body: dict[str, Any] = {}
@@ -615,8 +611,6 @@ class AsyncMemoClaw:
             body["pinned"] = pinned
         if expires_at is not ...:
             body["expires_at"] = expires_at
-        if pinned is not None:
-            body["pinned"] = pinned
 
         data = await self._http.request(
             "PATCH", f"/v1/memories/{memory_id}", json=body
