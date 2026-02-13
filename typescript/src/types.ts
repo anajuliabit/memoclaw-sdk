@@ -302,8 +302,18 @@ export interface FreeTierStatus {
 export interface MemoClawOptions {
   /** Base URL of the MemoClaw API (default: https://api.memoclaw.com) */
   baseUrl?: string;
-  /** Wallet address for authentication (sent as X-Wallet header) */
-  wallet: string;
+  /**
+   * Authentication: provide ONE of:
+   * - `sessionToken`: JWT from POST /auth/session (recommended for server-side)
+   * - `wallet` + `signMessage`: wallet address + signer for automatic x-wallet-auth
+   * - `wallet` alone: DEPRECATED — plain X-Wallet header (no longer accepted by API)
+   */
+  wallet?: string;
+  /** JWT session token from POST /auth/session. Preferred auth method. */
+  sessionToken?: string;
+  /** Wallet message signer for automatic x-wallet-auth header generation.
+   *  Required if using wallet-based auth without a session token. */
+  signMessage?: (message: string) => Promise<string>;
   /** Optional fetch implementation (defaults to globalThis.fetch) */
   fetch?: typeof globalThis.fetch;
   /** Maximum number of retries for transient errors (default: 2) */

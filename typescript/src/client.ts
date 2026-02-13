@@ -59,17 +59,21 @@ const RETRYABLE_STATUS_CODES = new Set([408, 429, 500, 502, 503, 504]);
 
 export class MemoClawClient {
   private readonly baseUrl: string;
-  private readonly wallet: string;
+  private readonly wallet: string | undefined;
+  private readonly sessionToken: string | undefined;
+  private readonly signMessage: ((message: string) => Promise<string>) | undefined;
   private readonly _fetch: typeof globalThis.fetch;
   private readonly maxRetries: number;
   private readonly retryDelay: number;
 
   constructor(options: MemoClawOptions) {
-    if (!options.wallet) {
-      throw new Error('wallet is required');
+    if (!options.sessionToken && !options.wallet) {
+      throw new Error('Either sessionToken or wallet is required');
     }
     this.baseUrl = (options.baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, '');
     this.wallet = options.wallet;
+    this.sessionToken = options.sessionToken;
+    this.signMessage = options.signMessage;
     this._fetch = options.fetch ?? globalThis.fetch;
     this.maxRetries = options.maxRetries ?? 2;
     this.retryDelay = options.retryDelay ?? 500;
@@ -84,9 +88,21 @@ export class MemoClawClient {
       url += `?${params.toString()}`;
     }
 
-    const headers: Record<string, string> = {
-      'X-Wallet': this.wallet,
-    };
+    const headers: Record<string, string> = {};
+
+    // Auth: prefer session token, then wallet signature, then plain wallet (deprecated)
+    if (this.sessionToken) {
+      headers['Authorization'] = `Bearer ${this.sessionToken}`;
+    } else if (this.wallet && this.signMessage) {
+      const timestamp = Math.floor(Date.now() / 1000);
+      const message = `memoclaw-auth:${timestamp}`;
+      const signature = await this.signMessage(message);
+      headers['x-wallet-auth'] = `${this.wallet}:${timestamp}:${signature}`;
+    } else if (this.wallet) {
+      // Deprecated: plain wallet header (API may reject this)
+      headers['X-Wallet'] = this.wallet;
+    }
+
     if (body !== undefined) {
       headers['Content-Type'] = 'application/json';
     }
