@@ -43,6 +43,14 @@ from .types import (
     SuggestedMemory,
     SuggestedResponse,
 )
+from .builders import (
+    AsyncMemoryFilter,
+    AsyncRecallQuery,
+    BatchStore,
+    MemoryFilter,
+    RecallQuery,
+    RelationBuilder,
+)
 
 __all__ = [
     "__version__",
@@ -90,4 +98,11 @@ __all__ = [
     "MigrateResult",
     "MemoClawConfig",
     "load_config",
+    # Builders
+    "RecallQuery",
+    "AsyncRecallQuery",
+    "MemoryFilter",
+    "AsyncMemoryFilter",
+    "RelationBuilder",
+    "BatchStore",
 ]

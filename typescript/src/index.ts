@@ -13,6 +13,15 @@ export {
   createError,
 } from './errors.js';
 export type { BeforeRequestHook, AfterResponseHook, OnErrorHook } from './client.js';
+export {
+  RecallQuery,
+  MemoryFilter,
+  AsyncMemoryFilter,
+  RelationBuilder,
+  AsyncRelationBuilder,
+  BatchStore,
+  StreamingRecall,
+} from './builders.js';
 export type {
   MemoClawOptions,
   MemoryType,

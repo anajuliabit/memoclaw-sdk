@@ -1,11 +1,18 @@
-"""Fluent builder patterns for MemoClaw SDK."""
+"""Fluent builder patterns for MemoClaw SDK.
+
+This module provides builder classes for constructing complex queries
+and managing memory operations with a fluent, chainable API.
+"""
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any, Iterator
 
-from .types import MemoryType, StoreInput
+from .client import AsyncMemoClaw, MemoClaw
+from .types import MemoryType, StoreInput, Memory, RecallResponse, RelationType
 
+if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
 
 class MemoryBuilder:
     """Fluent builder for creating memory content.
@@ -237,4 +244,447 @@ class RecallBuilder:
         return params
 
 
-__all__ = ["MemoryBuilder", "RecallBuilder"]
+class RecallQuery:
+    """Fluent builder for constructing recall queries.
+
+    Allows chaining multiple filters and options before executing
+    the search query.
+
+    Example:
+        >>> results = (RecallQuery(client)
+        ...     .with_query("Python preferences")
+        ...     .with_limit(5)
+        ...     .execute())
+    """
+
+    def __init__(self, client: MemoClaw) -> None:
+        self._client = client
+        self._query: str = ""
+        self._limit: int | None = None
+        self._min_similarity: float | None = None
+        self._namespace: str | None = None
+        self._tags: list[str] | None = None
+        self._session_id: str | None = None
+        self._agent_id: str | None = None
+        self._include_relations: bool | None = None
+        self._after: str | None = None
+        self._memory_type: MemoryType | None = None
+
+    def with_query(self, query: str) -> RecallQuery:
+        """Set the search query."""
+        self._query = query
+        return self
+
+    def with_limit(self, limit: int) -> RecallQuery:
+        """Set the maximum number of results."""
+        self._limit = limit
+        return self
+
+    def with_min_similarity(self, min_similarity: float) -> RecallQuery:
+        """Set minimum similarity threshold (0.0 to 1.0)."""
+        if not 0.0 <= min_similarity <= 1.0:
+            raise ValueError("min_similarity must be between 0.0 and 1.0")
+        self._min_similarity = min_similarity
+        return self
+
+    def with_namespace(self, namespace: str) -> RecallQuery:
+        """Filter by namespace."""
+        self._namespace = namespace
+        return self
+
+    def with_tags(self, tags: list[str]) -> RecallQuery:
+        """Filter by tags (AND logic)."""
+        self._tags = tags
+        return self
+
+    def with_session_id(self, session_id: str) -> RecallQuery:
+        """Filter by session ID."""
+        self._session_id = session_id
+        return self
+
+    def with_agent_id(self, agent_id: str) -> RecallQuery:
+        """Filter by agent ID."""
+        self._agent_id = agent_id
+        return self
+
+    def with_memory_type(self, memory_type: MemoryType) -> RecallQuery:
+        """Filter by memory type."""
+        self._memory_type = memory_type
+        return self
+
+    def with_after(self, after: str) -> RecallQuery:
+        """Filter memories created after this ISO timestamp."""
+        self._after = after
+        return self
+
+    def include_relations(self, include: bool = True) -> RecallQuery:
+        """Include related memories in results."""
+        self._include_relations = include
+        return self
+
+    def execute(self) -> RecallResponse:
+        """Execute the recall query."""
+        if not self._query:
+            raise ValueError("Query is required. Use .with_query() to set it.")
+        return self._client.recall(
+            self._query,
+            limit=self._limit,
+            min_similarity=self._min_similarity,
+            namespace=self._namespace,
+            tags=self._tags,
+            session_id=self._session_id,
+            agent_id=self._agent_id,
+            include_relations=self._include_relations,
+            after=self._after,
+            memory_type=self._memory_type,
+        )
+
+    def __iter__(self) -> Iterator[RecallResponse]:
+        """Iterate by executing and yielding results (single result)."""
+        yield self.execute()
+
+
+class AsyncRecallQuery:
+    """Async version of RecallQuery for use with AsyncMemoClaw."""
+
+    def __init__(self, client: AsyncMemoClaw) -> None:
+        self._client = client
+        self._query: str = ""
+        self._limit: int | None = None
+        self._min_similarity: float | None = None
+        self._namespace: str | None = None
+        self._tags: list[str] | None = None
+        self._session_id: str | None = None
+        self._agent_id: str | None = None
+        self._include_relations: bool | None = None
+        self._after: str | None = None
+        self._memory_type: MemoryType | None = None
+
+    def with_query(self, query: str) -> AsyncRecallQuery:
+        self._query = query
+        return self
+
+    def with_limit(self, limit: int) -> AsyncRecallQuery:
+        self._limit = limit
+        return self
+
+    def with_min_similarity(self, min_similarity: float) -> AsyncRecallQuery:
+        if not 0.0 <= min_similarity <= 1.0:
+            raise ValueError("min_similarity must be between 0.0 and 1.0")
+        self._min_similarity = min_similarity
+        return self
+
+    def with_namespace(self, namespace: str) -> AsyncRecallQuery:
+        self._namespace = namespace
+        return self
+
+    def with_tags(self, tags: list[str]) -> AsyncRecallQuery:
+        self._tags = tags
+        return self
+
+    def with_session_id(self, session_id: str) -> AsyncRecallQuery:
+        self._session_id = session_id
+        return self
+
+    def with_agent_id(self, agent_id: str) -> AsyncRecallQuery:
+        self._agent_id = agent_id
+        return self
+
+    def with_memory_type(self, memory_type: MemoryType) -> AsyncRecallQuery:
+        self._memory_type = memory_type
+        return self
+
+    def with_after(self, after: str) -> AsyncRecallQuery:
+        self._after = after
+        return self
+
+    def include_relations(self, include: bool = True) -> AsyncRecallQuery:
+        self._include_relations = include
+        return self
+
+    async def execute(self) -> RecallResponse:
+        if not self._query:
+            raise ValueError("Query is required. Use .with_query() to set it.")
+        return await self._client.recall(
+            self._query,
+            limit=self._limit,
+            min_similarity=self._min_similarity,
+            namespace=self._namespace,
+            tags=self._tags,
+            session_id=self._session_id,
+            agent_id=self._agent_id,
+            include_relations=self._include_relations,
+            after=self._after,
+            memory_type=self._memory_type,
+        )
+
+
+class MemoryFilter:
+    """Fluent builder for filtering and iterating over memories.
+
+    Example:
+        >>> for memory in (MemoryFilter(client)
+        ...     .with_namespace("user-prefs")
+        ...     .with_tags(["important"])
+        ...     .iter_memories()):
+        ...     print(memory.content)
+    """
+
+    def __init__(self, client: MemoClaw) -> None:
+        self._client = client
+        self._namespace: str | None = None
+        self._tags: list[str] | None = None
+        self._session_id: str | None = None
+        self._agent_id: str | None = None
+        self._batch_size: int = 50
+
+    def with_namespace(self, namespace: str) -> MemoryFilter:
+        """Filter by namespace."""
+        self._namespace = namespace
+        return self
+
+    def with_tags(self, tags: list[str]) -> MemoryFilter:
+        """Filter by tags."""
+        self._tags = tags
+        return self
+
+    def with_session_id(self, session_id: str) -> MemoryFilter:
+        """Filter by session ID."""
+        self._session_id = session_id
+        return self
+
+    def with_agent_id(self, agent_id: str) -> MemoryFilter:
+        """Filter by agent ID."""
+        self._agent_id = agent_id
+        return self
+
+    def with_batch_size(self, batch_size: int) -> MemoryFilter:
+        """Set batch size for pagination."""
+        if batch_size <= 0:
+            raise ValueError("batch_size must be positive")
+        self._batch_size = batch_size
+        return self
+
+    def iter_memories(self) -> Iterator[Memory]:
+        """Iterate over all matching memories."""
+        yield from self._client.iter_memories(
+            namespace=self._namespace,
+            tags=self._tags,
+            session_id=self._session_id,
+            agent_id=self._agent_id,
+            batch_size=self._batch_size,
+        )
+
+    def list_all(self) -> list[Memory]:
+        """Fetch all matching memories at once."""
+        return list(self.iter_memories())
+
+    def count(self) -> int:
+        """Count matching memories without fetching all data."""
+        page = self._client.list(
+            limit=1,
+            namespace=self._namespace,
+            tags=self._tags,
+            session_id=self._session_id,
+            agent_id=self._agent_id,
+        )
+        return page.total
+
+
+class AsyncMemoryFilter:
+    """Async version of MemoryFilter."""
+
+    def __init__(self, client: AsyncMemoClaw) -> None:
+        self._client = client
+        self._namespace: str | None = None
+        self._tags: list[str] | None = None
+        self._session_id: str | None = None
+        self._agent_id: str | None = None
+        self._batch_size: int = 50
+
+    def with_namespace(self, namespace: str) -> AsyncMemoryFilter:
+        self._namespace = namespace
+        return self
+
+    def with_tags(self, tags: list[str]) -> AsyncMemoryFilter:
+        self._tags = tags
+        return self
+
+    def with_session_id(self, session_id: str) -> AsyncMemoryFilter:
+        self._session_id = session_id
+        return self
+
+    def with_agent_id(self, agent_id: str) -> AsyncMemoryFilter:
+        self._agent_id = agent_id
+        return self
+
+    def with_batch_size(self, batch_size: int) -> AsyncMemoryFilter:
+        if batch_size <= 0:
+            raise ValueError("batch_size must be positive")
+        self._batch_size = batch_size
+        return self
+
+    async def iter_memories(self) -> AsyncIterator[Memory]:
+        """Iterate over all matching memories."""
+        async for memory in self._client.iter_memories(
+            namespace=self._namespace,
+            tags=self._tags,
+            session_id=self._session_id,
+            agent_id=self._agent_id,
+            batch_size=self._batch_size,
+        ):
+            yield memory
+
+    async def list_all(self) -> list[Memory]:
+        """Fetch all matching memories at once."""
+        return [m async for m in self.iter_memories()]
+
+    async def count(self) -> int:
+        """Count matching memories without fetching all data."""
+        page = await self._client.list(
+            limit=1,
+            namespace=self._namespace,
+            tags=self._tags,
+            session_id=self._session_id,
+            agent_id=self._agent_id,
+        )
+        return page.total
+
+
+class RelationBuilder:
+    """Fluent builder for creating and managing memory relations.
+
+    Example:
+        >>> relations = (RelationBuilder(client, "memory-123")
+        ...     .relate_to("memory-456", "related_to")
+        ...     .relate_to("memory-789", "supports")
+        ...     .create_all())
+    """
+
+    def __init__(self, client: MemoClaw, source_id: str) -> None:
+        self._client = client
+        self._source_id = source_id
+        self._relations: list[tuple[str, RelationType, dict[str, Any] | None]] = []
+
+    def relate_to(
+        self,
+        target_id: str,
+        relation_type: RelationType,
+        metadata: dict[str, Any] | None = None,
+    ) -> RelationBuilder:
+        """Add a relation to be created."""
+        self._relations.append((target_id, relation_type, metadata))
+        return self
+
+    def create_all(self) -> list[dict[str, Any]]:
+        """Create all pending relations."""
+        results = []
+        for target_id, relation_type, metadata in self._relations:
+            result = self._client.create_relation(
+                self._source_id, target_id, relation_type, metadata=metadata
+            )
+            results.append({
+                "id": result.id,
+                "target_id": target_id,
+                "relation_type": relation_type,
+            })
+        self._relations.clear()
+        return results
+
+
+class BatchStore:
+    """Efficient batch storage with automatic chunking.
+
+    Automatically handles chunking large batches into smaller
+    API-friendly sizes.
+
+    Example:
+        >>> store = BatchStore(client)
+        >>> results = store.add_many(large_memory_list).execute()
+    """
+
+    MAX_BATCH_SIZE = 100
+
+    def __init__(self, client: MemoClaw) -> None:
+        self._client = client
+        self._memories: list[dict[str, Any]] = []
+
+    def add(
+        self,
+        content: str,
+        *,
+        importance: float | None = None,
+        tags: list[str] | None = None,
+        namespace: str | None = None,
+        memory_type: MemoryType | None = None,
+        session_id: str | None = None,
+        agent_id: str | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> BatchStore:
+        """Add a memory to the batch."""
+        memory: dict[str, Any] = {"content": content}
+        if importance is not None:
+            memory["importance"] = importance
+        if tags is not None:
+            memory["tags"] = tags
+        if namespace is not None:
+            memory["namespace"] = namespace
+        if memory_type is not None:
+            memory["memory_type"] = memory_type
+        if session_id is not None:
+            memory["session_id"] = session_id
+        if agent_id is not None:
+            memory["agent_id"] = agent_id
+        if metadata is not None:
+            memory["metadata"] = metadata
+        self._memories.append(memory)
+        return self
+
+    def add_many(self, memories: list[dict[str, Any]]) -> BatchStore:
+        """Add multiple memories at once."""
+        for mem in memories:
+            if isinstance(mem, dict):
+                self._memories.append(mem)
+        return self
+
+    def count(self) -> int:
+        """Return the number of memories in the batch."""
+        return len(self._memories)
+
+    def execute(self) -> dict[str, Any]:
+        """Execute batch storage, handling automatic chunking."""
+        if not self._memories:
+            return {"ids": [], "count": 0, "stored": False}
+
+        all_ids: list[str] = []
+        total_tokens = 0
+        total_deduped = 0
+
+        # Process in chunks
+        for i in range(0, len(self._memories), self.MAX_BATCH_SIZE):
+            chunk = self._memories[i:i + self.MAX_BATCH_SIZE]
+            result = self._client.store_batch(chunk)
+            all_ids.extend(result.ids)
+            total_tokens += result.tokens_used
+            total_deduped += result.deduplicated_count
+
+        self._memories.clear()
+
+        return {
+            "ids": all_ids,
+            "count": len(all_ids),
+            "stored": True,
+            "tokens_used": total_tokens,
+            "deduplicated_count": total_deduped,
+        }
+
+__all__ = [
+    "MemoryBuilder",
+    "RecallBuilder",
+    "RecallQuery",
+    "AsyncRecallQuery",
+    "MemoryFilter",
+    "AsyncMemoryFilter",
+    "RelationBuilder",
+    "BatchStore",
+]
