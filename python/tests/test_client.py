@@ -145,6 +145,38 @@ class TestRecall:
         assert result.query_tokens == 5
 
 
+class TestGet:
+    @respx.mock
+    def test_get_memory(self, client: MemoClaw):
+        respx.get(f"{BASE_URL}/v1/memories/mem-123").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "id": "mem-123",
+                    "user_id": "u1",
+                    "namespace": "default",
+                    "content": "Test content",
+                    "embedding_model": "text-embedding-3-small",
+                    "metadata": {},
+                    "importance": 0.8,
+                    "memory_type": "general",
+                    "session_id": None,
+                    "agent_id": None,
+                    "created_at": "2025-01-01T00:00:00Z",
+                    "updated_at": "2025-01-01T00:00:00Z",
+                    "accessed_at": "2025-01-01T00:00:00Z",
+                    "access_count": 1,
+                    "deleted_at": None,
+                    "expires_at": None,
+                    "pinned": False,
+                },
+            )
+        )
+        result = client.get("mem-123")
+        assert result.id == "mem-123"
+        assert result.content == "Test content"
+
+
 class TestUpdate:
     @respx.mock
     def test_update_content(self, client: MemoClaw):
