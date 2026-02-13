@@ -31,3 +31,8 @@ Thumbs.db
 
 # Distribution
 *.tar.gz
+
+# Environment files
+.env
+.env.*
+!.env.example
