@@ -2,7 +2,7 @@
 
 import pytest
 
-from memoclaw import MemoryBuilder, RecallBuilder, StoreInput
+from memoclaw import MemoryBuilder, RecallBuilder, StoreInput, MemoClaw, AsyncMemoClaw
 
 
 class TestMemoryBuilder:
