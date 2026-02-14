@@ -27,36 +27,13 @@ import type {
   DeleteRelationResponse,
   FreeTierStatus,
 } from './types.js';
+import { MemoClawError, createError } from './errors.js';
 
 const DEFAULT_BASE_URL = 'https://api.memoclaw.com';
+const MAX_BATCH_SIZE = 100;
 
-/** Suggestions for common error codes. */
-const ERROR_SUGGESTIONS: Record<string, string> = {
-  'AUTH_ERROR': 'Check that your wallet address is correct.',
-  'PAYMENT_REQUIRED': 'Free tier exhausted. Upgrade your plan at memoclaw.com.',
-  'NOT_FOUND': 'The memory ID may have been deleted or never existed. Use client.list() to verify.',
-  'VALIDATION_ERROR': 'Check request payload — content max length is 8192 chars, importance must be 0.0-1.0.',
-  'RATE_LIMITED': 'Too many requests. The SDK retries automatically, but consider adding delays between batch operations.',
-};
-
-/** Error thrown by the MemoClaw SDK when the API returns a non-2xx response. */
-export class MemoClawError extends Error {
-  /** Actionable suggestion for fixing this error. */
-  public readonly suggestion?: string;
-
-  constructor(
-    public readonly status: number,
-    public readonly code: string,
-    message: string,
-    public readonly details?: Record<string, unknown>,
-  ) {
-    const suggestion = ERROR_SUGGESTIONS[code];
-    const fullMessage = suggestion ? `${message}\n  💡 ${suggestion}` : message;
-    super(fullMessage);
-    this.name = 'MemoClawError';
-    this.suggestion = suggestion;
-  }
-}
+/** Status codes that are safe to retry (transient errors). */
+const RETRYABLE_STATUS_CODES = new Set([408, 429, 500, 502, 503, 504]);
 
 /** 401 Authentication error. */
 export class AuthenticationError extends MemoClawError {
@@ -145,9 +122,6 @@ export type OnErrorHook = (method: string, path: string, error: MemoClawError) =
  * const results = await client.recall({ query: 'first' });
  * ```
  */
-/** Status codes that are safe to retry (transient errors). */
-const RETRYABLE_STATUS_CODES = new Set([408, 429, 500, 502, 503, 504]);
-
 export class MemoClawClient {
   private readonly baseUrl: string;
   private readonly wallet: string;
@@ -189,7 +163,13 @@ export class MemoClawClient {
 
   // ── Internal helpers ───────────────────────────────
 
-  private async request<T>(method: string, path: string, body?: unknown, query?: Record<string, string>): Promise<T> {
+  private async request<T>(
+    method: string,
+    path: string,
+    body?: unknown,
+    query?: Record<string, string>,
+    signal?: AbortSignal,
+  ): Promise<T> {
     let url = `${this.baseUrl}${path}`;
     if (query) {
       const params = new URLSearchParams(query);
@@ -216,7 +196,6 @@ export class MemoClawClient {
 
     for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
       if (attempt > 0) {
-        // Exponential backoff with jitter
         const delay = this.retryDelay * Math.pow(2, attempt - 1);
         const jitter = delay * 0.25 * Math.random();
         await new Promise((resolve) => setTimeout(resolve, delay + jitter));
@@ -224,9 +203,9 @@ export class MemoClawClient {
 
       let res: Response;
       try {
-        res = await this._fetch(url, { method, headers, body: jsonBody });
+        res = await this._fetch(url, { method, headers, body: jsonBody, signal });
       } catch (err) {
-        // Network error — retry if attempts remain
+        if (err instanceof DOMException && err.name === 'AbortError') throw err;
         if (attempt < this.maxRetries) continue;
         throw err;
       }
@@ -252,14 +231,8 @@ export class MemoClawClient {
       const message = errorBody?.error?.message ?? `HTTP ${res.status}`;
       const details = errorBody?.error?.details;
 
-      const ErrorClass = ERROR_CLASS_MAP[res.status];
-      if (ErrorClass) {
-        lastError = new ErrorClass(code, message, details);
-      } else {
-        lastError = new MemoClawError(res.status, code, message, details);
-      }
+      lastError = createError(res.status, code, message, details);
 
-      // Only retry on transient errors
       if (!RETRYABLE_STATUS_CODES.has(res.status)) {
         for (const hook of this._onErrorHooks) hook(method, path, lastError);
         throw lastError;
@@ -275,22 +248,43 @@ export class MemoClawClient {
   // ── Public API ─────────────────────────────────────
 
   /** Store a single memory. */
-  async store(request: StoreRequest): Promise<StoreResponse> {
-    return this.request<StoreResponse>('POST', '/v1/store', request);
+  async store(request: StoreRequest, options?: { signal?: AbortSignal }): Promise<StoreResponse> {
+    if (!request.content?.trim()) {
+      throw new Error('content must be a non-empty string');
+    }
+    return this.request<StoreResponse>('POST', '/v1/store', request, undefined, options?.signal);
   }
 
   /** Store multiple memories in a single request (up to 100). */
-  async storeBatch(memories: StoreRequest[]): Promise<StoreBatchResponse> {
-    return this.request<StoreBatchResponse>('POST', '/v1/store/batch', { memories } satisfies StoreBatchRequest);
+  async storeBatch(memories: StoreRequest[], options?: { signal?: AbortSignal }): Promise<StoreBatchResponse> {
+    if (!memories.length) {
+      throw new Error('memories array must not be empty');
+    }
+    if (memories.length > MAX_BATCH_SIZE) {
+      throw new Error(`Batch size ${memories.length} exceeds maximum of ${MAX_BATCH_SIZE}`);
+    }
+    for (const m of memories) {
+      if (!m.content?.trim()) {
+        throw new Error('All memories must have non-empty content');
+      }
+    }
+    return this.request<StoreBatchResponse>(
+      'POST', '/v1/store/batch',
+      { memories } satisfies StoreBatchRequest,
+      undefined, options?.signal,
+    );
   }
 
   /** Recall memories via semantic search. */
-  async recall(request: RecallRequest): Promise<RecallResponse> {
-    return this.request<RecallResponse>('POST', '/v1/recall', request);
+  async recall(request: RecallRequest, options?: { signal?: AbortSignal }): Promise<RecallResponse> {
+    if (!request.query?.trim()) {
+      throw new Error('query must be a non-empty string');
+    }
+    return this.request<RecallResponse>('POST', '/v1/recall', request, undefined, options?.signal);
   }
 
   /** List memories with pagination and optional filters. */
-  async list(params: ListMemoriesParams = {}): Promise<ListMemoriesResponse> {
+  async list(params: ListMemoriesParams = {}, options?: { signal?: AbortSignal }): Promise<ListMemoriesResponse> {
     const query: Record<string, string> = {};
     if (params.limit !== undefined) query['limit'] = String(params.limit);
     if (params.offset !== undefined) query['offset'] = String(params.offset);
@@ -298,68 +292,105 @@ export class MemoClawClient {
     if (params.namespace) query['namespace'] = params.namespace;
     if (params.session_id) query['session_id'] = params.session_id;
     if (params.agent_id) query['agent_id'] = params.agent_id;
-    return this.request<ListMemoriesResponse>('GET', '/v1/memories', undefined, query);
+    return this.request<ListMemoriesResponse>('GET', '/v1/memories', undefined, query, options?.signal);
+  }
+
+  /** Async iterator over all memories with automatic pagination. */
+  async *iterMemories(params: Omit<ListMemoriesParams, 'offset'> & { batchSize?: number } = {}): AsyncGenerator<Memory, void, unknown> {
+    const { batchSize = 50, ...rest } = params;
+    let offset = 0;
+    while (true) {
+      const page = await this.list({ ...rest, limit: batchSize, offset });
+      for (const mem of page.memories) {
+        yield mem;
+      }
+      offset += page.memories.length;
+      if (offset >= page.total || page.memories.length === 0) break;
+    }
   }
 
   /** Retrieve a single memory by ID. */
-  async get(id: string): Promise<Memory> {
-    return this.request<Memory>('GET', `/v1/memories/${id}`);
+  async get(id: string, options?: { signal?: AbortSignal }): Promise<Memory> {
+    if (!id?.trim()) throw new Error('id must be a non-empty string');
+    return this.request<Memory>('GET', `/v1/memories/${encodeURIComponent(id)}`, undefined, undefined, options?.signal);
   }
 
   /** Update a memory by ID. */
-  async update(id: string, request: UpdateMemoryRequest): Promise<Memory> {
-    return this.request<Memory>('PATCH', `/v1/memories/${id}`, request);
+  async update(id: string, request: UpdateMemoryRequest, options?: { signal?: AbortSignal }): Promise<Memory> {
+    if (!id?.trim()) throw new Error('id must be a non-empty string');
+    return this.request<Memory>('PATCH', `/v1/memories/${encodeURIComponent(id)}`, request, undefined, options?.signal);
   }
 
   /** Delete a memory by ID (soft delete). */
-  async delete(id: string): Promise<DeleteResponse> {
-    return this.request<DeleteResponse>('DELETE', `/v1/memories/${id}`);
+  async delete(id: string, options?: { signal?: AbortSignal }): Promise<DeleteResponse> {
+    if (!id?.trim()) throw new Error('id must be a non-empty string');
+    return this.request<DeleteResponse>('DELETE', `/v1/memories/${encodeURIComponent(id)}`, undefined, undefined, options?.signal);
   }
 
   /** Ingest a conversation or text and auto-extract memories. */
-  async ingest(request: IngestRequest): Promise<IngestResponse> {
-    return this.request<IngestResponse>('POST', '/v1/ingest', request);
+  async ingest(request: IngestRequest, options?: { signal?: AbortSignal }): Promise<IngestResponse> {
+    if (!request.messages?.length && !request.text?.trim()) {
+      throw new Error('Either messages or text must be provided');
+    }
+    return this.request<IngestResponse>('POST', '/v1/ingest', request, undefined, options?.signal);
   }
 
   /** Check free tier remaining calls. */
-  async status(): Promise<FreeTierStatus> {
-    return this.request<FreeTierStatus>('GET', '/v1/free-tier/status');
+  async status(options?: { signal?: AbortSignal }): Promise<FreeTierStatus> {
+    return this.request<FreeTierStatus>('GET', '/v1/free-tier/status', undefined, undefined, options?.signal);
   }
 
   /** Extract structured facts from a conversation via LLM. */
-  async extract(request: ExtractRequest): Promise<ExtractResponse> {
-    return this.request<ExtractResponse>('POST', '/v1/memories/extract', request);
+  async extract(request: ExtractRequest, options?: { signal?: AbortSignal }): Promise<ExtractResponse> {
+    if (!request.messages?.length) {
+      throw new Error('messages must be a non-empty array');
+    }
+    return this.request<ExtractResponse>('POST', '/v1/memories/extract', request, undefined, options?.signal);
   }
 
   /** Merge similar memories by clustering. */
-  async consolidate(request: ConsolidateRequest = {}): Promise<ConsolidateResponse> {
-    return this.request<ConsolidateResponse>('POST', '/v1/memories/consolidate', request);
+  async consolidate(request: ConsolidateRequest = {}, options?: { signal?: AbortSignal }): Promise<ConsolidateResponse> {
+    return this.request<ConsolidateResponse>('POST', '/v1/memories/consolidate', request, undefined, options?.signal);
   }
 
   /** Create a relationship between two memories. */
-  async createRelation(memoryId: string, request: CreateRelationRequest): Promise<CreateRelationResponse> {
-    return this.request<CreateRelationResponse>('POST', `/v1/memories/${memoryId}/relations`, request);
+  async createRelation(memoryId: string, request: CreateRelationRequest, options?: { signal?: AbortSignal }): Promise<CreateRelationResponse> {
+    if (!memoryId?.trim()) throw new Error('memoryId must be a non-empty string');
+    if (!request.target_id?.trim()) throw new Error('target_id must be a non-empty string');
+    return this.request<CreateRelationResponse>(
+      'POST', `/v1/memories/${encodeURIComponent(memoryId)}/relations`,
+      request, undefined, options?.signal,
+    );
   }
 
   /** List all relationships for a memory. */
-  async listRelations(memoryId: string): Promise<ListRelationsResponse> {
-    return this.request<ListRelationsResponse>('GET', `/v1/memories/${memoryId}/relations`);
+  async listRelations(memoryId: string, options?: { signal?: AbortSignal }): Promise<ListRelationsResponse> {
+    if (!memoryId?.trim()) throw new Error('memoryId must be a non-empty string');
+    return this.request<ListRelationsResponse>(
+      'GET', `/v1/memories/${encodeURIComponent(memoryId)}/relations`,
+      undefined, undefined, options?.signal,
+    );
   }
 
   /** Delete a relationship. */
-  async deleteRelation(memoryId: string, relationId: string): Promise<DeleteRelationResponse> {
-    return this.request<DeleteRelationResponse>('DELETE', `/v1/memories/${memoryId}/relations/${relationId}`);
+  async deleteRelation(memoryId: string, relationId: string, options?: { signal?: AbortSignal }): Promise<DeleteRelationResponse> {
+    if (!memoryId?.trim()) throw new Error('memoryId must be a non-empty string');
+    if (!relationId?.trim()) throw new Error('relationId must be a non-empty string');
+    return this.request<DeleteRelationResponse>(
+      'DELETE', `/v1/memories/${encodeURIComponent(memoryId)}/relations/${encodeURIComponent(relationId)}`,
+      undefined, undefined, options?.signal,
+    );
   }
 
   /** Get proactive memory suggestions. */
-  async suggested(params: SuggestedParams = {}): Promise<SuggestedResponse> {
+  async suggested(params: SuggestedParams = {}, options?: { signal?: AbortSignal }): Promise<SuggestedResponse> {
     const query: Record<string, string> = {};
     if (params.limit !== undefined) query['limit'] = String(params.limit);
     if (params.namespace) query['namespace'] = params.namespace;
     if (params.session_id) query['session_id'] = params.session_id;
     if (params.agent_id) query['agent_id'] = params.agent_id;
     if (params.category) query['category'] = params.category;
-    return this.request<SuggestedResponse>('GET', '/v1/suggested', undefined, query);
+    return this.request<SuggestedResponse>('GET', '/v1/suggested', undefined, query, options?.signal);
   }
 
   // ── Pagination iterator ───────────────────────────────
@@ -417,3 +448,5 @@ export class MemoClawClient {
     });
   }
 }
+
+export { MemoClawError } from './errors.js';

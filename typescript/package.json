@@ -18,6 +18,7 @@
   ],
   "scripts": {
     "build": "tsc",
+    "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "prepublishOnly": "bun run build"
