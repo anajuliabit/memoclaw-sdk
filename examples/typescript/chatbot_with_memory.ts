@@ -23,7 +23,7 @@ import {
 const WALLET = process.env.MEMOCLAW_WALLET || '0xyour-wallet-address';
 
 class ChatbotWithMemory {
-  private client: MemoClawClient;
+  readonly client: MemoClawClient;
 
   constructor(wallet: string) {
     this.client = new MemoClawClient({ 
@@ -163,11 +163,11 @@ async function main() {
         .build()
     );
     
-    const batchResult = await this.client.storeBatch(memories);
+    const batchResult = await chatbot.client.storeBatch(memories);
     console.log(`Stored ${batchResult.count} memories in batch`);
 
     // Iterate through all memories
-    for await (const memory of this.client.iterMemories({ namespace: 'batch-test' })) {
+    for await (const memory of chatbot.client.iterMemories({ namespace: 'batch-test' })) {
       console.log(`Found memory: ${memory.id}`);
     }
 
