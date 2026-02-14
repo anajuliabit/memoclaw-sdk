@@ -309,7 +309,11 @@ import type {
   StoreResponse,
 } from './types.js';
 
-export class RecallQuery {
+/**
+ * Async version of RecallQuery for use with async operations.
+ * Provides the same fluent interface but returns promises.
+ */
+export class AsyncRecallQuery {
   private _query = '';
   private _limit?: number;
   private _minSimilarity?: number;
@@ -324,19 +328,19 @@ export class RecallQuery {
   constructor(private client: MemoClawClient) {}
 
   /** Set the search query. */
-  withQuery(query: string): RecallQuery {
+  withQuery(query: string): AsyncRecallQuery {
     this._query = query;
     return this;
   }
 
   /** Set the maximum number of results. */
-  withLimit(limit: number): RecallQuery {
+  withLimit(limit: number): AsyncRecallQuery {
     this._limit = limit;
     return this;
   }
 
   /** Set minimum similarity threshold (0.0 to 1.0). */
-  withMinSimilarity(minSimilarity: number): RecallQuery {
+  withMinSimilarity(minSimilarity: number): AsyncRecallQuery {
     if (minSimilarity < 0 || minSimilarity > 1) {
       throw new Error('minSimilarity must be between 0.0 and 1.0');
     }
@@ -345,43 +349,43 @@ export class RecallQuery {
   }
 
   /** Filter by namespace. */
-  withNamespace(namespace: string): RecallQuery {
+  withNamespace(namespace: string): AsyncRecallQuery {
     this._namespace = namespace;
     return this;
   }
 
   /** Filter by tags (AND logic). */
-  withTags(tags: string[]): RecallQuery {
+  withTags(tags: string[]): AsyncRecallQuery {
     this._tags = tags;
     return this;
   }
 
   /** Filter by session ID. */
-  withSessionId(sessionId: string): RecallQuery {
+  withSessionId(sessionId: string): AsyncRecallQuery {
     this._sessionId = sessionId;
     return this;
   }
 
   /** Filter by agent ID. */
-  withAgentId(agentId: string): RecallQuery {
+  withAgentId(agentId: string): AsyncRecallQuery {
     this._agentId = agentId;
     return this;
   }
 
   /** Filter by memory type. */
-  withMemoryType(memoryType: MemoryType): RecallQuery {
+  withMemoryType(memoryType: MemoryType): AsyncRecallQuery {
     this._memoryType = memoryType;
     return this;
   }
 
   /** Filter memories created after this ISO timestamp. */
-  withAfter(after: string): RecallQuery {
+  withAfter(after: string): AsyncRecallQuery {
     this._after = after;
     return this;
   }
 
   /** Include related memories in results. */
-  includeRelations(include = true): RecallQuery {
+  includeRelations(include = true): AsyncRecallQuery {
     this._includeRelations = include;
     return this;
   }
@@ -406,10 +410,16 @@ export class RecallQuery {
       },
     });
   }
+
+  /** Execute and iterate over results as an async generator. */
+  async *executeIter(): AsyncGenerator<RecallResponse['memories'][0]> {
+    const response = await this.execute();
+    for (const memory of response.memories) {
+      yield memory;
+    }
+  }
 }
 
-/**
- * Fluent builder for filtering and iterating over memories.
  */
 export class MemoryFilter {
   private _namespace?: string;
@@ -872,6 +882,115 @@ export class StoreBuilder {
   }
 
   /** Execute the store operation. */
+  async execute(): Promise<StoreResponse> {
+    if (!this._content) {
+      throw new Error("Content is required. Use .content() to set it.");
+    }
+    const request: StoreRequest = { content: this._content };
+    if (this._importance !== undefined) request.importance = this._importance;
+    if (this._tags) request.metadata = { ...request.metadata, tags: this._tags };
+    if (this._namespace) request.namespace = this._namespace;
+    if (this._memoryType) request.memory_type = this._memoryType;
+    if (this._sessionId) request.session_id = this._sessionId;
+    if (this._agentId) request.agent_id = this._agentId;
+    if (this._expiresAt) request.expires_at = this._expiresAt;
+    if (this._pinned !== undefined) request.pinned = this._pinned;
+    if (this._metadata) request.metadata = { ...request.metadata, ...this._metadata };
+    return this.client.store(request);
+  }
+}
+
+/**
+ * Async version of StoreBuilder for use with async clients.
+ * Provides the same fluent interface but for async operations.
+ */
+export class AsyncStoreBuilder {
+  private _content?: string;
+  private _importance?: number;
+  private _tags?: string[];
+  private _namespace?: string;
+  private _memoryType?: MemoryType;
+  private _sessionId?: string;
+  private _agentId?: string;
+  private _expiresAt?: string;
+  private _pinned?: boolean;
+  private _metadata?: Record<string, unknown>;
+
+  constructor(private client: MemoClawClient) {}
+
+  /** Set the memory content. */
+  content(content: string): AsyncStoreBuilder {
+    this._content = content;
+    return this;
+  }
+
+  /** Set importance (0.0 to 1.0). */
+  importance(importance: number): AsyncStoreBuilder {
+    if (importance < 0 || importance > 1) {
+      throw new Error('importance must be between 0.0 and 1.0');
+    }
+    this._importance = importance;
+    return this;
+  }
+
+  /** Set tags for the memory. */
+  tags(tags: string[]): AsyncStoreBuilder {
+    this._tags = tags;
+    return this;
+  }
+
+  /** Add a single tag. */
+  addTag(tag: string): AsyncStoreBuilder {
+    if (!this._tags) {
+      this._tags = [];
+    }
+    this._tags.push(tag);
+    return this;
+  }
+
+  /** Set namespace. */
+  namespace(namespace: string): AsyncStoreBuilder {
+    this._namespace = namespace;
+    return this;
+  }
+
+  /** Set memory type. */
+  memoryType(memoryType: MemoryType): AsyncStoreBuilder {
+    this._memoryType = memoryType;
+    return this;
+  }
+
+  /** Set session ID. */
+  sessionId(sessionId: string): AsyncStoreBuilder {
+    this._sessionId = sessionId;
+    return this;
+  }
+
+  /** Set agent ID. */
+  agentId(agentId: string): AsyncStoreBuilder {
+    this._agentId = agentId;
+    return this;
+  }
+
+  /** Set expiration timestamp (ISO format). */
+  expiresAt(expiresAt: string): AsyncStoreBuilder {
+    this._expiresAt = expiresAt;
+    return this;
+  }
+
+  /** Pin the memory. */
+  pinned(pinned = true): AsyncStoreBuilder {
+    this._pinned = pinned;
+    return this;
+  }
+
+  /** Set custom metadata. */
+  metadata(metadata: Record<string, unknown>): AsyncStoreBuilder {
+    this._metadata = metadata;
+    return this;
+  }
+
+  /** Execute the store operation asynchronously. */
   async execute(): Promise<StoreResponse> {
     if (!this._content) {
       throw new Error("Content is required. Use .content() to set it.");

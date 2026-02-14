@@ -15,6 +15,7 @@ export {
 export type { BeforeRequestHook, AfterResponseHook, OnErrorHook } from './client.js';
 export {
   RecallQuery,
+  AsyncRecallQuery,
   MemoryFilter,
   AsyncMemoryFilter,
   RelationBuilder,
@@ -22,6 +23,7 @@ export {
   BatchStore,
   StreamingRecall,
   StoreBuilder,
+  AsyncStoreBuilder,
 } from './builders.js';
 export type {
   MemoClawOptions,
@@ -40,6 +42,7 @@ export type {
   ListMemoriesParams,
   UpdateMemoryRequest,
   DeleteResponse,
+  DeleteBatchResult,
   IngestRequest,
   IngestResponse,
   SuggestedCategory,

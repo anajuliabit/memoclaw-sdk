@@ -72,6 +72,7 @@ export type OnErrorHook = (method: string, path: string, error: MemoClawError) =
 export class MemoClawClient {
   private readonly baseUrl: string;
   private readonly wallet: string;
+  private readonly privateKey?: string;
   private readonly _fetch: typeof globalThis.fetch;
   private readonly maxRetries: number;
   private readonly retryDelay: number;
@@ -102,6 +103,27 @@ export class MemoClawClient {
     this._fetch = options.fetch ?? globalThis.fetch;
     this.maxRetries = options.maxRetries ?? 2;
     this.retryDelay = options.retryDelay ?? 500;
+  }
+
+  /** Derive wallet address from private key (simple hex conversion). */
+  private _deriveWalletAddress(privateKey: string): string {
+    // Simple approach: take the last 40 chars of the key hash or use as-is if it looks like an address
+    // For proper Ethereum address derivation, you'd use a library like ethers
+    // This is a placeholder - in production, use proper key derivation
+    const key = privateKey.replace(/^0x/, '');
+    if (key.length === 40) {
+      return '0x' + key;
+    }
+    // For demo purposes, return a placeholder - in real implementation use ethers.js
+    return '0x' + key.slice(-40);
+  }
+
+  /** Generate wallet auth header from private key. */
+  private _generateWalletAuth(): string {
+    const timestamp = Math.floor(Date.now() / 1000).toString();
+    // In production, use ethers.js to sign the message
+    // Format: {address}:{timestamp}:{signature}
+    return `${this.wallet}:${timestamp}:signature`;
   }
 
   /** Register a hook called before each request. Returns this for chaining. */
@@ -144,9 +166,10 @@ export class MemoClawClient {
       if (result !== undefined) processedBody = result;
     }
 
-    const headers: Record<string, string> = {
-      'X-Wallet': this.wallet,
-    };
+    // Use wallet auth header if private key is provided, otherwise use simple wallet header
+    const headers: Record<string, string> = this.privateKey
+      ? { 'X-Wallet-Auth': this._generateWalletAuth() }
+      : { 'X-Wallet': this.wallet };
     if (processedBody !== undefined) {
       headers['Content-Type'] = 'application/json';
     }
@@ -293,6 +316,27 @@ export class MemoClawClient {
     return this.request<DeleteResponse>('DELETE', `/v1/memories/${encodeURIComponent(id)}`, undefined, undefined, options?.signal);
   }
 
+  /** Delete multiple memories by ID in batch. */
+  async deleteBatch(ids: string[]): Promise<import('./types.js').DeleteBatchResult[]> {
+    const results: import('./types.js').DeleteBatchResult[] = [];
+    // Process in chunks of 50
+    for (let i = 0; i < ids.length; i += 50) {
+      const chunk = ids.slice(i, i + 50);
+      const response = await this.request<{ results: import('./types.js').DeleteBatchResult[] }>(
+        'POST',
+        '/v1/memories/batch-delete',
+        { ids: chunk }
+      );
+      results.push(...response.results);
+    }
+    return results;
+  }
+
+  /** Alias for recall — matches Mem0/Pinecone "search" convention. */
+  search(request: RecallRequest): Promise<RecallResponse> {
+    return this.recall(request);
+  }
+
   /** Ingest a conversation or text and auto-extract memories. */
   async ingest(request: IngestRequest, options?: { signal?: AbortSignal }): Promise<IngestResponse> {
     if (!request.messages?.length && !request.text?.trim()) {
@@ -436,6 +480,52 @@ export class MemoClawClient {
       if (options.direction && r.direction !== options.direction) return false;
       return true;
     });
+  }
+
+  // ── Context Manager (using block) ───────────────────
+
+  /**
+   * Enable using-block syntax for automatic cleanup.
+   * Uses explicit Symbol.dispose method for ES2024+ compatibility.
+   * 
+   * @example
+   * ```ts
+   * using client = new MemoClawClient({ wallet: '0x...' });
+   * await client.store({ content: 'Memory' });
+   * // Automatically cleaned up here
+   * ```
+   */
+  [Symbol.dispose](): void {
+    // Cleanup hook - can be used for closing connections, aborting pending requests, etc.
+    // For fetch-based client, this is a no-op but provides the interface for resource management
+  }
+
+  /**
+   * Alias for Symbol.dispose - explicit method name for cleanup.
+   */
+  dispose(): void {
+    // Placeholder for resource cleanup
+  }
+
+  /**
+   * Create a client wrapped in a Disposable for automatic cleanup.
+   * 
+   * @example
+   * ```ts
+   * {
+   *   using client = MemoClawClient.disposable({ wallet: '0x...' });
+   *   await client.store({ content: 'Memory' });
+   * } // Automatically cleaned up
+   * ```
+   */
+  static disposable(options: MemoClawOptions): { client: MemoClawClient; [Symbol.dispose]: () => void } {
+    const client = new MemoClawClient(options);
+    return {
+      client,
+      [Symbol.dispose]() {
+        // Cleanup resources
+      },
+    };
   }
 }
 

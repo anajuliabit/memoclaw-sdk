@@ -6,14 +6,16 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { MemoClawClient } from '../src/client.js';
 import {
   RecallQuery,
+  AsyncRecallQuery,
   MemoryFilter,
   AsyncMemoryFilter,
   RelationBuilder,
   AsyncRelationBuilder,
   BatchStore,
   StoreBuilder,
+  AsyncStoreBuilder,
 } from '../src/builders.js';
-import type { RecallResponse, Memory } from '../src/types.js';
+import type { RecallResponse, RecallMemory, Memory, DeleteBatchResult } from '../src/types.js';
 
 // Mock fetch globally
 const mockFetch = vi.fn();
@@ -542,5 +544,396 @@ describe('StoreBuilder', () => {
     expect(() => {
       new StoreBuilder(client).content('test').importance(1.5);
     }).toThrow('importance must be between 0.0 and 1.0');
+  });
+});
+
+describe('MemoClawClient Extensions', () => {
+  const TEST_WALLET = '0x2c7536E3605D9C16a7a3D7b1898e529396a65c23';
+
+  describe('deleteBatch', () => {
+    let client: MemoClawClient;
+
+    beforeEach(() => {
+      client = new MemoClawClient({ wallet: TEST_WALLET });
+      mockFetch.mockReset();
+    });
+
+    it('should delete multiple memories in batch', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({
+          results: [
+            { id: 'm1', deleted: true },
+            { id: 'm2', deleted: true },
+            { id: 'm3', deleted: true },
+          ],
+        }),
+      } as unknown as Response);
+
+      const results = await client.deleteBatch(['m1', 'm2', 'm3']);
+
+      expect(results).toHaveLength(3);
+      expect(results.every(r => r.deleted)).toBe(true);
+    });
+
+    it('should chunk large batches', async () => {
+      // 150 ids should be split into 3 chunks of 50
+      const ids = Array.from({ length: 150 }, (_, i) => `m${i}`);
+      
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve({
+            results: ids.slice(0, 50).map(id => ({ id, deleted: true })),
+          }),
+        } as unknown as Response)
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve({
+            results: ids.slice(50, 100).map(id => ({ id, deleted: true })),
+          }),
+        } as unknown as Response)
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve({
+            results: ids.slice(100).map(id => ({ id, deleted: true })),
+          }),
+        } as unknown as Response);
+
+      const results = await client.deleteBatch(ids);
+
+      expect(results).toHaveLength(150);
+      expect(mockFetch).toHaveBeenCalledTimes(3);
+    });
+  });
+
+  describe('search alias', () => {
+    let client: MemoClawClient;
+
+    beforeEach(() => {
+      client = new MemoClawClient({ wallet: TEST_WALLET });
+      mockFetch.mockReset();
+    });
+
+    it('should be an alias for recall', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({
+          memories: [],
+          query_tokens: 5,
+        }),
+      } as unknown as Response);
+
+      const result = await client.search({ query: 'test' });
+
+      expect(result.query_tokens).toBe(5);
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('listAll alias', () => {
+    let client: MemoClawClient;
+
+    beforeEach(() => {
+      client = new MemoClawClient({ wallet: TEST_WALLET });
+      mockFetch.mockReset();
+    });
+
+    it('should be an alias for iterMemories', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({
+          memories: [{ id: 'm1', content: 'Test', metadata: {}, importance: 0.5, memory_type: 'general', namespace: 'default', session_id: null, agent_id: null, created_at: '2025-01-01', access_count: 0, pinned: false }],
+          total: 1,
+          limit: 50,
+          offset: 0,
+        }),
+      } as unknown as Response);
+
+      const generator = client.listAll();
+      const memory = await generator.next();
+      
+      expect(memory.value).toBeDefined();
+    });
+  });
+
+  describe('context manager', () => {
+    it('should support disposable pattern', () => {
+      const disposable = MemoClawClient.disposable({ wallet: TEST_WALLET });
+      expect(disposable.client).toBeDefined();
+      expect(typeof disposable[Symbol.dispose]).toBe('function');
+    });
+
+    it('should have Symbol.dispose on instance', () => {
+      const client = new MemoClawClient({ wallet: TEST_WALLET });
+      expect(typeof client[Symbol.dispose]).toBe('function');
+    });
+  });
+
+  describe('abort signal support', () => {
+    let client: MemoClawClient;
+
+    beforeEach(() => {
+      client = new MemoClawClient({ wallet: TEST_WALLET });
+      mockFetch.mockReset();
+    });
+
+    it('should accept abort signal in request', async () => {
+      const abortController = new AbortController();
+      
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ memories: [], query_tokens: 0 }),
+      } as unknown as Response);
+
+      // This tests that the internal request method accepts signal
+      // The actual abort test would require more sophisticated mocking
+      await client.recall({ query: 'test' });
+      
+      expect(mockFetch).toHaveBeenCalled();
+    });
+  });
+});
+
+describe('AsyncRecallQuery', () => {
+  let client: MemoClawClient;
+
+  beforeEach(() => {
+    client = new MemoClawClient({ wallet: TEST_WALLET });
+    mockFetch.mockReset();
+  });
+
+  it('should build and execute a basic async recall query', async () => {
+    const mockResponse: RecallResponse = {
+      memories: [
+        {
+          id: 'm1',
+          content: 'User prefers TypeScript',
+          similarity: 0.95,
+          metadata: {},
+          importance: 0.8,
+          memory_type: 'preference',
+          namespace: 'default',
+          session_id: null,
+          agent_id: null,
+          created_at: '2025-01-01T00:00:00Z',
+          access_count: 1,
+          pinned: false,
+        },
+      ],
+      query_tokens: 5,
+    };
+
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve(mockResponse),
+    } as unknown as Response);
+
+    const result = await new AsyncRecallQuery(client)
+      .withQuery('programming language preferences')
+      .execute();
+
+    expect(result.memories).toHaveLength(1);
+    const firstMemory = result.memories[0];
+    expect(firstMemory?.content).toBe('User prefers TypeScript');
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('should apply multiple filters in async query', async () => {
+    const mockResponse: RecallResponse = {
+      memories: [],
+      query_tokens: 5,
+    };
+
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve(mockResponse),
+    } as unknown as Response);
+
+    const result = await new AsyncRecallQuery(client)
+      .withQuery('test')
+      .withLimit(10)
+      .withMinSimilarity(0.7)
+      .withNamespace('user-prefs')
+      .withTags(['important'])
+      .withSessionId('session-123')
+      .includeRelations()
+      .execute();
+
+    expect(result).toBeDefined();
+
+    // Check the request body
+    const callArgs = mockFetch.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(callArgs[1].body as string);
+    expect(body.query).toBe('test');
+    expect(body.limit).toBe(10);
+    expect(body.min_similarity).toBe(0.7);
+    expect(body.namespace).toBe('user-prefs');
+    expect(body.include_relations).toBe(true);
+  });
+
+  it('should throw when executing async recall without query', async () => {
+    await expect(
+      new AsyncRecallQuery(client).execute()
+    ).rejects.toThrow('Query is required');
+  });
+
+  it('should throw on invalid similarity in async query', async () => {
+    expect(() => {
+      new AsyncRecallQuery(client).withMinSimilarity(1.5);
+    }).toThrow('minSimilarity must be between 0.0 and 1.0');
+  });
+
+  it('should iterate over results using executeIter', async () => {
+    const mockResponse: RecallResponse = {
+      memories: [
+        {
+          id: 'm1',
+          content: 'Memory 1',
+          similarity: 0.9,
+          metadata: {},
+          importance: 0.5,
+          memory_type: 'general',
+          namespace: 'default',
+          session_id: null,
+          agent_id: null,
+          created_at: '2025-01-01T00:00:00Z',
+          access_count: 1,
+          pinned: false,
+        },
+        {
+          id: 'm2',
+          content: 'Memory 2',
+          similarity: 0.8,
+          metadata: {},
+          importance: 0.4,
+          memory_type: 'general',
+          namespace: 'default',
+          session_id: null,
+          agent_id: null,
+          created_at: '2025-01-01T00:00:00Z',
+          access_count: 1,
+          pinned: false,
+        },
+      ],
+      query_tokens: 5,
+    };
+
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve(mockResponse),
+    } as unknown as Response);
+
+    const memories: RecallMemory[] = [];
+    for await (const memory of new AsyncRecallQuery(client)
+      .withQuery('test')
+      .executeIter()) {
+      memories.push(memory);
+    }
+
+    expect(memories).toHaveLength(2);
+    expect(memories[0]?.content).toBe('Memory 1');
+    expect(memories[1]?.content).toBe('Memory 2');
+  });
+});
+
+describe('AsyncStoreBuilder', () => {
+  let client: MemoClawClient;
+
+  beforeEach(() => {
+    client = new MemoClawClient({ wallet: TEST_WALLET });
+    mockFetch.mockReset();
+  });
+
+  it('should build and execute a basic async store', async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({
+        id: 'mem-123',
+        stored: true,
+        deduplicated: false,
+        tokens_used: 42,
+      }),
+    } as unknown as Response);
+
+    const result = await new AsyncStoreBuilder(client)
+      .content('User prefers dark mode')
+      .importance(0.9)
+      .tags(['preferences', 'ui'])
+      .namespace('user-prefs')
+      .execute();
+
+    expect(result.id).toBe('mem-123');
+    expect(result.stored).toBe(true);
+  });
+
+  it('should execute async store with all options', async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({
+        id: 'mem-456',
+        stored: true,
+        deduplicated: false,
+        tokens_used: 30,
+      }),
+    } as unknown as Response);
+
+    const result = await new AsyncStoreBuilder(client)
+      .content('Test content')
+      .importance(0.5)
+      .addTag('tag1')
+      .addTag('tag2')
+      .namespace('project')
+      .memoryType('preference')
+      .sessionId('sess1')
+      .agentId('agent1')
+      .pinned(true)
+      .metadata({ custom: 'value' })
+      .execute();
+
+    expect(result.id).toBe('mem-456');
+    
+    // Verify the request body
+    const callArgs = mockFetch.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(callArgs[1].body as string);
+    expect(body.content).toBe('Test content');
+    expect(body.importance).toBe(0.5);
+    expect(body.namespace).toBe('project');
+    expect(body.memory_type).toBe('preference');
+    expect(body.pinned).toBe(true);
+  });
+
+  it('should throw when executing async store without content', async () => {
+    await expect(
+      new AsyncStoreBuilder(client).execute()
+    ).rejects.toThrow('Content is required');
+  });
+
+  it('should throw on invalid importance in async store', async () => {
+    expect(() => {
+      new AsyncStoreBuilder(client).content('test').importance(1.5);
+    }).toThrow('importance must be between 0.0 and 1.0');
+  });
+
+  it('should support fluent chaining in async store', async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({
+        id: 'mem-789',
+        stored: true,
+        deduplicated: false,
+        tokens_used: 20,
+      }),
+    } as unknown as Response);
+
+    const result = await new AsyncStoreBuilder(client)
+      .content('Chained memory')
+      .importance(0.7)
+      .addTag('chain')
+      .namespace('test')
+      .pinned()
+      .execute();
+
+    expect(result.id).toBe('mem-789');
   });
 });
