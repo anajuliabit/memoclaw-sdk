@@ -67,12 +67,40 @@ export class ValidationError extends MemoClawError {
   }
 }
 
+/** 402 Payment required error. */
+export class PaymentRequiredError extends MemoClawError {
+  constructor(code: string, message: string, details?: Record<string, unknown>) {
+    super(402, code, message, details);
+    this.name = 'PaymentRequiredError';
+  }
+}
+
+/** 403 Forbidden error. */
+export class ForbiddenError extends MemoClawError {
+  constructor(code: string, message: string, details?: Record<string, unknown>) {
+    super(403, code, message, details);
+    this.name = 'ForbiddenError';
+  }
+}
+
+/** 500 Internal server error. */
+export class InternalServerError extends MemoClawError {
+  constructor(code: string, message: string, details?: Record<string, unknown>) {
+    super(500, code, message, details);
+    this.name = 'InternalServerError';
+  }
+}
+
 type ErrorClassConstructor = new (code: string, message: string, details?: Record<string, unknown>) => MemoClawError;
 const ERROR_CLASS_MAP: Record<number, ErrorClassConstructor> = {
+  400: ValidationError,
   401: AuthenticationError,
+  402: PaymentRequiredError,
+  403: ForbiddenError,
   404: NotFoundError,
   422: ValidationError,
   429: RateLimitError,
+  500: InternalServerError,
 };
 
 /** Hook called before each request. Can modify the body. */
@@ -265,20 +293,6 @@ export class MemoClawClient {
     if (params.session_id) query['session_id'] = params.session_id;
     if (params.agent_id) query['agent_id'] = params.agent_id;
     return this.request<ListMemoriesResponse>('GET', '/v1/memories', undefined, query, options?.signal);
-  }
-
-  /** Async iterator over all memories with automatic pagination. */
-  async *iterMemories(params: Omit<ListMemoriesParams, 'offset'> & { batchSize?: number } = {}): AsyncGenerator<Memory, void, unknown> {
-    const { batchSize = 50, ...rest } = params;
-    let offset = 0;
-    while (true) {
-      const page = await this.list({ ...rest, limit: batchSize, offset });
-      for (const mem of page.memories) {
-        yield mem;
-      }
-      offset += page.memories.length;
-      if (offset >= page.total || page.memories.length === 0) break;
-    }
   }
 
   /** Async iterator over all memories with automatic pagination. */

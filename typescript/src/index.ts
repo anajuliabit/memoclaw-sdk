@@ -6,10 +6,13 @@ export {
   ForbiddenError,
   NotFoundError,
   ValidationError,
-  RateLimitError,
   InternalServerError,
+  RateLimitError,
   createError,
-} from './errors.js';
+  type BeforeRequestHook,
+  type AfterResponseHook,
+  type OnErrorHook,
+} from './client.js';
 export type {
   MemoClawOptions,
   MemoryType,
