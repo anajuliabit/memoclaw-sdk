@@ -420,7 +420,6 @@ export class AsyncRecallQuery {
   }
 }
 
- */
 export class MemoryFilter {
   private _namespace?: string;
   private _tags?: string[];

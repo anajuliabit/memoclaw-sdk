@@ -72,7 +72,6 @@ export type OnErrorHook = (method: string, path: string, error: MemoClawError) =
 export class MemoClawClient {
   private readonly baseUrl: string;
   private readonly wallet: string;
-  private readonly privateKey?: string;
   private readonly _fetch: typeof globalThis.fetch;
   private readonly maxRetries: number;
   private readonly retryDelay: number;
@@ -103,27 +102,6 @@ export class MemoClawClient {
     this._fetch = options.fetch ?? globalThis.fetch;
     this.maxRetries = options.maxRetries ?? 2;
     this.retryDelay = options.retryDelay ?? 500;
-  }
-
-  /** Derive wallet address from private key (simple hex conversion). */
-  private _deriveWalletAddress(privateKey: string): string {
-    // Simple approach: take the last 40 chars of the key hash or use as-is if it looks like an address
-    // For proper Ethereum address derivation, you'd use a library like ethers
-    // This is a placeholder - in production, use proper key derivation
-    const key = privateKey.replace(/^0x/, '');
-    if (key.length === 40) {
-      return '0x' + key;
-    }
-    // For demo purposes, return a placeholder - in real implementation use ethers.js
-    return '0x' + key.slice(-40);
-  }
-
-  /** Generate wallet auth header from private key. */
-  private _generateWalletAuth(): string {
-    const timestamp = Math.floor(Date.now() / 1000).toString();
-    // In production, use ethers.js to sign the message
-    // Format: {address}:{timestamp}:{signature}
-    return `${this.wallet}:${timestamp}:signature`;
   }
 
   /** Register a hook called before each request. Returns this for chaining. */
@@ -167,9 +145,7 @@ export class MemoClawClient {
     }
 
     // Use wallet auth header if private key is provided, otherwise use simple wallet header
-    const headers: Record<string, string> = this.privateKey
-      ? { 'X-Wallet-Auth': this._generateWalletAuth() }
-      : { 'X-Wallet': this.wallet };
+    const headers: Record<string, string> = { 'X-Wallet': this.wallet };
     if (processedBody !== undefined) {
       headers['Content-Type'] = 'application/json';
     }
