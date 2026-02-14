@@ -242,8 +242,8 @@ describe('Error handling', () => {
     try {
       await client.get('x');
     } catch (e) {
-      expect((e as NotFoundError).suggestion).toBeDefined();
-      expect((e as NotFoundError).message).toContain('💡');
+      expect((e as NotFoundError).code).toBe('NOT_FOUND');
+      expect((e as NotFoundError).message).toContain('Memory not found');
     }
   });
 

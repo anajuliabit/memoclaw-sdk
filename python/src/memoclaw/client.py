@@ -3,14 +3,21 @@
 from __future__ import annotations
 
 import os
-
-
+from pathlib import Path
 
 from collections.abc import AsyncIterator, Callable, Iterator
 
 from typing import Any
 
-from ._client import DEFAULT_BASE_URL, DEFAULT_TIMEOUT, _AsyncHTTPClient, _SyncHTTPClient
+from ._client import (
+    DEFAULT_BASE_URL,
+    DEFAULT_POOL_MAX_CONNECTIONS,
+    DEFAULT_POOL_MAX_KEEPALIVE_CONNECTIONS,
+    DEFAULT_TIMEOUT,
+    _AsyncHTTPClient,
+    _SyncHTTPClient,
+)
+from .config import load_config, resolve_base_url, resolve_private_key
 from .types import (
     ConsolidateResult,
     DeleteResult,
@@ -20,6 +27,7 @@ from .types import (
     ListResponse,
     Memory,
     MemoryType,
+    MigrateResult,
     Message,
     RecallResponse,
     Relation,
@@ -32,17 +40,6 @@ from .types import (
     SuggestedCategory,
     SuggestedResponse,
 )
-
-
-def _get_private_key(private_key: str | None) -> str:
-    if private_key is not None:
-        return private_key
-    env_key = os.environ.get("MEMOCLAW_PRIVATE_KEY")
-    if env_key:
-        return env_key
-    raise ValueError(
-        "No private key provided. Pass private_key= or set MEMOCLAW_PRIVATE_KEY."
-    )
 
 
 def _clean_params(params: dict[str, Any]) -> dict[str, Any]:
@@ -130,20 +127,32 @@ class MemoClaw:
             Falls back to ``MEMOCLAW_PRIVATE_KEY`` env var.
         base_url: API base URL. Defaults to ``https://api.memoclaw.com``.
         timeout: Request timeout in seconds. Defaults to 30.
+        max_retries: Maximum retry attempts for transient errors. Defaults to 2.
+        pool_max_connections: Maximum number of connections in the pool. Defaults to 10.
+        pool_max_keepalive: Maximum number of keep-alive connections. Defaults to 5.
     """
 
     def __init__(
         self,
         private_key: str | None = None,
         *,
-        base_url: str = DEFAULT_BASE_URL,
+        base_url: str | None = None,
         timeout: float = DEFAULT_TIMEOUT,
         max_retries: int | None = None,
+        pool_max_connections: int = DEFAULT_POOL_MAX_CONNECTIONS,
+        pool_max_keepalive: int = DEFAULT_POOL_MAX_KEEPALIVE_CONNECTIONS,
+        config_path: str | Path | None = None,
     ) -> None:
+        config = load_config(config_path)
+        resolved_url = resolve_base_url(base_url, config)
+        resolved_key = resolve_private_key(private_key, config)
+
         kwargs: dict[str, Any] = {
-            "private_key": _get_private_key(private_key),
-            "base_url": base_url,
+            "private_key": resolved_key,
+            "base_url": resolved_url,
             "timeout": timeout,
+            "pool_max_connections": pool_max_connections,
+            "pool_max_keepalive": pool_max_keepalive,
         }
         if max_retries is not None:
             kwargs["max_retries"] = max_retries
@@ -551,6 +560,84 @@ class MemoClaw:
         data = self._run_request("GET", "/v1/free-tier/status")
         return FreeTierStatus.model_validate(data)
 
+    # ── Migrate ───────────────────────────────────────────────────────────
+
+    def migrate(
+        self,
+        files: list[dict[str, str]],
+        *,
+        namespace: str | None = None,
+        agent_id: str | None = None,
+        session_id: str | None = None,
+        auto_tag: bool | None = None,
+    ) -> MigrateResult:
+        """Bulk import markdown memory files.
+
+        Args:
+            files: List of dicts with ``filename`` and ``content`` keys.
+            namespace: Optional namespace for all imported memories.
+            agent_id: Optional agent ID.
+            session_id: Optional session ID.
+            auto_tag: If True, auto-generate tags from content.
+
+        Example::
+
+            from pathlib import Path
+
+            files = [
+                {"filename": f.name, "content": f.read_text()}
+                for f in Path("memories/").glob("*.md")
+            ]
+            result = client.migrate(files, namespace="imported")
+        """
+        if not files:
+            raise ValueError("files list must not be empty")
+        body: dict[str, Any] = {"files": files}
+        if namespace is not None:
+            body["namespace"] = namespace
+        if agent_id is not None:
+            body["agent_id"] = agent_id
+        if session_id is not None:
+            body["session_id"] = session_id
+        if auto_tag is not None:
+            body["auto_tag"] = auto_tag
+        data = self._run_request("POST", "/v1/migrate", json=body)
+        return MigrateResult.model_validate(data)
+
+    def migrate_directory(
+        self,
+        directory: str | Path,
+        *,
+        pattern: str = "*.md",
+        namespace: str | None = None,
+        agent_id: str | None = None,
+        session_id: str | None = None,
+        auto_tag: bool | None = None,
+    ) -> MigrateResult:
+        """Convenience: migrate all matching files from a directory.
+
+        Args:
+            directory: Path to directory containing memory files.
+            pattern: Glob pattern (default ``*.md``).
+        """
+        dir_path = Path(directory)
+        if not dir_path.is_dir():
+            raise ValueError(f"Directory not found: {directory}")
+        files = [
+            {"filename": f.name, "content": f.read_text(encoding="utf-8")}
+            for f in sorted(dir_path.glob(pattern))
+            if f.is_file()
+        ]
+        if not files:
+            raise ValueError(f"No files matching '{pattern}' in {directory}")
+        return self.migrate(
+            files,
+            namespace=namespace,
+            agent_id=agent_id,
+            session_id=session_id,
+            auto_tag=auto_tag,
+        )
+
     # ── Pagination iterator ──────────────────────────────────────────────
 
     def list_all(
@@ -653,20 +740,32 @@ class AsyncMemoClaw:
             Falls back to ``MEMOCLAW_PRIVATE_KEY`` env var.
         base_url: API base URL. Defaults to ``https://api.memoclaw.com``.
         timeout: Request timeout in seconds. Defaults to 30.
+        max_retries: Maximum retry attempts for transient errors. Defaults to 2.
+        pool_max_connections: Maximum number of connections in the pool. Defaults to 10.
+        pool_max_keepalive: Maximum number of keep-alive connections. Defaults to 5.
     """
 
     def __init__(
         self,
         private_key: str | None = None,
         *,
-        base_url: str = DEFAULT_BASE_URL,
+        base_url: str | None = None,
         timeout: float = DEFAULT_TIMEOUT,
         max_retries: int | None = None,
+        pool_max_connections: int = DEFAULT_POOL_MAX_CONNECTIONS,
+        pool_max_keepalive: int = DEFAULT_POOL_MAX_KEEPALIVE_CONNECTIONS,
+        config_path: str | Path | None = None,
     ) -> None:
+        config = load_config(config_path)
+        resolved_url = resolve_base_url(base_url, config)
+        resolved_key = resolve_private_key(private_key, config)
+
         kwargs: dict[str, Any] = {
-            "private_key": _get_private_key(private_key),
-            "base_url": base_url,
+            "private_key": resolved_key,
+            "base_url": resolved_url,
             "timeout": timeout,
+            "pool_max_connections": pool_max_connections,
+            "pool_max_keepalive": pool_max_keepalive,
         }
         if max_retries is not None:
             kwargs["max_retries"] = max_retries
@@ -1083,6 +1182,61 @@ class AsyncMemoClaw:
         """Check free tier remaining calls."""
         data = await self._run_request("GET", "/v1/free-tier/status")
         return FreeTierStatus.model_validate(data)
+
+    # ── Migrate ───────────────────────────────────────────────────────────
+
+    async def migrate(
+        self,
+        files: list[dict[str, str]],
+        *,
+        namespace: str | None = None,
+        agent_id: str | None = None,
+        session_id: str | None = None,
+        auto_tag: bool | None = None,
+    ) -> MigrateResult:
+        """Bulk import markdown memory files. See sync version for details."""
+        if not files:
+            raise ValueError("files list must not be empty")
+        body: dict[str, Any] = {"files": files}
+        if namespace is not None:
+            body["namespace"] = namespace
+        if agent_id is not None:
+            body["agent_id"] = agent_id
+        if session_id is not None:
+            body["session_id"] = session_id
+        if auto_tag is not None:
+            body["auto_tag"] = auto_tag
+        data = await self._run_request("POST", "/v1/migrate", json=body)
+        return MigrateResult.model_validate(data)
+
+    async def migrate_directory(
+        self,
+        directory: str | Path,
+        *,
+        pattern: str = "*.md",
+        namespace: str | None = None,
+        agent_id: str | None = None,
+        session_id: str | None = None,
+        auto_tag: bool | None = None,
+    ) -> MigrateResult:
+        """Convenience: migrate all matching files from a directory. See sync version for details."""
+        dir_path = Path(directory)
+        if not dir_path.is_dir():
+            raise ValueError(f"Directory not found: {directory}")
+        files = [
+            {"filename": f.name, "content": f.read_text(encoding="utf-8")}
+            for f in sorted(dir_path.glob(pattern))
+            if f.is_file()
+        ]
+        if not files:
+            raise ValueError(f"No files matching '{pattern}' in {directory}")
+        return await self.migrate(
+            files,
+            namespace=namespace,
+            agent_id=agent_id,
+            session_id=session_id,
+            auto_tag=auto_tag,
+        )
 
     # ── Async pagination iterator ────────────────────────────────────────
 

@@ -15,6 +15,10 @@ DEFAULT_BASE_URL = "https://api.memoclaw.com"
 DEFAULT_TIMEOUT = 30.0
 DEFAULT_MAX_RETRIES = 2
 
+# Default connection pool limits
+DEFAULT_POOL_MAX_CONNECTIONS = 10
+DEFAULT_POOL_MAX_KEEPALIVE_CONNECTIONS = 5
+
 # Status codes that are safe to retry (transient server errors)
 _RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 504}
 
@@ -74,12 +78,20 @@ class _SyncHTTPClient:
         base_url: str = DEFAULT_BASE_URL,
         timeout: float = DEFAULT_TIMEOUT,
         max_retries: int = DEFAULT_MAX_RETRIES,
+        pool_max_connections: int = DEFAULT_POOL_MAX_CONNECTIONS,
+        pool_max_keepalive: int = DEFAULT_POOL_MAX_KEEPALIVE_CONNECTIONS,
     ) -> None:
         self._account = Account.from_key(private_key)
         self._base_url = base_url.rstrip("/")
         self._timeout = timeout
         self._max_retries = max_retries
-        self._http = httpx.Client(timeout=timeout)
+        
+        # Configure connection pool limits for better performance
+        limits = httpx.Limits(
+            max_connections=pool_max_connections,
+            max_keepalive_connections=pool_max_keepalive,
+        )
+        self._http = httpx.Client(timeout=timeout, limits=limits)
 
     def request(
         self,
@@ -157,12 +169,20 @@ class _AsyncHTTPClient:
         base_url: str = DEFAULT_BASE_URL,
         timeout: float = DEFAULT_TIMEOUT,
         max_retries: int = DEFAULT_MAX_RETRIES,
+        pool_max_connections: int = DEFAULT_POOL_MAX_CONNECTIONS,
+        pool_max_keepalive: int = DEFAULT_POOL_MAX_KEEPALIVE_CONNECTIONS,
     ) -> None:
         self._account = Account.from_key(private_key)
         self._base_url = base_url.rstrip("/")
         self._timeout = timeout
         self._max_retries = max_retries
-        self._http = httpx.AsyncClient(timeout=timeout)
+        
+        # Configure connection pool limits for better performance
+        limits = httpx.Limits(
+            max_connections=pool_max_connections,
+            max_keepalive_connections=pool_max_keepalive,
+        )
+        self._http = httpx.AsyncClient(timeout=timeout, limits=limits)
 
     async def request(
         self,

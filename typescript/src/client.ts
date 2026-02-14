@@ -26,82 +26,28 @@ import type {
   ListRelationsResponse,
   DeleteRelationResponse,
   FreeTierStatus,
+  MigrateFile,
+  MigrateRequest,
+  MigrateResponse,
 } from './types.js';
-import { MemoClawError, createError } from './errors.js';
+import {
+  MemoClawError,
+  AuthenticationError,
+  PaymentRequiredError,
+  ForbiddenError,
+  NotFoundError,
+  ValidationError,
+  RateLimitError,
+  InternalServerError,
+  createError,
+} from './errors.js';
+import { loadConfig } from './config.js';
 
 const DEFAULT_BASE_URL = 'https://api.memoclaw.com';
 const MAX_BATCH_SIZE = 100;
 
 /** Status codes that are safe to retry (transient errors). */
 const RETRYABLE_STATUS_CODES = new Set([408, 429, 500, 502, 503, 504]);
-
-/** 401 Authentication error. */
-export class AuthenticationError extends MemoClawError {
-  constructor(code: string, message: string, details?: Record<string, unknown>) {
-    super(401, code, message, details);
-    this.name = 'AuthenticationError';
-  }
-}
-
-/** 404 Not found error. */
-export class NotFoundError extends MemoClawError {
-  constructor(code: string, message: string, details?: Record<string, unknown>) {
-    super(404, code, message, details);
-    this.name = 'NotFoundError';
-  }
-}
-
-/** 429 Rate limit error. */
-export class RateLimitError extends MemoClawError {
-  constructor(code: string, message: string, details?: Record<string, unknown>) {
-    super(429, code, message, details);
-    this.name = 'RateLimitError';
-  }
-}
-
-/** 422 Validation error. */
-export class ValidationError extends MemoClawError {
-  constructor(code: string, message: string, details?: Record<string, unknown>) {
-    super(422, code, message, details);
-    this.name = 'ValidationError';
-  }
-}
-
-/** 402 Payment required error. */
-export class PaymentRequiredError extends MemoClawError {
-  constructor(code: string, message: string, details?: Record<string, unknown>) {
-    super(402, code, message, details);
-    this.name = 'PaymentRequiredError';
-  }
-}
-
-/** 403 Forbidden error. */
-export class ForbiddenError extends MemoClawError {
-  constructor(code: string, message: string, details?: Record<string, unknown>) {
-    super(403, code, message, details);
-    this.name = 'ForbiddenError';
-  }
-}
-
-/** 500 Internal server error. */
-export class InternalServerError extends MemoClawError {
-  constructor(code: string, message: string, details?: Record<string, unknown>) {
-    super(500, code, message, details);
-    this.name = 'InternalServerError';
-  }
-}
-
-type ErrorClassConstructor = new (code: string, message: string, details?: Record<string, unknown>) => MemoClawError;
-const ERROR_CLASS_MAP: Record<number, ErrorClassConstructor> = {
-  400: ValidationError,
-  401: AuthenticationError,
-  402: PaymentRequiredError,
-  403: ForbiddenError,
-  404: NotFoundError,
-  422: ValidationError,
-  429: RateLimitError,
-  500: InternalServerError,
-};
 
 /** Hook called before each request. Can modify the body. */
 export type BeforeRequestHook = (method: string, path: string, body?: unknown) => unknown | void;
@@ -132,12 +78,26 @@ export class MemoClawClient {
   private readonly _afterResponseHooks: AfterResponseHook[] = [];
   private readonly _onErrorHooks: OnErrorHook[] = [];
 
-  constructor(options: MemoClawOptions) {
-    if (!options.wallet) {
-      throw new Error('wallet is required');
+  constructor(options: MemoClawOptions = {}) {
+    const config = loadConfig(options.configPath);
+
+    const wallet = options.wallet
+      ?? process.env.MEMOCLAW_WALLET
+      ?? config.wallet;
+    if (!wallet) {
+      throw new Error(
+        'wallet is required. Pass wallet option, set MEMOCLAW_WALLET, '
+        + 'or run `memoclaw init` to create ~/.memoclaw/config.json.',
+      );
     }
-    this.baseUrl = (options.baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, '');
-    this.wallet = options.wallet;
+
+    const baseUrl = options.baseUrl
+      ?? process.env.MEMOCLAW_URL
+      ?? config.url
+      ?? DEFAULT_BASE_URL;
+
+    this.baseUrl = baseUrl.replace(/\/+$/, '');
+    this.wallet = wallet;
     this._fetch = options.fetch ?? globalThis.fetch;
     this.maxRetries = options.maxRetries ?? 2;
     this.retryDelay = options.retryDelay ?? 500;
@@ -391,6 +351,30 @@ export class MemoClawClient {
     if (params.agent_id) query['agent_id'] = params.agent_id;
     if (params.category) query['category'] = params.category;
     return this.request<SuggestedResponse>('GET', '/v1/suggested', undefined, query, options?.signal);
+  }
+
+  // ── Migrate ────────────────────────────────────────────
+
+  /** Bulk import markdown memory files via POST /v1/migrate. */
+  async migrate(
+    files: MigrateFile[],
+    options?: {
+      namespace?: string;
+      agent_id?: string;
+      session_id?: string;
+      auto_tag?: boolean;
+      signal?: AbortSignal;
+    },
+  ): Promise<MigrateResponse> {
+    if (!files.length) {
+      throw new Error('files array must not be empty');
+    }
+    const body: MigrateRequest = { files };
+    if (options?.namespace !== undefined) body.namespace = options.namespace;
+    if (options?.agent_id !== undefined) body.agent_id = options.agent_id;
+    if (options?.session_id !== undefined) body.session_id = options.session_id;
+    if (options?.auto_tag !== undefined) body.auto_tag = options.auto_tag;
+    return this.request<MigrateResponse>('POST', '/v1/migrate', body, undefined, options?.signal);
   }
 
   // ── Pagination iterator ───────────────────────────────

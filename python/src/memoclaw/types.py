@@ -223,6 +223,16 @@ class RelationsResponse(BaseModel):
 # ── Free-tier status ─────────────────────────────────────────────────────────
 
 
+class MigrateResult(BaseModel):
+    """Result of a bulk markdown migration."""
+
+    memory_ids: list[str]
+    files_processed: int
+    memories_created: int
+    memories_deduplicated: int
+    tokens_used: int
+
+
 class FreeTierStatus(BaseModel):
     wallet: str
     free_tier_remaining: int

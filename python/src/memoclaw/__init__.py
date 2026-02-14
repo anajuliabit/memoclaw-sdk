@@ -2,6 +2,7 @@
 
 __version__ = "0.1.0"
 
+from .builders import MemoryBuilder, RecallBuilder
 from .client import AsyncMemoClaw, MemoClaw
 from .errors import (
     APIError,
@@ -14,6 +15,7 @@ from .errors import (
     RateLimitError,
     ValidationError,
 )
+from .config import MemoClawConfig, load_config
 from .types import (
     ClusterInfo,
     RelatedMemorySummary,
@@ -25,6 +27,7 @@ from .types import (
     ListResponse,
     Memory,
     MemoryType,
+    MigrateResult,
     Message,
     RecallMemory,
     RecallResponse,
@@ -46,6 +49,9 @@ __all__ = [
     # Clients
     "MemoClaw",
     "AsyncMemoClaw",
+    # Builders
+    "MemoryBuilder",
+    "RecallBuilder",
     # Errors
     "MemoClawError",
     "APIError",
@@ -81,4 +87,7 @@ __all__ = [
     "SuggestedResponse",
     "SuggestedCategory",
     "FreeTierStatus",
+    "MigrateResult",
+    "MemoClawConfig",
+    "load_config",
 ]
