@@ -13,6 +13,18 @@ export {
   createError,
 } from './errors.js';
 export type { BeforeRequestHook, AfterResponseHook, OnErrorHook } from './client.js';
+export {
+  RecallQuery,
+  AsyncRecallQuery,
+  MemoryFilter,
+  AsyncMemoryFilter,
+  RelationBuilder,
+  AsyncRelationBuilder,
+  BatchStore,
+  StreamingRecall,
+  StoreBuilder,
+  AsyncStoreBuilder,
+} from './builders.js';
 export type {
   MemoClawOptions,
   MemoryType,
@@ -30,6 +42,7 @@ export type {
   ListMemoriesParams,
   UpdateMemoryRequest,
   DeleteResponse,
+  DeleteBatchResult,
   IngestRequest,
   IngestResponse,
   SuggestedCategory,

@@ -17,6 +17,7 @@ from ._client import (
     _AsyncHTTPClient,
     _SyncHTTPClient,
 )
+from .builders import StoreBuilder, AsyncStoreBuilder
 from .config import load_config, resolve_base_url, resolve_private_key
 from .types import (
     ConsolidateResult,
@@ -266,6 +267,18 @@ class MemoClaw:
         data = self._run_request("POST", "/v1/store/batch", json={"memories": items})
         return StoreBatchResult.model_validate(data)
 
+    def store_builder(self) -> StoreBuilder:
+        """Create a StoreBuilder for fluent memory creation.
+
+        Example:
+            >>> result = (client.store_builder()
+            ...     .content("User prefers dark mode")
+            ...     .importance(0.9)
+            ...     .tags(["preferences"])
+            ...     .execute())
+        """
+        return StoreBuilder(self)
+
     # ── Recall ───────────────────────────────────────────────────────────
 
     def recall(
@@ -369,7 +382,7 @@ class MemoClaw:
     def get(self, memory_id: str) -> Memory:
         """Retrieve a single memory by ID."""
         _validate_non_empty(memory_id, "memory_id")
-        data = self._http.request("GET", f"/v1/memories/{memory_id}")
+        data = self._run_request("GET", f"/v1/memories/{memory_id}")
         return Memory.model_validate(data)
 
     # ── Update ───────────────────────────────────────────────────────────
@@ -413,6 +426,17 @@ class MemoClaw:
         """Delete a memory by ID."""
         data = self._run_request("DELETE", f"/v1/memories/{memory_id}")
         return DeleteResult.model_validate(data)
+
+    def delete_batch(self, memory_ids: list[str]) -> list[DeleteResult]:
+        """Delete multiple memories by ID.
+
+        Convenience method that deletes each memory sequentially.
+        Returns a list of :class:`DeleteResult` objects.
+        """
+        return [self.delete(mid) for mid in memory_ids]
+
+    #: Alias for :meth:`recall` — matches Mem0/Pinecone ``search`` convention.
+    search = recall
 
     # ── Ingest ───────────────────────────────────────────────────────────
 
@@ -881,6 +905,18 @@ class AsyncMemoClaw:
         )
         return StoreBatchResult.model_validate(data)
 
+    def store_builder(self) -> AsyncStoreBuilder:
+        """Create an AsyncStoreBuilder for fluent memory creation.
+
+        Example:
+            >>> result = await (client.store_builder()
+            ...     .content("User prefers dark mode")
+            ...     .importance(0.9)
+            ...     .tags(["preferences"])
+            ...     .execute())
+        """
+        return AsyncStoreBuilder(self)
+
     # ── Recall ───────────────────────────────────────────────────────────
 
     async def recall(
@@ -985,7 +1021,7 @@ class AsyncMemoClaw:
     async def get(self, memory_id: str) -> Memory:
         """Retrieve a single memory by ID."""
         _validate_non_empty(memory_id, "memory_id")
-        data = await self._http.request("GET", f"/v1/memories/{memory_id}")
+        data = await self._run_request("GET", f"/v1/memories/{memory_id}")
         return Memory.model_validate(data)
 
     # ── Update ───────────────────────────────────────────────────────────
@@ -1030,6 +1066,17 @@ class AsyncMemoClaw:
         """Delete a memory by ID."""
         data = await self._run_request("DELETE", f"/v1/memories/{memory_id}")
         return DeleteResult.model_validate(data)
+
+    async def delete_batch(self, memory_ids: list[str]) -> list[DeleteResult]:
+        """Delete multiple memories by ID.
+
+        Convenience method that deletes each memory sequentially.
+        Returns a list of :class:`DeleteResult` objects.
+        """
+        return [await self.delete(mid) for mid in memory_ids]
+
+    #: Alias for :meth:`recall` — matches Mem0/Pinecone ``search`` convention.
+    search = recall
 
     # ── Ingest ───────────────────────────────────────────────────────────
 

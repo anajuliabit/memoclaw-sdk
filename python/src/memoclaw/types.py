@@ -71,6 +71,7 @@ class Memory(BaseModel):
     access_count: int
     deleted_at: str | None = None
     expires_at: str | None = None
+    pinned: bool = False
 
 
 # ── Recall ────────────────────────────────────────────────────────────────────
