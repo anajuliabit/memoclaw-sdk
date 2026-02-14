@@ -325,8 +325,6 @@ export interface MemoClawErrorBody {
 export interface MemoClawOptions {
   /** Base URL of the MemoClaw API (default: https://api.memoclaw.com) */
   baseUrl?: string;
-  /** Ethereum private key for wallet auth. Generates wallet auth header automatically. */
-  privateKey?: string;
   /** Wallet address for authentication (sent as X-Wallet header).
    *  If omitted, resolved from env MEMOCLAW_WALLET or ~/.memoclaw/config.json. */
   wallet?: string;
