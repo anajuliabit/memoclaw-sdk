@@ -65,6 +65,15 @@ def _clean_body(body: dict[str, Any]) -> dict[str, Any]:
     return {k: v for k, v in body.items() if v is not None}
 
 
+MAX_BATCH_SIZE = 100
+
+
+def _validate_non_empty(value: str | None, name: str) -> None:
+    """Raise ValueError if value is empty or whitespace-only."""
+    if not value or not value.strip():
+        raise ValueError(f"{name} must be a non-empty string")
+
+
 def _build_store_body(
     content: str,
     *,
@@ -214,6 +223,7 @@ class MemoClaw:
         metadata: dict[str, Any] | None = None,
     ) -> StoreResult:
         """Store a memory."""
+        _validate_non_empty(content, "content")
         body = _build_store_body(
             content,
             importance=importance,
@@ -234,6 +244,12 @@ class MemoClaw:
         memories: list[StoreInput | dict[str, Any]],
     ) -> StoreBatchResult:
         """Store up to 100 memories at once."""
+        if not memories:
+            raise ValueError("memories list must not be empty")
+        if len(memories) > MAX_BATCH_SIZE:
+            raise ValueError(
+                f"Batch size {len(memories)} exceeds maximum of {MAX_BATCH_SIZE}"
+            )
         items = [
             m.model_dump(exclude_none=True) if isinstance(m, StoreInput) else m
             for m in memories
@@ -258,6 +274,7 @@ class MemoClaw:
         memory_type: MemoryType | None = None,
     ) -> RecallResponse:
         """Semantic recall of memories matching a query."""
+        _validate_non_empty(query, "query")
         body: dict[str, Any] = {"query": query}
         if limit is not None:
             body["limit"] = limit
@@ -342,6 +359,7 @@ class MemoClaw:
 
     def get(self, memory_id: str) -> Memory:
         """Retrieve a single memory by ID."""
+        _validate_non_empty(memory_id, "memory_id")
         data = self._http.request("GET", f"/v1/memories/{memory_id}")
         return Memory.model_validate(data)
 
@@ -728,6 +746,7 @@ class AsyncMemoClaw:
         metadata: dict[str, Any] | None = None,
     ) -> StoreResult:
         """Store a memory."""
+        _validate_non_empty(content, "content")
         body = _build_store_body(
             content,
             importance=importance,
@@ -748,6 +767,12 @@ class AsyncMemoClaw:
         memories: list[StoreInput | dict[str, Any]],
     ) -> StoreBatchResult:
         """Store up to 100 memories at once."""
+        if not memories:
+            raise ValueError("memories list must not be empty")
+        if len(memories) > MAX_BATCH_SIZE:
+            raise ValueError(
+                f"Batch size {len(memories)} exceeds maximum of {MAX_BATCH_SIZE}"
+            )
         items = [
             m.model_dump(exclude_none=True) if isinstance(m, StoreInput) else m
             for m in memories
@@ -774,6 +799,7 @@ class AsyncMemoClaw:
         memory_type: MemoryType | None = None,
     ) -> RecallResponse:
         """Semantic recall of memories matching a query."""
+        _validate_non_empty(query, "query")
         body: dict[str, Any] = {"query": query}
         if limit is not None:
             body["limit"] = limit
@@ -859,6 +885,7 @@ class AsyncMemoClaw:
 
     async def get(self, memory_id: str) -> Memory:
         """Retrieve a single memory by ID."""
+        _validate_non_empty(memory_id, "memory_id")
         data = await self._http.request("GET", f"/v1/memories/{memory_id}")
         return Memory.model_validate(data)
 
