@@ -20,7 +20,6 @@
     "build": "tsc",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
     "prepublishOnly": "bun run build"
   },
   "keywords": [
@@ -41,6 +40,7 @@
     "typescript": "^5"
   },
   "devDependencies": {
+    "@types/node": "^25.2.3",
     "typescript": "^5",
     "vitest": "^4.0.18"
   }

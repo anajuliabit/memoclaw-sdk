@@ -1,4 +1,6 @@
 export { MemoClawClient } from './client.js';
+export { MemoryBuilder, RecallBuilder } from './builders.js';
+export { loadConfig, type MemoClawConfig } from './config.js';
 export {
   MemoClawError,
   AuthenticationError,
@@ -9,10 +11,8 @@ export {
   InternalServerError,
   RateLimitError,
   createError,
-  type BeforeRequestHook,
-  type AfterResponseHook,
-  type OnErrorHook,
-} from './client.js';
+} from './errors.js';
+export type { BeforeRequestHook, AfterResponseHook, OnErrorHook } from './client.js';
 export type {
   MemoClawOptions,
   MemoryType,
@@ -47,4 +47,7 @@ export type {
   RelationWithMemory,
   MemoClawErrorBody,
   FreeTierStatus,
+  MigrateFile,
+  MigrateRequest,
+  MigrateResponse,
 } from './types.js';

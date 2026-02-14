@@ -50,6 +50,7 @@ export interface RecallRequest {
   filters?: {
     tags?: string[];
     after?: string;
+    memory_type?: MemoryType;
   };
 }
 
@@ -278,6 +279,29 @@ export interface FreeTierStatus {
   free_tier_used: number;
 }
 
+// ── Migrate ────────────────────────────────────────────
+
+export interface MigrateFile {
+  filename: string;
+  content: string;
+}
+
+export interface MigrateRequest {
+  files: MigrateFile[];
+  namespace?: string;
+  agent_id?: string;
+  session_id?: string;
+  auto_tag?: boolean;
+}
+
+export interface MigrateResponse {
+  memory_ids: string[];
+  files_processed: number;
+  memories_created: number;
+  memories_deduplicated: number;
+  tokens_used: number;
+}
+
 // ── Errors ─────────────────────────────────────────────
 
 export interface MemoClawErrorBody {
@@ -293,12 +317,15 @@ export interface MemoClawErrorBody {
 export interface MemoClawOptions {
   /** Base URL of the MemoClaw API (default: https://api.memoclaw.com) */
   baseUrl?: string;
-  /** Wallet address for authentication (sent as X-Wallet header) */
-  wallet: string;
+  /** Wallet address for authentication (sent as X-Wallet header).
+   *  If omitted, resolved from env MEMOCLAW_WALLET or ~/.memoclaw/config.json. */
+  wallet?: string;
   /** Optional fetch implementation (defaults to globalThis.fetch) */
   fetch?: typeof globalThis.fetch;
   /** Maximum number of retries for transient errors (default: 2) */
   maxRetries?: number;
   /** Base delay in ms for exponential backoff (default: 500) */
   retryDelay?: number;
+  /** Path to config file (default: ~/.memoclaw/config.json) */
+  configPath?: string;
 }
