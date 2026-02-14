@@ -157,6 +157,7 @@ class TestRecallBuilder:
 import respx
 import httpx
 
+from memoclaw import MemoClaw, AsyncMemoClaw
 from memoclaw.builders import (
     AsyncMemoryFilter,
     AsyncRecallQuery,
