@@ -242,6 +242,79 @@ class FreeTierStatus(BaseModel):
     free_tier_used: int
 
 
+# ── Context ──────────────────────────────────────────────────────────────────
+
+
+class ContextResult(BaseModel):
+    """Result of assembling a context block from memories."""
+
+    context: Any  # str for text format, dict for structured format
+    memories_used: int
+    tokens: int
+
+
+# ── Namespaces ───────────────────────────────────────────────────────────────
+
+
+class Namespace(BaseModel):
+    name: str
+    count: int
+    last_memory_at: str | None = None
+
+
+class NamespacesResponse(BaseModel):
+    namespaces: list[Namespace]
+    total: int
+
+
+# ── Stats ────────────────────────────────────────────────────────────────────
+
+
+class TypeCount(BaseModel):
+    memory_type: str
+    count: int
+
+
+class NamespaceCount(BaseModel):
+    namespace: str
+    count: int
+
+
+class StatsResponse(BaseModel):
+    total_memories: int
+    pinned_count: int
+    never_accessed: int
+    total_accesses: int
+    avg_importance: float
+    oldest_memory: str | None = None
+    newest_memory: str | None = None
+    by_type: list[TypeCount] = Field(default_factory=list)
+    by_namespace: list[NamespaceCount] = Field(default_factory=list)
+
+
+# ── Export ───────────────────────────────────────────────────────────────────
+
+
+class ExportResponse(BaseModel):
+    format: str
+    memories: list[Any]
+    count: int
+
+
+# ── History ──────────────────────────────────────────────────────────────────
+
+
+class HistoryEntry(BaseModel):
+    id: str
+    memory_id: str
+    changes: dict[str, Any]
+    created_at: str
+
+
+class HistoryResponse(BaseModel):
+    history: list[HistoryEntry]
+
+
 # ── Batch store input ────────────────────────────────────────────────────────
 
 

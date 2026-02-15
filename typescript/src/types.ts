@@ -310,6 +310,96 @@ export interface MigrateResponse {
   tokens_used: number;
 }
 
+// ── Context ────────────────────────────────────────────
+
+export interface ContextRequest {
+  query: string;
+  namespace?: string;
+  session_id?: string;
+  agent_id?: string;
+  max_memories?: number;
+  max_tokens?: number;
+  format?: 'text' | 'structured';
+  include_metadata?: boolean;
+  summarize?: boolean;
+}
+
+export interface ContextResponse {
+  context: string | Record<string, unknown>;
+  memories_used: number;
+  tokens: number;
+}
+
+// ── Namespaces ─────────────────────────────────────────
+
+export interface NamespaceInfo {
+  name: string;
+  count: number;
+  last_memory_at: string | null;
+}
+
+export interface NamespacesResponse {
+  namespaces: NamespaceInfo[];
+  total: number;
+}
+
+// ── Stats ──────────────────────────────────────────────
+
+export interface TypeCount {
+  memory_type: string;
+  count: number;
+}
+
+export interface NamespaceCount {
+  namespace: string;
+  count: number;
+}
+
+export interface StatsResponse {
+  total_memories: number;
+  pinned_count: number;
+  never_accessed: number;
+  total_accesses: number;
+  avg_importance: number;
+  oldest_memory: string | null;
+  newest_memory: string | null;
+  by_type: TypeCount[];
+  by_namespace: NamespaceCount[];
+}
+
+// ── Export ──────────────────────────────────────────────
+
+export interface ExportParams {
+  format?: 'json' | 'csv' | 'markdown';
+  namespace?: string;
+  memory_type?: MemoryType;
+  tags?: string[];
+  session_id?: string;
+  agent_id?: string;
+  before?: string;
+  after?: string;
+  include_deleted?: boolean;
+}
+
+export interface ExportResponse {
+  format: string;
+  memories: unknown[];
+  count: number;
+}
+
+// ── History ────────────────────────────────────────────
+
+export interface HistoryEntry {
+  id: string;
+  memory_id: string;
+  changes: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface HistoryResponse {
+  history: HistoryEntry[];
+}
+
 // ── Errors ─────────────────────────────────────────────
 
 export interface MemoClawErrorBody {

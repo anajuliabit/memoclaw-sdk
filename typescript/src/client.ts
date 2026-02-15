@@ -29,6 +29,14 @@ import type {
   MigrateFile,
   MigrateRequest,
   MigrateResponse,
+  ContextRequest,
+  ContextResponse,
+  NamespacesResponse,
+  StatsResponse,
+  ExportParams,
+  ExportResponse,
+  HistoryEntry,
+  HistoryResponse,
 } from './types.js';
 import {
   MemoClawError,
@@ -401,6 +409,57 @@ export class MemoClawClient {
     if (options?.session_id !== undefined) body.session_id = options.session_id;
     if (options?.auto_tag !== undefined) body.auto_tag = options.auto_tag;
     return this.request<MigrateResponse>('POST', '/v1/migrate', body, undefined, options?.signal);
+  }
+
+  // ── Context ─────────────────────────────────────────────
+
+  /** Assemble a context block from memories for LLM prompts. */
+  async assembleContext(request: ContextRequest, options?: { signal?: AbortSignal }): Promise<ContextResponse> {
+    if (!request.query?.trim()) throw new Error('query must be a non-empty string');
+    return this.request<ContextResponse>('POST', '/v1/context', request, undefined, options?.signal);
+  }
+
+  // ── Namespaces ─────────────────────────────────────────
+
+  /** List all namespaces with memory counts. */
+  async listNamespaces(options?: { signal?: AbortSignal }): Promise<NamespacesResponse> {
+    return this.request<NamespacesResponse>('GET', '/v1/namespaces', undefined, undefined, options?.signal);
+  }
+
+  // ── Stats ──────────────────────────────────────────────
+
+  /** Get memory usage statistics. */
+  async stats(options?: { signal?: AbortSignal }): Promise<StatsResponse> {
+    return this.request<StatsResponse>('GET', '/v1/stats', undefined, undefined, options?.signal);
+  }
+
+  // ── Export ─────────────────────────────────────────────
+
+  /** Export memories in JSON, CSV, or Markdown format. */
+  async export(params: ExportParams = {}, options?: { signal?: AbortSignal }): Promise<ExportResponse> {
+    const query: Record<string, string> = {};
+    if (params.format) query['format'] = params.format;
+    if (params.namespace) query['namespace'] = params.namespace;
+    if (params.memory_type) query['memory_type'] = params.memory_type;
+    if (params.tags?.length) query['tags'] = params.tags.join(',');
+    if (params.session_id) query['session_id'] = params.session_id;
+    if (params.agent_id) query['agent_id'] = params.agent_id;
+    if (params.before) query['before'] = params.before;
+    if (params.after) query['after'] = params.after;
+    if (params.include_deleted !== undefined) query['include_deleted'] = String(params.include_deleted);
+    return this.request<ExportResponse>('GET', '/v1/export', undefined, query, options?.signal);
+  }
+
+  // ── History ────────────────────────────────────────────
+
+  /** Get the change history for a memory. */
+  async getHistory(memoryId: string, options?: { signal?: AbortSignal }): Promise<HistoryEntry[]> {
+    if (!memoryId?.trim()) throw new Error('memoryId must be a non-empty string');
+    const resp = await this.request<HistoryResponse>(
+      'GET', `/v1/memories/${encodeURIComponent(memoryId)}/history`,
+      undefined, undefined, options?.signal,
+    );
+    return resp.history;
   }
 
   // ── Pagination iterator ───────────────────────────────
