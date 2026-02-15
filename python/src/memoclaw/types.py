@@ -318,6 +318,28 @@ class HistoryResponse(BaseModel):
 # ── Batch store input ────────────────────────────────────────────────────────
 
 
+class UpdateInput(BaseModel):
+    """Input for a single memory in a batch update request."""
+
+    id: str
+    content: str | None = None
+    metadata: dict[str, Any] | None = None
+    importance: float | None = None
+    memory_type: MemoryType | None = None
+    namespace: str | None = None
+    pinned: bool | None = None
+    expires_at: str | None = None
+
+
+class UpdateBatchResult(BaseModel):
+    """Result of a batch update operation."""
+
+    results: list[dict[str, Any]]
+    updated: int
+    failed: int
+    tokens_used: int
+
+
 class StoreInput(BaseModel):
     """Input for a single memory in a batch store request."""
 

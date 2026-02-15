@@ -270,6 +270,36 @@ export interface DeleteRelationResponse {
   id: string;
 }
 
+// ── Update Batch ───────────────────────────────────────
+
+export interface UpdateBatchItem {
+  id: string;
+  content?: string;
+  metadata?: Record<string, unknown>;
+  importance?: number;
+  memory_type?: MemoryType;
+  namespace?: string;
+  pinned?: boolean;
+  expires_at?: string | null;
+}
+
+export interface UpdateBatchRequest {
+  updates: UpdateBatchItem[];
+}
+
+export interface UpdateBatchResultItem {
+  id: string;
+  updated: boolean;
+  error?: string;
+}
+
+export interface UpdateBatchResponse {
+  results: UpdateBatchResultItem[];
+  updated: number;
+  failed: number;
+  tokens_used: number;
+}
+
 // ── Delete Batch ───────────────────────────────────────
 
 export interface DeleteBatchResult {

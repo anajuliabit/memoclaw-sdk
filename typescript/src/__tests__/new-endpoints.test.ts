@@ -157,3 +157,48 @@ describe('getHistory', () => {
     await expect(client.getHistory('')).rejects.toThrow('memoryId must be a non-empty string');
   });
 });
+
+describe('updateBatch', () => {
+  it('should POST /v1/memories/batch-update', async () => {
+    const fetch = mockFetch([{
+      status: 200,
+      body: {
+        results: [
+          { id: 'mem-1', updated: true },
+          { id: 'mem-2', updated: true },
+        ],
+        updated: 2,
+        failed: 0,
+        tokens_used: 10,
+      },
+    }]);
+    const client = createClient(fetch);
+    const result = await client.updateBatch([
+      { id: 'mem-1', importance: 0.9 },
+      { id: 'mem-2', content: 'Updated', pinned: true },
+    ]);
+    expect(result.updated).toBe(2);
+    expect(result.failed).toBe(0);
+    expect(result.results).toHaveLength(2);
+    expect(fetch).toHaveBeenCalledWith(
+      `${BASE_URL}/v1/memories/batch-update`,
+      expect.objectContaining({ method: 'POST' }),
+    );
+  });
+
+  it('should throw on empty array', async () => {
+    const client = createClient(vi.fn());
+    await expect(client.updateBatch([])).rejects.toThrow('updates array must not be empty');
+  });
+
+  it('should throw when batch exceeds 100', async () => {
+    const client = createClient(vi.fn());
+    const updates = Array.from({ length: 101 }, (_, i) => ({ id: `mem-${i}`, importance: 0.5 }));
+    await expect(client.updateBatch(updates)).rejects.toThrow('exceeds maximum of 100');
+  });
+
+  it('should throw on empty id in update', async () => {
+    const client = createClient(vi.fn());
+    await expect(client.updateBatch([{ id: '', importance: 0.5 }])).rejects.toThrow('non-empty id');
+  });
+});

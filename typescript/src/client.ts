@@ -37,6 +37,9 @@ import type {
   ExportResponse,
   HistoryEntry,
   HistoryResponse,
+  UpdateBatchItem,
+  UpdateBatchRequest,
+  UpdateBatchResponse,
 } from './types.js';
 import {
   MemoClawError,
@@ -292,6 +295,26 @@ export class MemoClawClient {
   async update(id: string, request: UpdateMemoryRequest, options?: { signal?: AbortSignal }): Promise<Memory> {
     if (!id?.trim()) throw new Error('id must be a non-empty string');
     return this.request<Memory>('PATCH', `/v1/memories/${encodeURIComponent(id)}`, request, undefined, options?.signal);
+  }
+
+  /** Update multiple memories in a single request (up to 100). */
+  async updateBatch(updates: UpdateBatchItem[], options?: { signal?: AbortSignal }): Promise<UpdateBatchResponse> {
+    if (!updates.length) {
+      throw new Error('updates array must not be empty');
+    }
+    if (updates.length > MAX_BATCH_SIZE) {
+      throw new Error(`Batch size ${updates.length} exceeds maximum of ${MAX_BATCH_SIZE}`);
+    }
+    for (const u of updates) {
+      if (!u.id?.trim()) {
+        throw new Error('All updates must have a non-empty id');
+      }
+    }
+    return this.request<UpdateBatchResponse>(
+      'POST', '/v1/memories/batch-update',
+      { updates } satisfies UpdateBatchRequest,
+      undefined, options?.signal,
+    );
   }
 
   /** Delete a memory by ID (soft delete). */
