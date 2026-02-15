@@ -685,27 +685,18 @@ class MemoClaw:
     ) -> Iterator[Memory]:
         """Iterate over all memories with automatic pagination.
 
-        Yields :class:`Memory` objects one at a time, fetching pages lazily.
-
-        Example::
-
-            for memory in client.list_all(namespace="project"):
-                print(memory.content)
+        .. deprecated::
+            Use :meth:`iter_memories` instead. Will be removed in a future major version.
         """
-        offset = 0
-        while True:
-            page = self.list(
-                limit=batch_size,
-                offset=offset,
-                namespace=namespace,
-                tags=tags,
-                session_id=session_id,
-                agent_id=agent_id,
-            )
-            yield from page.memories
-            offset += len(page.memories)
-            if offset >= page.total or len(page.memories) == 0:
-                break
+        import warnings
+        warnings.warn("list_all is deprecated, use iter_memories instead", DeprecationWarning, stacklevel=2)
+        yield from self.iter_memories(
+            batch_size=batch_size,
+            namespace=namespace,
+            tags=tags,
+            session_id=session_id,
+            agent_id=agent_id,
+        )
 
     # ── Graph helpers ────────────────────────────────────────────────────
 
@@ -1318,26 +1309,19 @@ class AsyncMemoClaw:
     ) -> AsyncIterator[Memory]:
         """Async iterate over all memories with automatic pagination.
 
-        Example::
-
-            async for memory in client.list_all(namespace="project"):
-                print(memory.content)
+        .. deprecated::
+            Use :meth:`iter_memories` instead. Will be removed in a future major version.
         """
-        offset = 0
-        while True:
-            page = await self.list(
-                limit=batch_size,
-                offset=offset,
-                namespace=namespace,
-                tags=tags,
-                session_id=session_id,
-                agent_id=agent_id,
-            )
-            for memory in page.memories:
-                yield memory
-            offset += len(page.memories)
-            if offset >= page.total or len(page.memories) == 0:
-                break
+        import warnings
+        warnings.warn("list_all is deprecated, use iter_memories instead", DeprecationWarning, stacklevel=2)
+        async for memory in self.iter_memories(
+            batch_size=batch_size,
+            namespace=namespace,
+            tags=tags,
+            session_id=session_id,
+            agent_id=agent_id,
+        ):
+            yield memory
 
     # ── Graph helpers ────────────────────────────────────────────────────
 
