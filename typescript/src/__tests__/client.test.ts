@@ -13,15 +13,17 @@ import {
 
 const BASE_URL = 'https://api.memoclaw.com';
 
-function mockFetch(responses: Array<{ status: number; body?: unknown; ok?: boolean }>): typeof globalThis.fetch {
+function mockFetch(responses: Array<{ status: number; body?: unknown; ok?: boolean; headers?: Record<string, string> }>): typeof globalThis.fetch {
   let callIndex = 0;
   return vi.fn(async () => {
     const resp = responses[callIndex] ?? responses[responses.length - 1]!;
     callIndex++;
+    const hdrs = new Map(Object.entries(resp.headers ?? {}));
     return {
       ok: resp.ok ?? (resp.status >= 200 && resp.status < 300),
       status: resp.status,
       json: async () => resp.body,
+      headers: { get: (name: string) => hdrs.get(name.toLowerCase()) ?? null },
     } as Response;
   });
 }
@@ -257,6 +259,21 @@ describe('Error handling', () => {
     const result = await client.recall({ query: 'test' });
     expect(result.query_tokens).toBe(0);
     expect(f).toHaveBeenCalledTimes(2);
+  });
+
+  it('honors Retry-After header on 429', async () => {
+    const f = mockFetch([
+      { status: 429, ok: false, body: { error: { code: 'RATE_LIMITED', message: 'Too fast' } }, headers: { 'retry-after': '1' } },
+      { status: 200, body: { memories: [], query_tokens: 0 } },
+    ]);
+    const client = createClient(f);
+    const start = Date.now();
+    const result = await client.recall({ query: 'test' });
+    const elapsed = Date.now() - start;
+    expect(result.query_tokens).toBe(0);
+    expect(f).toHaveBeenCalledTimes(2);
+    // Should have waited ~1000ms (Retry-After: 1 second)
+    expect(elapsed).toBeGreaterThanOrEqual(900);
   });
 
   it('retries on 500 then throws InternalServerError', async () => {

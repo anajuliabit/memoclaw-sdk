@@ -3,15 +3,17 @@ import { MemoClawClient } from '../index.js';
 
 const BASE_URL = 'https://api.memoclaw.com';
 
-function mockFetch(responses: Array<{ status: number; body?: unknown; ok?: boolean }>): typeof globalThis.fetch {
+function mockFetch(responses: Array<{ status: number; body?: unknown; ok?: boolean; headers?: Record<string, string> }>): typeof globalThis.fetch {
   let callIndex = 0;
   return vi.fn(async () => {
     const resp = responses[callIndex] ?? responses[responses.length - 1]!;
     callIndex++;
+    const hdrs = new Map(Object.entries(resp.headers ?? {}));
     return {
       ok: resp.ok ?? (resp.status >= 200 && resp.status < 300),
       status: resp.status,
       json: async () => resp.body,
+      headers: { get: (name: string) => hdrs.get(name.toLowerCase()) ?? null },
     } as Response;
   });
 }

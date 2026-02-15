@@ -166,19 +166,46 @@ export class MemoClawClient {
     let lastError: MemoClawError | undefined;
 
     for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
-      if (attempt > 0) {
-        const delay = this.retryDelay * Math.pow(2, attempt - 1);
-        const jitter = delay * 0.25 * Math.random();
-        await new Promise((resolve) => setTimeout(resolve, delay + jitter));
-      }
-
       let res: Response;
       try {
         res = await this._fetch(url, { method, headers, body: jsonBody, signal });
       } catch (err) {
         if (err instanceof DOMException && err.name === 'AbortError') throw err;
-        if (attempt < this.maxRetries) continue;
+        if (attempt < this.maxRetries) {
+          const delay = this.retryDelay * Math.pow(2, attempt);
+          const jitter = delay * 0.25 * Math.random();
+          await new Promise((resolve) => setTimeout(resolve, delay + jitter));
+          continue;
+        }
         throw err;
+      }
+
+      // On retryable status, honor Retry-After header if present
+      if (!res.ok && RETRYABLE_STATUS_CODES.has(res.status) && attempt < this.maxRetries) {
+        const retryAfter = res.headers.get('retry-after');
+        let delay: number;
+        if (retryAfter && /^\d+$/.test(retryAfter)) {
+          delay = parseInt(retryAfter, 10) * 1000;
+        } else {
+          delay = this.retryDelay * Math.pow(2, attempt);
+          const jitter = delay * 0.25 * Math.random();
+          delay += jitter;
+        }
+
+        // Still need to consume the body for error context
+        let errorBody: MemoClawErrorBody | undefined;
+        try {
+          errorBody = (await res.json()) as MemoClawErrorBody;
+        } catch {
+          // ignore parse failures
+        }
+        const code = errorBody?.error?.code ?? 'UNKNOWN_ERROR';
+        const message = errorBody?.error?.message ?? `HTTP ${res.status}`;
+        const details = errorBody?.error?.details;
+        lastError = createError(res.status, code, message, details);
+
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        continue;
       }
 
       if (res.ok) {
