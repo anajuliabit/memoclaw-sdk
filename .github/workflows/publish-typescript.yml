@@ -1,0 +1,55 @@
+name: Publish TypeScript SDK to npm
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        working-directory: typescript
+        run: bun install
+
+      - name: Build
+        working-directory: typescript
+        run: bun run build
+
+      - name: Run tests
+        working-directory: typescript
+        run: bun run test
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: npm
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          registry-url: "https://registry.npmjs.org"
+
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        working-directory: typescript
+        run: bun install
+
+      - name: Build
+        working-directory: typescript
+        run: bun run build
+
+      - name: Publish to npm
+        working-directory: typescript
+        run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
