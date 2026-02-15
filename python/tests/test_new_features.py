@@ -101,21 +101,35 @@ class TestPinnedField:
 class TestDeleteBatch:
     @respx.mock
     def test_delete_batch(self, client: MemoClaw):
-        for mid in ["m1", "m2", "m3"]:
-            respx.delete(f"{BASE_URL}/v1/memories/{mid}").mock(
-                return_value=httpx.Response(200, json={"deleted": True, "id": mid})
-            )
+        respx.post(f"{BASE_URL}/v1/memories/batch-delete").mock(
+            return_value=httpx.Response(200, json={
+                "results": [
+                    {"id": "m1", "deleted": True},
+                    {"id": "m2", "deleted": True},
+                    {"id": "m3", "deleted": True},
+                ]
+            })
+        )
         results = client.delete_batch(["m1", "m2", "m3"])
         assert len(results) == 3
         assert all(r.deleted for r in results)
 
     @respx.mock
+    def test_delete_batch_empty(self, client: MemoClaw):
+        results = client.delete_batch([])
+        assert results == []
+
+    @respx.mock
     @pytest.mark.asyncio
     async def test_async_delete_batch(self, async_client: AsyncMemoClaw):
-        for mid in ["m1", "m2"]:
-            respx.delete(f"{BASE_URL}/v1/memories/{mid}").mock(
-                return_value=httpx.Response(200, json={"deleted": True, "id": mid})
-            )
+        respx.post(f"{BASE_URL}/v1/memories/batch-delete").mock(
+            return_value=httpx.Response(200, json={
+                "results": [
+                    {"id": "m1", "deleted": True},
+                    {"id": "m2", "deleted": True},
+                ]
+            })
+        )
         results = await async_client.delete_batch(["m1", "m2"])
         assert len(results) == 2
         await async_client.close()
@@ -147,6 +161,19 @@ class TestSearchAlias:
 
 class TestListAllAlias:
     @respx.mock
-    def test_list_all_is_iter_memories(self, client: MemoClaw):
-        """list_all should be an alias for iter_memories."""
-        assert client.list_all == client.iter_memories
+    def test_list_all_yields_memories(self, client: MemoClaw):
+        """list_all should iterate over all memories like iter_memories."""
+        respx.get(f"{BASE_URL}/v1/memories").mock(
+            return_value=httpx.Response(200, json={
+                "memories": [{"id": "m1", "user_id": "u1", "namespace": "default",
+                    "content": "test", "embedding_model": "e5", "metadata": {},
+                    "importance": 0.5, "memory_type": "general", "session_id": None,
+                    "agent_id": None, "created_at": "2026-01-01T00:00:00Z",
+                    "updated_at": "2026-01-01T00:00:00Z", "accessed_at": "2026-01-01T00:00:00Z",
+                    "access_count": 0, "deleted_at": None, "expires_at": None, "pinned": False}],
+                "total": 1, "limit": 50, "offset": 0
+            })
+        )
+        memories = list(client.list_all())
+        assert len(memories) == 1
+        assert memories[0].id == "m1"

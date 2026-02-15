@@ -514,7 +514,7 @@ class TestContextManager:
                 },
             )
         )
-        with MemoClaw(private_key=TEST_PRIVATE_KEY) as c:
+        with MemoClaw(private_key=TEST_PRIVATE_KEY, base_url=BASE_URL) as c:
             result = c.status()
             assert result.free_tier_remaining == 1000
 
@@ -585,6 +585,6 @@ class TestAsyncClient:
                 },
             )
         )
-        async with AsyncMemoClaw(private_key=TEST_PRIVATE_KEY) as c:
+        async with AsyncMemoClaw(private_key=TEST_PRIVATE_KEY, base_url=BASE_URL) as c:
             result = await c.status()
             assert result.free_tier_remaining == 1000
