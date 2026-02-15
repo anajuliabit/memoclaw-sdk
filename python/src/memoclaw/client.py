@@ -21,20 +21,26 @@ from .builders import StoreBuilder, AsyncStoreBuilder
 from .config import load_config, resolve_base_url, resolve_private_key
 from .types import (
     ConsolidateResult,
+    ContextResult,
     DeleteResult,
+    ExportResponse,
     ExtractResult,
     FreeTierStatus,
+    HistoryEntry,
+    HistoryResponse,
     IngestResult,
     ListResponse,
     Memory,
     MemoryType,
     MigrateResult,
     Message,
+    NamespacesResponse,
     RecallResponse,
     Relation,
     RelationWithMemory,
     RelationsResponse,
     RelationType,
+    StatsResponse,
     StoreBatchResult,
     StoreInput,
     StoreResult,
@@ -672,6 +678,94 @@ class MemoClaw:
             auto_tag=auto_tag,
         )
 
+    # ── Context ───────────────────────────────────────────────────────────
+
+    def assemble_context(
+        self,
+        query: str,
+        *,
+        namespace: str | None = None,
+        session_id: str | None = None,
+        agent_id: str | None = None,
+        max_memories: int | None = None,
+        max_tokens: int | None = None,
+        format: str | None = None,
+        include_metadata: bool | None = None,
+        summarize: bool | None = None,
+    ) -> ContextResult:
+        """Assemble a context block from memories for LLM prompts."""
+        _validate_non_empty(query, "query")
+        body = _clean_body(
+            {
+                "query": query,
+                "namespace": namespace,
+                "session_id": session_id,
+                "agent_id": agent_id,
+                "max_memories": max_memories,
+                "max_tokens": max_tokens,
+                "format": format,
+                "include_metadata": include_metadata,
+                "summarize": summarize,
+            }
+        )
+        data = self._run_request("POST", "/v1/context", json=body)
+        return ContextResult.model_validate(data)
+
+    # ── Namespaces ───────────────────────────────────────────────────────
+
+    def list_namespaces(self) -> NamespacesResponse:
+        """List all namespaces with memory counts."""
+        data = self._run_request("GET", "/v1/namespaces")
+        return NamespacesResponse.model_validate(data)
+
+    # ── Stats ────────────────────────────────────────────────────────────
+
+    def stats(self) -> StatsResponse:
+        """Get memory usage statistics."""
+        data = self._run_request("GET", "/v1/stats")
+        return StatsResponse.model_validate(data)
+
+    # ── Export ────────────────────────────────────────────────────────────
+
+    def export(
+        self,
+        *,
+        format: str | None = None,
+        namespace: str | None = None,
+        memory_type: MemoryType | None = None,
+        tags: list[str] | None = None,
+        session_id: str | None = None,
+        agent_id: str | None = None,
+        before: str | None = None,
+        after: str | None = None,
+        include_deleted: bool | None = None,
+    ) -> ExportResponse:
+        """Export memories in JSON, CSV, or Markdown format."""
+        params = _clean_params(
+            {
+                "format": format,
+                "namespace": namespace,
+                "memory_type": memory_type,
+                "tags": tags,
+                "session_id": session_id,
+                "agent_id": agent_id,
+                "before": before,
+                "after": after,
+                "include_deleted": include_deleted,
+            }
+        )
+        data = self._run_request("GET", "/v1/export", params=params)
+        return ExportResponse.model_validate(data)
+
+    # ── History ──────────────────────────────────────────────────────────
+
+    def get_history(self, memory_id: str) -> list[HistoryEntry]:
+        """Get the change history for a memory."""
+        _validate_non_empty(memory_id, "memory_id")
+        data = self._run_request("GET", f"/v1/memories/{memory_id}/history")
+        resp = HistoryResponse.model_validate(data)
+        return resp.history
+
     # ── Pagination iterator ──────────────────────────────────────────────
 
     def list_all(
@@ -1295,6 +1389,94 @@ class AsyncMemoClaw:
             session_id=session_id,
             auto_tag=auto_tag,
         )
+
+    # ── Context ───────────────────────────────────────────────────────────
+
+    async def assemble_context(
+        self,
+        query: str,
+        *,
+        namespace: str | None = None,
+        session_id: str | None = None,
+        agent_id: str | None = None,
+        max_memories: int | None = None,
+        max_tokens: int | None = None,
+        format: str | None = None,
+        include_metadata: bool | None = None,
+        summarize: bool | None = None,
+    ) -> ContextResult:
+        """Assemble a context block from memories for LLM prompts."""
+        _validate_non_empty(query, "query")
+        body = _clean_body(
+            {
+                "query": query,
+                "namespace": namespace,
+                "session_id": session_id,
+                "agent_id": agent_id,
+                "max_memories": max_memories,
+                "max_tokens": max_tokens,
+                "format": format,
+                "include_metadata": include_metadata,
+                "summarize": summarize,
+            }
+        )
+        data = await self._run_request("POST", "/v1/context", json=body)
+        return ContextResult.model_validate(data)
+
+    # ── Namespaces ───────────────────────────────────────────────────────
+
+    async def list_namespaces(self) -> NamespacesResponse:
+        """List all namespaces with memory counts."""
+        data = await self._run_request("GET", "/v1/namespaces")
+        return NamespacesResponse.model_validate(data)
+
+    # ── Stats ────────────────────────────────────────────────────────────
+
+    async def stats(self) -> StatsResponse:
+        """Get memory usage statistics."""
+        data = await self._run_request("GET", "/v1/stats")
+        return StatsResponse.model_validate(data)
+
+    # ── Export ────────────────────────────────────────────────────────────
+
+    async def export(
+        self,
+        *,
+        format: str | None = None,
+        namespace: str | None = None,
+        memory_type: MemoryType | None = None,
+        tags: list[str] | None = None,
+        session_id: str | None = None,
+        agent_id: str | None = None,
+        before: str | None = None,
+        after: str | None = None,
+        include_deleted: bool | None = None,
+    ) -> ExportResponse:
+        """Export memories in JSON, CSV, or Markdown format."""
+        params = _clean_params(
+            {
+                "format": format,
+                "namespace": namespace,
+                "memory_type": memory_type,
+                "tags": tags,
+                "session_id": session_id,
+                "agent_id": agent_id,
+                "before": before,
+                "after": after,
+                "include_deleted": include_deleted,
+            }
+        )
+        data = await self._run_request("GET", "/v1/export", params=params)
+        return ExportResponse.model_validate(data)
+
+    # ── History ──────────────────────────────────────────────────────────
+
+    async def get_history(self, memory_id: str) -> list[HistoryEntry]:
+        """Get the change history for a memory."""
+        _validate_non_empty(memory_id, "memory_id")
+        data = await self._run_request("GET", f"/v1/memories/{memory_id}/history")
+        resp = HistoryResponse.model_validate(data)
+        return resp.history
 
     # ── Async pagination iterator ────────────────────────────────────────
 
