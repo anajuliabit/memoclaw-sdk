@@ -405,18 +405,11 @@ export class MemoClawClient {
 
   // ── Pagination iterator ───────────────────────────────
 
-  /** Async iterate over all memories with automatic pagination. */
-  async *listAll(params: Omit<ListMemoriesParams, 'offset'> & { batchSize?: number } = {}): AsyncGenerator<Memory> {
-    const { batchSize = 50, ...listParams } = params;
-    let offset = 0;
-    while (true) {
-      const page = await this.list({ ...listParams, limit: batchSize, offset });
-      for (const memory of page.memories) {
-        yield memory;
-      }
-      offset += page.memories.length;
-      if (offset >= page.total || page.memories.length === 0) break;
-    }
+  /**
+   * @deprecated Use {@link iterMemories} instead. Will be removed in a future major version.
+   */
+  listAll(params: Omit<ListMemoriesParams, 'offset'> & { batchSize?: number } = {}): AsyncGenerator<Memory> {
+    return this.iterMemories(params);
   }
 
   // ── Graph helpers ─────────────────────────────────────
