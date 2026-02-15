@@ -35,3 +35,27 @@ jobs:
         run: |
           pip install mypy
           mypy src/memoclaw --ignore-missing-imports --no-error-summary || true
+
+  typescript-tests:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: ["18", "20", "22"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Install dependencies
+        working-directory: typescript
+        run: npm ci
+
+      - name: Type check
+        working-directory: typescript
+        run: npx tsc --noEmit
+
+      - name: Run tests
+        working-directory: typescript
+        run: npm test
