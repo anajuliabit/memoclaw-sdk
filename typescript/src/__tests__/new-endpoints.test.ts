@@ -79,8 +79,8 @@ describe('listNamespaces', () => {
     const client = createClient(fetch);
     const result = await client.listNamespaces();
     expect(result.total).toBe(2);
-    expect(result.namespaces[0].name).toBe('default');
-    expect(result.namespaces[0].count).toBe(42);
+    expect(result.namespaces[0]!.name).toBe('default');
+    expect(result.namespaces[0]!.count).toBe(42);
   });
 });
 
@@ -103,7 +103,7 @@ describe('stats', () => {
     const client = createClient(fetch);
     const result = await client.stats();
     expect(result.total_memories).toBe(142);
-    expect(result.by_type[0].memory_type).toBe('preference');
+    expect(result.by_type[0]!.memory_type).toBe('preference');
   });
 });
 
@@ -149,7 +149,7 @@ describe('getHistory', () => {
     const client = createClient(fetch);
     const result = await client.getHistory('mem-123');
     expect(result).toHaveLength(1);
-    expect(result[0].changes.content).toBe('updated');
+    expect(result[0]!.changes.content).toBe('updated');
   });
 
   it('should throw on empty id', async () => {
