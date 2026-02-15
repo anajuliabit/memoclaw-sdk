@@ -46,6 +46,8 @@ from .types import (
     StoreResult,
     SuggestedCategory,
     SuggestedResponse,
+    UpdateBatchResult,
+    UpdateInput,
 )
 
 
@@ -425,6 +427,44 @@ class MemoClaw:
 
         data = self._run_request("PATCH", f"/v1/memories/{memory_id}", json=body)
         return Memory.model_validate(data)
+
+    # ── Batch Update ─────────────────────────────────────────────────────
+
+    def update_batch(
+        self,
+        updates: list[UpdateInput | dict[str, Any]],
+    ) -> UpdateBatchResult:
+        """Update multiple memories in a single request.
+
+        Each update must include an ``id`` and at least one field to change.
+
+        Args:
+            updates: List of :class:`UpdateInput` or dicts with ``id`` plus fields to update.
+
+        Example::
+
+            result = client.update_batch([
+                {"id": "mem-1", "importance": 0.9},
+                {"id": "mem-2", "content": "Updated content", "pinned": True},
+            ])
+        """
+        if not updates:
+            raise ValueError("updates list must not be empty")
+        if len(updates) > MAX_BATCH_SIZE:
+            raise ValueError(
+                f"Batch size {len(updates)} exceeds maximum of {MAX_BATCH_SIZE}"
+            )
+        items = [
+            u.model_dump(exclude_none=True) if isinstance(u, UpdateInput) else u
+            for u in updates
+        ]
+        for item in items:
+            if "id" not in item or not item["id"]:
+                raise ValueError("Each update must include a non-empty 'id'")
+        data = self._run_request(
+            "POST", "/v1/memories/batch-update", json={"updates": items}
+        )
+        return UpdateBatchResult.model_validate(data)
 
     # ── Delete ───────────────────────────────────────────────────────────
 
@@ -1154,6 +1194,44 @@ class AsyncMemoClaw:
             "PATCH", f"/v1/memories/{memory_id}", json=body
         )
         return Memory.model_validate(data)
+
+    # ── Batch Update ─────────────────────────────────────────────────────
+
+    async def update_batch(
+        self,
+        updates: list[UpdateInput | dict[str, Any]],
+    ) -> UpdateBatchResult:
+        """Update multiple memories in a single request.
+
+        Each update must include an ``id`` and at least one field to change.
+
+        Args:
+            updates: List of :class:`UpdateInput` or dicts with ``id`` plus fields to update.
+
+        Example::
+
+            result = await client.update_batch([
+                {"id": "mem-1", "importance": 0.9},
+                {"id": "mem-2", "content": "Updated content", "pinned": True},
+            ])
+        """
+        if not updates:
+            raise ValueError("updates list must not be empty")
+        if len(updates) > MAX_BATCH_SIZE:
+            raise ValueError(
+                f"Batch size {len(updates)} exceeds maximum of {MAX_BATCH_SIZE}"
+            )
+        items = [
+            u.model_dump(exclude_none=True) if isinstance(u, UpdateInput) else u
+            for u in updates
+        ]
+        for item in items:
+            if "id" not in item or not item["id"]:
+                raise ValueError("Each update must include a non-empty 'id'")
+        data = await self._run_request(
+            "POST", "/v1/memories/batch-update", json={"updates": items}
+        )
+        return UpdateBatchResult.model_validate(data)
 
     # ── Delete ───────────────────────────────────────────────────────────
 

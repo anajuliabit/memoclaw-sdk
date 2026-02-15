@@ -74,4 +74,8 @@ export type {
   ExportResponse,
   HistoryEntry,
   HistoryResponse,
+  UpdateBatchItem,
+  UpdateBatchRequest,
+  UpdateBatchResponse,
+  UpdateBatchResultItem,
 } from './types.js';

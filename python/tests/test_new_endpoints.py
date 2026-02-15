@@ -1,4 +1,4 @@
-"""Tests for new endpoints: context, namespaces, stats, export, history."""
+"""Tests for new endpoints: context, namespaces, stats, export, history, batch update."""
 
 from __future__ import annotations
 
@@ -14,6 +14,8 @@ from memoclaw import (
     StatsResponse,
     ExportResponse,
     HistoryEntry,
+    UpdateBatchResult,
+    UpdateInput,
 )
 
 TEST_PRIVATE_KEY = "0x4c0883a69102937d6231471b5dbb6204fe512961708279f15a8f7e20b4e3b1fb"
@@ -243,3 +245,72 @@ class TestGetHistory:
         )
         result = await async_client.get_history("mem-456")
         assert result == []
+
+
+class TestUpdateBatch:
+    @respx.mock
+    def test_basic(self, client):
+        respx.post(f"{BASE_URL}/v1/memories/batch-update").mock(
+            return_value=httpx.Response(200, json={
+                "results": [
+                    {"id": "mem-1", "updated": True},
+                    {"id": "mem-2", "updated": True},
+                ],
+                "updated": 2,
+                "failed": 0,
+                "tokens_used": 10,
+            })
+        )
+        result = client.update_batch([
+            {"id": "mem-1", "importance": 0.9},
+            {"id": "mem-2", "content": "Updated", "pinned": True},
+        ])
+        assert isinstance(result, UpdateBatchResult)
+        assert result.updated == 2
+        assert result.failed == 0
+        assert len(result.results) == 2
+
+    @respx.mock
+    def test_with_update_input(self, client):
+        respx.post(f"{BASE_URL}/v1/memories/batch-update").mock(
+            return_value=httpx.Response(200, json={
+                "results": [{"id": "mem-1", "updated": True}],
+                "updated": 1,
+                "failed": 0,
+                "tokens_used": 5,
+            })
+        )
+        result = client.update_batch([
+            UpdateInput(id="mem-1", importance=0.8, pinned=True),
+        ])
+        assert result.updated == 1
+
+    def test_empty_raises(self, client):
+        with pytest.raises(ValueError, match="updates list must not be empty"):
+            client.update_batch([])
+
+    def test_exceeds_max_raises(self, client):
+        updates = [{"id": f"mem-{i}", "importance": 0.5} for i in range(101)]
+        with pytest.raises(ValueError, match="exceeds maximum"):
+            client.update_batch(updates)
+
+    def test_missing_id_raises(self, client):
+        with pytest.raises(ValueError, match="non-empty 'id'"):
+            client.update_batch([{"importance": 0.5}])
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_async(self, async_client):
+        respx.post(f"{BASE_URL}/v1/memories/batch-update").mock(
+            return_value=httpx.Response(200, json={
+                "results": [{"id": "mem-1", "updated": True}],
+                "updated": 1,
+                "failed": 0,
+                "tokens_used": 5,
+            })
+        )
+        result = await async_client.update_batch([
+            {"id": "mem-1", "content": "New content"},
+        ])
+        assert isinstance(result, UpdateBatchResult)
+        assert result.updated == 1

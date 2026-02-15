@@ -51,6 +51,8 @@ from .types import (
     SuggestedMemory,
     SuggestedResponse,
     TypeCount,
+    UpdateBatchResult,
+    UpdateInput,
 )
 from .builders import (
     AsyncMemoryFilter,
@@ -116,6 +118,8 @@ __all__ = [
     "ExportResponse",
     "HistoryEntry",
     "HistoryResponse",
+    "UpdateInput",
+    "UpdateBatchResult",
     "MemoClawConfig",
     "load_config",
     # Builders
