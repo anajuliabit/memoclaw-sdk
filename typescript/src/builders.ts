@@ -30,7 +30,8 @@
  * ```
  */
 
-import type { StoreRequest, RecallRequest, MemoryType, RelationType } from './types.js';
+import type { StoreRequest, RecallRequest, MemoryType, RelationType, RecallResponse, ListMemoriesParams, Memory, StoreBatchResponse, StoreResponse } from './types.js';
+import type { MemoClawClient } from './client.js';
 
 /**
  * Fluent builder for creating memory content.
@@ -194,6 +195,7 @@ export class RecallBuilder {
   private _agentId?: string;
   private _includeRelations?: boolean;
   private _memoryType?: MemoryType;
+  private _after?: string;
 
   /**
    * Set the search query (required).
@@ -271,6 +273,14 @@ export class RecallBuilder {
   }
 
   /**
+   * Filter memories created after this ISO timestamp.
+   */
+  after(after: string): this {
+    this._after = after;
+    return this;
+  }
+
+  /**
    * Build the RecallRequest object.
    */
   build(): RecallRequest {
@@ -287,10 +297,11 @@ export class RecallBuilder {
     if (this._agentId) request.agent_id = this._agentId;
     if (this._includeRelations !== undefined) request.include_relations = this._includeRelations;
 
-    if (this._tags !== undefined || this._memoryType !== undefined) {
+    if (this._tags !== undefined || this._memoryType !== undefined || this._after !== undefined) {
       request.filters = {};
       if (this._tags) request.filters.tags = this._tags;
       if (this._memoryType) request.filters.memory_type = this._memoryType;
+      if (this._after) request.filters.after = this._after;
     }
 
     return request;
@@ -298,16 +309,6 @@ export class RecallBuilder {
 }
 
 // ── Additional builder classes ──
-
-import type { MemoClawClient } from './client.js';
-import type {
-  RecallResponse,
-  ListMemoriesParams,
-  Memory,
-  StoreBatchResponse,
-  MemoryType,
-  StoreResponse,
-} from './types.js';
 
 /**
  * Async version of RecallQuery for use with async operations.
@@ -420,6 +421,9 @@ export class AsyncRecallQuery {
   }
 }
 
+/**
+ * Fluent builder for filtering and iterating over memories.
+ */
 export class MemoryFilter {
   private _namespace?: string;
   private _tags?: string[];
@@ -1007,3 +1011,6 @@ export class AsyncStoreBuilder {
     return this.client.store(request);
   }
 }
+
+/** Alias for AsyncRecallQuery (all TS client methods are async). */
+export const RecallQuery = AsyncRecallQuery;

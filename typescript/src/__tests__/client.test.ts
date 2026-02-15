@@ -29,6 +29,7 @@ function mockFetch(responses: Array<{ status: number; body?: unknown; ok?: boole
 function createClient(fetchFn: typeof globalThis.fetch) {
   return new MemoClawClient({
     wallet: '0xTestWallet',
+    baseUrl: BASE_URL,
     fetch: fetchFn,
     maxRetries: 1,
     retryDelay: 1,

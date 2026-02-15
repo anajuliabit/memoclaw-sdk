@@ -147,6 +147,7 @@ class ListResponse(BaseModel):
 class DeleteResult(BaseModel):
     deleted: bool
     id: str | None = None
+    error: str | None = None
 
 
 # ── Ingest ───────────────────────────────────────────────────────────────────

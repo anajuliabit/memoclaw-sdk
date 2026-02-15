@@ -125,7 +125,7 @@ class TestAsyncListAll:
                 ),
             ]
         )
-        async with AsyncMemoClaw(private_key=TEST_PRIVATE_KEY) as client:
+        async with AsyncMemoClaw(private_key=TEST_PRIVATE_KEY, base_url=BASE_URL) as client:
             memories = []
             async for mem in client.list_all(batch_size=1):
                 memories.append(mem)

@@ -22,7 +22,7 @@ describe('MemoryBuilder', () => {
 
     expect(memory.content).toBe('User prefers dark mode');
     expect(memory.importance).toBe(0.9);
-    expect(memory.tags).toEqual(['preferences', 'ui']);
+    expect(memory.metadata?.tags).toEqual(['preferences', 'ui']);
     expect(memory.namespace).toBe('app-settings');
     expect(memory.memory_type).toBe('preference');
     expect(memory.pinned).toBe(true);
@@ -35,7 +35,7 @@ describe('MemoryBuilder', () => {
       .addTag('tag2')
       .build();
 
-    expect(memory.tags).toEqual(['tag1', 'tag2']);
+    expect(memory.metadata?.tags).toEqual(['tag1', 'tag2']);
   });
 
   it('should add metadata incrementally', () => {

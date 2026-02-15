@@ -97,8 +97,8 @@ class MemoryBuilder:
 
     def expires_in_days(self, days: int) -> MemoryBuilder:
         """Set expiration relative to now (in days)."""
-        from datetime import datetime, timedelta
-        expires = datetime.utcnow() + timedelta(days=days)
+        from datetime import datetime, timedelta, timezone
+        expires = datetime.now(timezone.utc) + timedelta(days=days)
         self._expires_at = expires.isoformat() + "Z"
         return self
 

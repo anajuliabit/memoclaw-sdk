@@ -428,12 +428,22 @@ class MemoClaw:
         return DeleteResult.model_validate(data)
 
     def delete_batch(self, memory_ids: list[str]) -> list[DeleteResult]:
-        """Delete multiple memories by ID.
+        """Delete multiple memories by ID using the batch endpoint.
 
-        Convenience method that deletes each memory sequentially.
+        Processes in chunks of 50 for API compatibility.
         Returns a list of :class:`DeleteResult` objects.
         """
-        return [self.delete(mid) for mid in memory_ids]
+        if not memory_ids:
+            return []
+        results: list[DeleteResult] = []
+        for i in range(0, len(memory_ids), 50):
+            chunk = memory_ids[i : i + 50]
+            data = self._run_request(
+                "POST", "/v1/memories/batch-delete", json={"ids": chunk}
+            )
+            for item in data.get("results", []):
+                results.append(DeleteResult.model_validate(item))
+        return results
 
     #: Alias for :meth:`recall` — matches Mem0/Pinecone ``search`` convention.
     search = recall
@@ -1068,12 +1078,22 @@ class AsyncMemoClaw:
         return DeleteResult.model_validate(data)
 
     async def delete_batch(self, memory_ids: list[str]) -> list[DeleteResult]:
-        """Delete multiple memories by ID.
+        """Delete multiple memories by ID using the batch endpoint.
 
-        Convenience method that deletes each memory sequentially.
+        Processes in chunks of 50 for API compatibility.
         Returns a list of :class:`DeleteResult` objects.
         """
-        return [await self.delete(mid) for mid in memory_ids]
+        if not memory_ids:
+            return []
+        results: list[DeleteResult] = []
+        for i in range(0, len(memory_ids), 50):
+            chunk = memory_ids[i : i + 50]
+            data = await self._run_request(
+                "POST", "/v1/memories/batch-delete", json={"ids": chunk}
+            )
+            for item in data.get("results", []):
+                results.append(DeleteResult.model_validate(item))
+        return results
 
     #: Alias for :meth:`recall` — matches Mem0/Pinecone ``search`` convention.
     search = recall
