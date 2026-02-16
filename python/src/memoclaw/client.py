@@ -473,6 +473,7 @@ class MemoClaw:
 
     def delete(self, memory_id: str) -> DeleteResult:
         """Delete a memory by ID."""
+        _validate_non_empty(memory_id, "memory_id")
         data = self._run_request("DELETE", f"/v1/memories/{quote(memory_id, safe='')}")
         return DeleteResult.model_validate(data)
 
@@ -612,6 +613,8 @@ class MemoClaw:
         metadata: dict[str, Any] | None = None,
     ) -> Relation:
         """Create a relationship between two memories."""
+        _validate_non_empty(memory_id, "memory_id")
+        _validate_non_empty(target_id, "target_id")
         body: dict[str, Any] = {
             "target_id": target_id,
             "relation_type": relation_type,
@@ -625,12 +628,15 @@ class MemoClaw:
 
     def list_relations(self, memory_id: str) -> list[RelationWithMemory]:
         """List all relationships for a memory."""
+        _validate_non_empty(memory_id, "memory_id")
         data = self._run_request("GET", f"/v1/memories/{quote(memory_id, safe='')}/relations")
         resp = RelationsResponse.model_validate(data)
         return resp.relations  # type: ignore[return-value]
 
     def delete_relation(self, memory_id: str, relation_id: str) -> DeleteResult:
         """Delete a memory relationship."""
+        _validate_non_empty(memory_id, "memory_id")
+        _validate_non_empty(relation_id, "relation_id")
         data = self._run_request(
             "DELETE", f"/v1/memories/{quote(memory_id, safe='')}/relations/{quote(relation_id, safe='')}"
         )
@@ -1287,6 +1293,7 @@ class AsyncMemoClaw:
 
     async def delete(self, memory_id: str) -> DeleteResult:
         """Delete a memory by ID."""
+        _validate_non_empty(memory_id, "memory_id")
         data = await self._run_request("DELETE", f"/v1/memories/{quote(memory_id, safe='')}")
         return DeleteResult.model_validate(data)
 
@@ -1428,6 +1435,8 @@ class AsyncMemoClaw:
         metadata: dict[str, Any] | None = None,
     ) -> Relation:
         """Create a relationship between two memories."""
+        _validate_non_empty(memory_id, "memory_id")
+        _validate_non_empty(target_id, "target_id")
         body: dict[str, Any] = {
             "target_id": target_id,
             "relation_type": relation_type,
@@ -1441,6 +1450,7 @@ class AsyncMemoClaw:
 
     async def list_relations(self, memory_id: str) -> list[RelationWithMemory]:
         """List all relationships for a memory."""
+        _validate_non_empty(memory_id, "memory_id")
         data = await self._run_request(
             "GET", f"/v1/memories/{quote(memory_id, safe='')}/relations"
         )
@@ -1451,6 +1461,8 @@ class AsyncMemoClaw:
         self, memory_id: str, relation_id: str
     ) -> DeleteResult:
         """Delete a memory relationship."""
+        _validate_non_empty(memory_id, "memory_id")
+        _validate_non_empty(relation_id, "relation_id")
         data = await self._run_request(
             "DELETE", f"/v1/memories/{quote(memory_id, safe='')}/relations/{quote(relation_id, safe='')}"
         )

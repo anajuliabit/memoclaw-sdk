@@ -48,6 +48,35 @@ class TestSyncValidation:
             client.store_batch(memories)
 
 
+    def test_delete_empty_id(self, client: MemoClaw):
+        with pytest.raises(ValueError, match="memory_id"):
+            client.delete("")
+
+    def test_delete_whitespace_id(self, client: MemoClaw):
+        with pytest.raises(ValueError, match="memory_id"):
+            client.delete("   ")
+
+    def test_create_relation_empty_memory_id(self, client: MemoClaw):
+        with pytest.raises(ValueError, match="memory_id"):
+            client.create_relation("", "target-id", "related_to")
+
+    def test_create_relation_empty_target_id(self, client: MemoClaw):
+        with pytest.raises(ValueError, match="target_id"):
+            client.create_relation("mem-id", "", "related_to")
+
+    def test_list_relations_empty_id(self, client: MemoClaw):
+        with pytest.raises(ValueError, match="memory_id"):
+            client.list_relations("")
+
+    def test_delete_relation_empty_memory_id(self, client: MemoClaw):
+        with pytest.raises(ValueError, match="memory_id"):
+            client.delete_relation("", "rel-id")
+
+    def test_delete_relation_empty_relation_id(self, client: MemoClaw):
+        with pytest.raises(ValueError, match="relation_id"):
+            client.delete_relation("mem-id", "")
+
+
 class TestAsyncValidation:
     @pytest.mark.asyncio
     async def test_store_empty_content(self, async_client: AsyncMemoClaw):
@@ -74,3 +103,30 @@ class TestAsyncValidation:
         memories = [{"content": f"mem {i}"} for i in range(101)]
         with pytest.raises(ValueError, match="exceeds maximum"):
             await async_client.store_batch(memories)
+
+    @pytest.mark.asyncio
+    async def test_delete_empty_id(self, async_client: AsyncMemoClaw):
+        with pytest.raises(ValueError, match="memory_id"):
+            await async_client.delete("")
+
+    @pytest.mark.asyncio
+    async def test_create_relation_empty_memory_id(self, async_client: AsyncMemoClaw):
+        with pytest.raises(ValueError, match="memory_id"):
+            await async_client.create_relation("", "target-id", "related_to")
+
+    @pytest.mark.asyncio
+    async def test_create_relation_empty_target_id(self, async_client: AsyncMemoClaw):
+        with pytest.raises(ValueError, match="target_id"):
+            await async_client.create_relation("mem-id", "", "related_to")
+
+    @pytest.mark.asyncio
+    async def test_list_relations_empty_id(self, async_client: AsyncMemoClaw):
+        with pytest.raises(ValueError, match="memory_id"):
+            await async_client.list_relations("")
+
+    @pytest.mark.asyncio
+    async def test_delete_relation_empty_ids(self, async_client: AsyncMemoClaw):
+        with pytest.raises(ValueError, match="memory_id"):
+            await async_client.delete_relation("", "rel-id")
+        with pytest.raises(ValueError, match="relation_id"):
+            await async_client.delete_relation("mem-id", "")

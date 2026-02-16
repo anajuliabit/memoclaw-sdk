@@ -355,7 +355,7 @@ export class MemoClawClient {
   }
 
   /** Delete multiple memories by ID in batch. */
-  async deleteBatch(ids: string[]): Promise<import('./types.js').DeleteBatchResult[]> {
+  async deleteBatch(ids: string[], options?: { signal?: AbortSignal }): Promise<import('./types.js').DeleteBatchResult[]> {
     const results: import('./types.js').DeleteBatchResult[] = [];
     // Process in chunks of 50
     for (let i = 0; i < ids.length; i += 50) {
@@ -363,7 +363,9 @@ export class MemoClawClient {
       const response = await this.request<{ results: import('./types.js').DeleteBatchResult[] }>(
         'POST',
         '/v1/memories/batch-delete',
-        { ids: chunk }
+        { ids: chunk },
+        undefined,
+        options?.signal,
       );
       results.push(...response.results);
     }
