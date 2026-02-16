@@ -1,4 +1,5 @@
 export { MemoClawClient } from './client.js';
+export { VERSION } from './version.js';
 export { MemoryBuilder, RecallBuilder } from './builders.js';
 export { loadConfig, type MemoClawConfig } from './config.js';
 export {

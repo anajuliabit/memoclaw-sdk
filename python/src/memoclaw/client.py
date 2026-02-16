@@ -200,15 +200,20 @@ class MemoClaw:
         *,
         json: dict[str, Any] | None = None,
         params: dict[str, Any] | None = None,
+        timeout: float | None = None,
     ) -> Any:
-        """Internal request wrapper that invokes hooks."""
+        """Internal request wrapper that invokes hooks.
+
+        Args:
+            timeout: Per-request timeout in seconds. Overrides the client default.
+        """
         body = json
         for hook in self._before_request_hooks:
             result = hook(method, path, body)
             if result is not None:
                 body = result
         try:
-            data = self._http.request(method, path, json=body, params=params)
+            data = self._http.request(method, path, json=body, params=params, timeout=timeout)
         except Exception as exc:
             for hook in self._on_error_hooks:
                 hook(method, path, exc)
@@ -246,8 +251,13 @@ class MemoClaw:
         pinned: bool | None = None,
         immutable: bool | None = None,
         metadata: dict[str, Any] | None = None,
+        timeout: float | None = None,
     ) -> StoreResult:
-        """Store a memory."""
+        """Store a memory.
+
+        Args:
+            timeout: Per-request timeout in seconds. Overrides the client default.
+        """
         _validate_non_empty(content, "content")
         body = _build_store_body(
             content,
@@ -262,7 +272,7 @@ class MemoClaw:
             immutable=immutable,
             metadata=metadata,
         )
-        data = self._run_request("POST", "/v1/store", json=body)
+        data = self._run_request("POST", "/v1/store", json=body, timeout=timeout)
         return StoreResult.model_validate(data)
 
     def store_batch(
@@ -310,6 +320,7 @@ class MemoClaw:
         agent_id: str | None = None,
         after: str | None = None,
         memory_type: MemoryType | None = None,
+        timeout: float | None = None,
     ) -> RecallResponse:
         """Semantic recall of memories matching a query."""
         _validate_non_empty(query, "query")
@@ -336,7 +347,7 @@ class MemoClaw:
                 filters["memory_type"] = memory_type
             body["filters"] = filters
 
-        data = self._run_request("POST", "/v1/recall", json=body)
+        data = self._run_request("POST", "/v1/recall", json=body, timeout=timeout)
         return RecallResponse.model_validate(data)
 
     # ── List ─────────────────────────────────────────────────────────────
@@ -350,6 +361,7 @@ class MemoClaw:
         tags: list[str] | None = None,
         session_id: str | None = None,
         agent_id: str | None = None,
+        timeout: float | None = None,
     ) -> ListResponse:
         """List memories with pagination."""
         params = _clean_params(
@@ -362,7 +374,7 @@ class MemoClaw:
                 "agent_id": agent_id,
             }
         )
-        data = self._run_request("GET", "/v1/memories", params=params)
+        data = self._run_request("GET", "/v1/memories", params=params, timeout=timeout)
         return ListResponse.model_validate(data)
 
     def iter_memories(
@@ -395,10 +407,10 @@ class MemoClaw:
 
     # ── Get ──────────────────────────────────────────────────────────────
 
-    def get(self, memory_id: str) -> Memory:
+    def get(self, memory_id: str, *, timeout: float | None = None) -> Memory:
         """Retrieve a single memory by ID."""
         _validate_non_empty(memory_id, "memory_id")
-        data = self._run_request("GET", f"/v1/memories/{quote(memory_id, safe='')}")
+        data = self._run_request("GET", f"/v1/memories/{quote(memory_id, safe='')}", timeout=timeout)
         return Memory.model_validate(data)
 
     # ── Update ───────────────────────────────────────────────────────────
@@ -479,10 +491,10 @@ class MemoClaw:
 
     # ── Delete ───────────────────────────────────────────────────────────
 
-    def delete(self, memory_id: str) -> DeleteResult:
+    def delete(self, memory_id: str, *, timeout: float | None = None) -> DeleteResult:
         """Delete a memory by ID."""
         _validate_non_empty(memory_id, "memory_id")
-        data = self._run_request("DELETE", f"/v1/memories/{quote(memory_id, safe='')}")
+        data = self._run_request("DELETE", f"/v1/memories/{quote(memory_id, safe='')}", timeout=timeout)
         return DeleteResult.model_validate(data)
 
     def delete_batch(self, memory_ids: list[str]) -> list[DeleteResult]:
@@ -1021,15 +1033,20 @@ class AsyncMemoClaw:
         *,
         json: dict[str, Any] | None = None,
         params: dict[str, Any] | None = None,
+        timeout: float | None = None,
     ) -> Any:
-        """Internal request wrapper that invokes hooks."""
+        """Internal request wrapper that invokes hooks.
+
+        Args:
+            timeout: Per-request timeout in seconds. Overrides the client default.
+        """
         body = json
         for hook in self._before_request_hooks:
             result = hook(method, path, body)
             if result is not None:
                 body = result
         try:
-            data = await self._http.request(method, path, json=body, params=params)
+            data = await self._http.request(method, path, json=body, params=params, timeout=timeout)
         except Exception as exc:
             for hook in self._on_error_hooks:
                 hook(method, path, exc)
@@ -1067,8 +1084,13 @@ class AsyncMemoClaw:
         pinned: bool | None = None,
         immutable: bool | None = None,
         metadata: dict[str, Any] | None = None,
+        timeout: float | None = None,
     ) -> StoreResult:
-        """Store a memory."""
+        """Store a memory.
+
+        Args:
+            timeout: Per-request timeout in seconds. Overrides the client default.
+        """
         _validate_non_empty(content, "content")
         body = _build_store_body(
             content,
@@ -1083,7 +1105,7 @@ class AsyncMemoClaw:
             immutable=immutable,
             metadata=metadata,
         )
-        data = await self._run_request("POST", "/v1/store", json=body)
+        data = await self._run_request("POST", "/v1/store", json=body, timeout=timeout)
         return StoreResult.model_validate(data)
 
     async def store_batch(
@@ -1133,6 +1155,7 @@ class AsyncMemoClaw:
         agent_id: str | None = None,
         after: str | None = None,
         memory_type: MemoryType | None = None,
+        timeout: float | None = None,
     ) -> RecallResponse:
         """Semantic recall of memories matching a query."""
         _validate_non_empty(query, "query")
@@ -1159,7 +1182,7 @@ class AsyncMemoClaw:
                 filters["memory_type"] = memory_type
             body["filters"] = filters
 
-        data = await self._run_request("POST", "/v1/recall", json=body)
+        data = await self._run_request("POST", "/v1/recall", json=body, timeout=timeout)
         return RecallResponse.model_validate(data)
 
     # ── List ─────────────────────────────────────────────────────────────
@@ -1173,6 +1196,7 @@ class AsyncMemoClaw:
         tags: list[str] | None = None,
         session_id: str | None = None,
         agent_id: str | None = None,
+        timeout: float | None = None,
     ) -> ListResponse:
         """List memories with pagination."""
         params = _clean_params(
@@ -1185,7 +1209,7 @@ class AsyncMemoClaw:
                 "agent_id": agent_id,
             }
         )
-        data = await self._run_request("GET", "/v1/memories", params=params)
+        data = await self._run_request("GET", "/v1/memories", params=params, timeout=timeout)
         return ListResponse.model_validate(data)
 
     async def iter_memories(
@@ -1219,10 +1243,10 @@ class AsyncMemoClaw:
 
     # ── Get ──────────────────────────────────────────────────────────────
 
-    async def get(self, memory_id: str) -> Memory:
+    async def get(self, memory_id: str, *, timeout: float | None = None) -> Memory:
         """Retrieve a single memory by ID."""
         _validate_non_empty(memory_id, "memory_id")
-        data = await self._run_request("GET", f"/v1/memories/{quote(memory_id, safe='')}")
+        data = await self._run_request("GET", f"/v1/memories/{quote(memory_id, safe='')}", timeout=timeout)
         return Memory.model_validate(data)
 
     # ── Update ───────────────────────────────────────────────────────────
@@ -1302,10 +1326,10 @@ class AsyncMemoClaw:
 
     # ── Delete ───────────────────────────────────────────────────────────
 
-    async def delete(self, memory_id: str) -> DeleteResult:
+    async def delete(self, memory_id: str, *, timeout: float | None = None) -> DeleteResult:
         """Delete a memory by ID."""
         _validate_non_empty(memory_id, "memory_id")
-        data = await self._run_request("DELETE", f"/v1/memories/{quote(memory_id, safe='')}")
+        data = await self._run_request("DELETE", f"/v1/memories/{quote(memory_id, safe='')}", timeout=timeout)
         return DeleteResult.model_validate(data)
 
     async def delete_batch(self, memory_ids: list[str]) -> list[DeleteResult]:
