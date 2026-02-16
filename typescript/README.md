@@ -65,18 +65,33 @@ MemoClaw uses wallet-based authentication. Pass your wallet address when creatin
 |--------|-------------|
 | `store(req)` | Store a single memory |
 | `storeBatch(memories)` | Store up to 100 memories |
+| `storeBuilder()` | Fluent builder for memory creation |
 | `recall(req)` | Semantic memory search |
 | `list(params?)` | List memories with pagination |
+| `iterMemories(params?)` | Async iterator with auto-pagination |
+| `get(id)` | Retrieve a single memory by ID |
 | `update(id, req)` | Update a memory by ID |
+| `updateBatch(updates)` | Update up to 100 memories in batch |
 | `delete(id)` | Soft-delete a memory |
+| `deleteBatch(ids)` | Delete multiple memories by ID |
+| `textSearch(params)` | Free keyword text search |
 | `ingest(req)` | Auto-extract memories from conversations |
 | `extract(req)` | Extract structured facts via LLM |
 | `consolidate(req?)` | Merge similar memories by clustering |
+| `assembleContext(req)` | Assemble context block for LLM prompts |
 | `createRelation(memoryId, req)` | Create a relationship between memories |
 | `listRelations(memoryId)` | List relationships for a memory |
 | `deleteRelation(memoryId, relationId)` | Delete a relationship |
-| `status()` | Check free tier remaining calls |
+| `getMemoryGraph(memoryId, depth?)` | Traverse the memory graph |
+| `findRelated(memoryId, options?)` | Find filtered relations |
+| `migrate(files, options?)` | Bulk import markdown files |
+| `export(params?)` | Export memories (JSON/CSV/Markdown) |
+| `getHistory(memoryId)` | Get change history for a memory |
+| `coreMemories(params?)` | Get high-importance/pinned memories |
 | `suggested(params?)` | Get proactive memory suggestions |
+| `listNamespaces()` | List namespaces with counts |
+| `stats()` | Get memory usage statistics |
+| `status()` | Check free tier remaining calls |
 
 ### Error Handling
 
