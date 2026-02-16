@@ -102,7 +102,7 @@ describe('recall', () => {
     const f = mockFetch([{
       status: 200,
       body: {
-        memories: [{ id: 'm1', content: 'test', similarity: 0.95, metadata: {}, importance: 0.8, memory_type: 'general', namespace: 'default', session_id: null, agent_id: null, created_at: '2025-01-01', access_count: 1, pinned: false }],
+        memories: [{ id: 'm1', content: 'test', similarity: 0.95, metadata: {}, importance: 0.8, memory_type: 'general', namespace: 'default', session_id: null, agent_id: null, created_at: '2025-01-01', access_count: 1, pinned: false, immutable: false }],
         query_tokens: 5,
       },
     }]);
@@ -132,7 +132,7 @@ describe('list', () => {
 
 describe('get', () => {
   it('gets a memory by id', async () => {
-    const mem = { id: 'mem-1', user_id: 'u1', namespace: 'default', content: 'test', embedding_model: 'text-embedding-3-small', metadata: {}, importance: 0.5, memory_type: 'general', session_id: null, agent_id: null, created_at: '2025-01-01', updated_at: '2025-01-01', accessed_at: '2025-01-01', access_count: 0, deleted_at: null, expires_at: null, pinned: false };
+    const mem = { id: 'mem-1', user_id: 'u1', namespace: 'default', content: 'test', embedding_model: 'text-embedding-3-small', metadata: {}, importance: 0.5, memory_type: 'general', session_id: null, agent_id: null, created_at: '2025-01-01', updated_at: '2025-01-01', accessed_at: '2025-01-01', access_count: 0, deleted_at: null, expires_at: null, pinned: false, immutable: false };
     const f = mockFetch([{ status: 200, body: mem }]);
     const client = createClient(f);
     const result = await client.get('mem-1');
@@ -164,7 +164,7 @@ describe('delete', () => {
 
 describe('update', () => {
   it('updates a memory', async () => {
-    const mem = { id: 'mem-1', user_id: 'u1', namespace: 'default', content: 'updated', embedding_model: 'text-embedding-3-small', metadata: {}, importance: 0.9, memory_type: 'general', session_id: null, agent_id: null, created_at: '2025-01-01', updated_at: '2025-06-01', accessed_at: '2025-01-01', access_count: 1, deleted_at: null, expires_at: null, pinned: false };
+    const mem = { id: 'mem-1', user_id: 'u1', namespace: 'default', content: 'updated', embedding_model: 'text-embedding-3-small', metadata: {}, importance: 0.9, memory_type: 'general', session_id: null, agent_id: null, created_at: '2025-01-01', updated_at: '2025-06-01', accessed_at: '2025-01-01', access_count: 1, deleted_at: null, expires_at: null, pinned: false, immutable: false };
     const f = mockFetch([{ status: 200, body: mem }]);
     const client = createClient(f);
     const result = await client.update('mem-1', { content: 'updated', importance: 0.9 });
@@ -355,7 +355,7 @@ describe('retry logic', () => {
 
 describe('iterMemories', () => {
   it('auto-paginates through all memories', async () => {
-    const makeMem = (id: string) => ({ id, user_id: 'u1', namespace: 'default', content: 'test', embedding_model: 'e', metadata: {}, importance: 0.5, memory_type: 'general', session_id: null, agent_id: null, created_at: '2025-01-01', updated_at: '2025-01-01', accessed_at: '2025-01-01', access_count: 0, deleted_at: null, expires_at: null, pinned: false });
+    const makeMem = (id: string) => ({ id, user_id: 'u1', namespace: 'default', content: 'test', embedding_model: 'e', metadata: {}, importance: 0.5, memory_type: 'general', session_id: null, agent_id: null, created_at: '2025-01-01', updated_at: '2025-01-01', accessed_at: '2025-01-01', access_count: 0, deleted_at: null, expires_at: null, pinned: false, immutable: false });
     const f = mockFetch([
       { status: 200, body: { memories: [makeMem('m1'), makeMem('m2')], total: 3, limit: 2, offset: 0 } },
       { status: 200, body: { memories: [makeMem('m3')], total: 3, limit: 2, offset: 2 } },

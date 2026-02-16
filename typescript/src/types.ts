@@ -16,6 +16,7 @@ export interface StoreRequest {
   agent_id?: string;
   expires_at?: string;
   pinned?: boolean;
+  immutable?: boolean;
 }
 
 export interface StoreResponse {
@@ -78,6 +79,7 @@ export interface RecallMemory {
   created_at: string;
   access_count: number;
   pinned: boolean;
+  immutable: boolean;
   relations?: RelationWithMemory[];
   _signals?: RecallSignals;
 }
@@ -107,6 +109,7 @@ export interface Memory {
   deleted_at: string | null;
   expires_at: string | null;
   pinned: boolean;
+  immutable: boolean;
 }
 
 export interface ListMemoriesResponse {
@@ -133,6 +136,7 @@ export interface UpdateMemoryRequest {
   namespace?: string;
   expires_at?: string | null;
   pinned?: boolean;
+  immutable?: boolean;
 }
 
 // ── Delete ─────────────────────────────────────────────
@@ -280,6 +284,7 @@ export interface UpdateBatchItem {
   memory_type?: MemoryType;
   namespace?: string;
   pinned?: boolean;
+  immutable?: boolean;
   expires_at?: string | null;
 }
 

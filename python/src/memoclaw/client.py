@@ -94,6 +94,7 @@ def _build_store_body(
     agent_id: str | None,
     expires_at: str | None,
     pinned: bool | None,
+    immutable: bool | None,
     metadata: dict[str, Any] | None,
 ) -> dict[str, Any]:
     body: dict[str, Any] = {"content": content}
@@ -111,6 +112,8 @@ def _build_store_body(
         body["expires_at"] = expires_at
     if pinned is not None:
         body["pinned"] = pinned
+    if immutable is not None:
+        body["immutable"] = immutable
     if tags is not None or metadata is not None:
         md: dict[str, Any] = metadata.copy() if metadata else {}
         if tags is not None:
@@ -241,6 +244,7 @@ class MemoClaw:
         agent_id: str | None = None,
         expires_at: str | None = None,
         pinned: bool | None = None,
+        immutable: bool | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> StoreResult:
         """Store a memory."""
@@ -255,6 +259,7 @@ class MemoClaw:
             agent_id=agent_id,
             expires_at=expires_at,
             pinned=pinned,
+            immutable=immutable,
             metadata=metadata,
         )
         data = self._run_request("POST", "/v1/store", json=body)
@@ -408,6 +413,7 @@ class MemoClaw:
         memory_type: MemoryType | None = None,
         namespace: str | None = None,
         pinned: bool | None = None,
+        immutable: bool | None = None,
         expires_at: str | None = ...,  # type: ignore[assignment]
     ) -> Memory:
         """Update a memory by ID. Only provided fields are updated."""
@@ -424,6 +430,8 @@ class MemoClaw:
             body["namespace"] = namespace
         if pinned is not None:
             body["pinned"] = pinned
+        if immutable is not None:
+            body["immutable"] = immutable
         # expires_at uses sentinel so users can pass None to clear it
         if expires_at is not ...:
             body["expires_at"] = expires_at
@@ -1057,6 +1065,7 @@ class AsyncMemoClaw:
         agent_id: str | None = None,
         expires_at: str | None = None,
         pinned: bool | None = None,
+        immutable: bool | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> StoreResult:
         """Store a memory."""
@@ -1071,6 +1080,7 @@ class AsyncMemoClaw:
             agent_id=agent_id,
             expires_at=expires_at,
             pinned=pinned,
+            immutable=immutable,
             metadata=metadata,
         )
         data = await self._run_request("POST", "/v1/store", json=body)
@@ -1227,6 +1237,7 @@ class AsyncMemoClaw:
         memory_type: MemoryType | None = None,
         namespace: str | None = None,
         pinned: bool | None = None,
+        immutable: bool | None = None,
         expires_at: str | None = ...,  # type: ignore[assignment]
     ) -> Memory:
         """Update a memory by ID. Only provided fields are updated."""

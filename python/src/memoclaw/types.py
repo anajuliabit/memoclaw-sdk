@@ -72,6 +72,7 @@ class Memory(BaseModel):
     deleted_at: str | None = None
     expires_at: str | None = None
     pinned: bool = False
+    immutable: bool = False
 
 
 # ── Recall ────────────────────────────────────────────────────────────────────
@@ -99,6 +100,7 @@ class RecallMemory(BaseModel):
     session_id: str | None = None
     agent_id: str | None = None
     pinned: bool = False
+    immutable: bool = False
     created_at: str
     access_count: int
     relations: list[RelationWithMemory] | None = None
@@ -328,6 +330,7 @@ class UpdateInput(BaseModel):
     memory_type: MemoryType | None = None
     namespace: str | None = None
     pinned: bool | None = None
+    immutable: bool | None = None
     expires_at: str | None = None
 
 
@@ -367,3 +370,4 @@ class StoreInput(BaseModel):
     agent_id: str | None = None
     expires_at: str | None = None
     pinned: bool | None = None
+    immutable: bool | None = None

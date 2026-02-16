@@ -107,7 +107,7 @@ describe('MemoClawClient', () => {
 
   describe('get', () => {
     it('retrieves a single memory', async () => {
-      const mem = { id: 'mem-1', user_id: 'u1', namespace: 'default', content: 'hello', embedding_model: 'e', metadata: {}, importance: 0.5, memory_type: 'general', session_id: null, agent_id: null, created_at: '', updated_at: '', accessed_at: '', access_count: 0, deleted_at: null, expires_at: null, pinned: false };
+      const mem = { id: 'mem-1', user_id: 'u1', namespace: 'default', content: 'hello', embedding_model: 'e', metadata: {}, importance: 0.5, memory_type: 'general', session_id: null, agent_id: null, created_at: '', updated_at: '', accessed_at: '', access_count: 0, deleted_at: null, expires_at: null, pinned: false, immutable: false };
       const f = mockFetch([{ status: 200, body: mem }]);
       const client = createClient(f);
       const result = await client.get('mem-1');
@@ -117,7 +117,7 @@ describe('MemoClawClient', () => {
 
   describe('update', () => {
     it('sends PATCH /v1/memories/:id', async () => {
-      const mem = { id: 'mem-1', user_id: 'u1', namespace: 'default', content: 'updated', embedding_model: 'e', metadata: {}, importance: 0.9, memory_type: 'general', session_id: null, agent_id: null, created_at: '', updated_at: '', accessed_at: '', access_count: 0, deleted_at: null, expires_at: null, pinned: false };
+      const mem = { id: 'mem-1', user_id: 'u1', namespace: 'default', content: 'updated', embedding_model: 'e', metadata: {}, importance: 0.9, memory_type: 'general', session_id: null, agent_id: null, created_at: '', updated_at: '', accessed_at: '', access_count: 0, deleted_at: null, expires_at: null, pinned: false, immutable: false };
       const f = mockFetch([{ status: 200, body: mem }]);
       const client = createClient(f);
       const result = await client.update('mem-1', { content: 'updated', importance: 0.9 });

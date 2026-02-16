@@ -46,6 +46,7 @@ export class MemoryBuilder {
   private _agentId?: string;
   private _expiresAt?: string;
   private _pinned?: boolean;
+  private _immutable?: boolean;
   private _metadata?: Record<string, unknown>;
 
   /**
@@ -143,6 +144,14 @@ export class MemoryBuilder {
   }
 
   /**
+   * Set immutable status (prevents future modifications).
+   */
+  immutable(immutable: boolean = true): this {
+    this._immutable = immutable;
+    return this;
+  }
+
+  /**
    * Set custom metadata.
    */
   metadata(metadata: Record<string, unknown>): this {
@@ -177,6 +186,7 @@ export class MemoryBuilder {
       agent_id: this._agentId,
       expires_at: this._expiresAt,
       pinned: this._pinned,
+      immutable: this._immutable,
       metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
     };
   }
@@ -687,6 +697,7 @@ export class StoreBuilder {
   private _agentId?: string;
   private _expiresAt?: string;
   private _pinned?: boolean;
+  private _immutable?: boolean;
   private _metadata?: Record<string, unknown>;
 
   constructor(private client: MemoClawClient) {}
@@ -757,6 +768,12 @@ export class StoreBuilder {
     return this;
   }
 
+  /** Make the memory immutable (prevents future modifications). */
+  immutable(immutable = true): StoreBuilder {
+    this._immutable = immutable;
+    return this;
+  }
+
   /** Set custom metadata. */
   metadata(metadata: Record<string, unknown>): StoreBuilder {
     this._metadata = metadata;
@@ -777,6 +794,7 @@ export class StoreBuilder {
     if (this._agentId) request.agent_id = this._agentId;
     if (this._expiresAt) request.expires_at = this._expiresAt;
     if (this._pinned !== undefined) request.pinned = this._pinned;
+    if (this._immutable !== undefined) request.immutable = this._immutable;
     if (this._metadata) request.metadata = { ...request.metadata, ...this._metadata };
     return this.client.store(request);
   }
