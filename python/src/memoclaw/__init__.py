@@ -51,6 +51,8 @@ from .types import (
     SuggestedMemory,
     SuggestedResponse,
     TypeCount,
+    CoreMemoriesResponse,
+    TextSearchResponse,
     UpdateBatchResult,
     UpdateInput,
 )
@@ -120,6 +122,8 @@ __all__ = [
     "HistoryResponse",
     "UpdateInput",
     "UpdateBatchResult",
+    "CoreMemoriesResponse",
+    "TextSearchResponse",
     "MemoClawConfig",
     "load_config",
     # Builders

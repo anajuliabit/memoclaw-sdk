@@ -314,3 +314,76 @@ class TestUpdateBatch:
         ])
         assert isinstance(result, UpdateBatchResult)
         assert result.updated == 1
+
+
+class TestCoreMemories:
+    @respx.mock
+    def test_sync(self, client):
+        respx.get(f"{BASE_URL}/v1/core-memories").mock(
+            return_value=httpx.Response(200, json={
+                "memories": [{"id": "mem-1", "content": "core", "user_id": "u", "namespace": "default",
+                    "embedding_model": "text-embedding-3-small", "metadata": {}, "importance": 0.9,
+                    "memory_type": "preference", "session_id": None, "agent_id": None,
+                    "created_at": "2025-01-01T00:00:00Z", "updated_at": "2025-01-01T00:00:00Z",
+                    "accessed_at": "2025-01-01T00:00:00Z", "access_count": 10,
+                    "deleted_at": None, "expires_at": None, "pinned": True}],
+                "total": 1,
+            })
+        )
+        from memoclaw import CoreMemoriesResponse
+        result = client.core_memories(limit=5)
+        assert isinstance(result, CoreMemoriesResponse)
+        assert result.total == 1
+        assert result.memories[0].id == "mem-1"
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_async(self, async_client):
+        respx.get(f"{BASE_URL}/v1/core-memories").mock(
+            return_value=httpx.Response(200, json={
+                "memories": [],
+                "total": 0,
+            })
+        )
+        from memoclaw import CoreMemoriesResponse
+        result = await async_client.core_memories()
+        assert isinstance(result, CoreMemoriesResponse)
+        assert result.total == 0
+
+
+class TestTextSearch:
+    @respx.mock
+    def test_sync(self, client):
+        respx.get(f"{BASE_URL}/v1/memories/search").mock(
+            return_value=httpx.Response(200, json={
+                "memories": [{"id": "mem-1", "content": "hello world", "user_id": "u", "namespace": "default",
+                    "embedding_model": "text-embedding-3-small", "metadata": {}, "importance": 0.5,
+                    "memory_type": "general", "session_id": None, "agent_id": None,
+                    "created_at": "2025-01-01T00:00:00Z", "updated_at": "2025-01-01T00:00:00Z",
+                    "accessed_at": "2025-01-01T00:00:00Z", "access_count": 1,
+                    "deleted_at": None, "expires_at": None, "pinned": False}],
+                "total": 1,
+            })
+        )
+        from memoclaw import TextSearchResponse
+        result = client.text_search("hello", limit=10, namespace="test")
+        assert isinstance(result, TextSearchResponse)
+        assert result.total == 1
+
+    def test_empty_query_raises(self, client):
+        with pytest.raises(ValueError, match="non-empty string"):
+            client.text_search("")
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_async(self, async_client):
+        respx.get(f"{BASE_URL}/v1/memories/search").mock(
+            return_value=httpx.Response(200, json={
+                "memories": [],
+                "total": 0,
+            })
+        )
+        from memoclaw import TextSearchResponse
+        result = await async_client.text_search("test")
+        assert isinstance(result, TextSearchResponse)
+        assert result.total == 0

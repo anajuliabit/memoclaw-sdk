@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from urllib.parse import quote
 
 from collections.abc import AsyncIterator, Callable, Iterator
 
@@ -22,6 +23,7 @@ from .config import load_config, resolve_base_url, resolve_private_key
 from .types import (
     ConsolidateResult,
     ContextResult,
+    CoreMemoriesResponse,
     DeleteResult,
     ExportResponse,
     ExtractResult,
@@ -46,6 +48,7 @@ from .types import (
     StoreResult,
     SuggestedCategory,
     SuggestedResponse,
+    TextSearchResponse,
     UpdateBatchResult,
     UpdateInput,
 )
@@ -390,7 +393,7 @@ class MemoClaw:
     def get(self, memory_id: str) -> Memory:
         """Retrieve a single memory by ID."""
         _validate_non_empty(memory_id, "memory_id")
-        data = self._run_request("GET", f"/v1/memories/{memory_id}")
+        data = self._run_request("GET", f"/v1/memories/{quote(memory_id, safe='')}")
         return Memory.model_validate(data)
 
     # ── Update ───────────────────────────────────────────────────────────
@@ -425,7 +428,7 @@ class MemoClaw:
         if expires_at is not ...:
             body["expires_at"] = expires_at
 
-        data = self._run_request("PATCH", f"/v1/memories/{memory_id}", json=body)
+        data = self._run_request("PATCH", f"/v1/memories/{quote(memory_id, safe='')}", json=body)
         return Memory.model_validate(data)
 
     # ── Batch Update ─────────────────────────────────────────────────────
@@ -470,7 +473,7 @@ class MemoClaw:
 
     def delete(self, memory_id: str) -> DeleteResult:
         """Delete a memory by ID."""
-        data = self._run_request("DELETE", f"/v1/memories/{memory_id}")
+        data = self._run_request("DELETE", f"/v1/memories/{quote(memory_id, safe='')}")
         return DeleteResult.model_validate(data)
 
     def delete_batch(self, memory_ids: list[str]) -> list[DeleteResult]:
@@ -616,20 +619,20 @@ class MemoClaw:
         if metadata is not None:
             body["metadata"] = metadata
         data = self._run_request(
-            "POST", f"/v1/memories/{memory_id}/relations", json=body
+            "POST", f"/v1/memories/{quote(memory_id, safe='')}/relations", json=body
         )
         return Relation.model_validate(data)
 
     def list_relations(self, memory_id: str) -> list[RelationWithMemory]:
         """List all relationships for a memory."""
-        data = self._run_request("GET", f"/v1/memories/{memory_id}/relations")
+        data = self._run_request("GET", f"/v1/memories/{quote(memory_id, safe='')}/relations")
         resp = RelationsResponse.model_validate(data)
         return resp.relations  # type: ignore[return-value]
 
     def delete_relation(self, memory_id: str, relation_id: str) -> DeleteResult:
         """Delete a memory relationship."""
         data = self._run_request(
-            "DELETE", f"/v1/memories/{memory_id}/relations/{relation_id}"
+            "DELETE", f"/v1/memories/{quote(memory_id, safe='')}/relations/{quote(relation_id, safe='')}"
         )
         return DeleteResult.model_validate(data)
 
@@ -765,6 +768,53 @@ class MemoClaw:
         data = self._run_request("GET", "/v1/stats")
         return StatsResponse.model_validate(data)
 
+    # ── Core Memories ────────────────────────────────────────────────────
+
+    def core_memories(
+        self,
+        *,
+        limit: int | None = None,
+        namespace: str | None = None,
+        agent_id: str | None = None,
+    ) -> CoreMemoriesResponse:
+        """Get high-importance, pinned, and frequently-accessed memories (FREE)."""
+        params = _clean_params(
+            {"limit": limit, "namespace": namespace, "agent_id": agent_id}
+        )
+        data = self._run_request("GET", "/v1/core-memories", params=params)
+        return CoreMemoriesResponse.model_validate(data)
+
+    # ── Text Search ──────────────────────────────────────────────────────
+
+    def text_search(
+        self,
+        query: str,
+        *,
+        limit: int | None = None,
+        namespace: str | None = None,
+        tags: list[str] | None = None,
+        memory_type: MemoryType | None = None,
+        session_id: str | None = None,
+        agent_id: str | None = None,
+        after: str | None = None,
+    ) -> TextSearchResponse:
+        """Keyword text search across memories (FREE)."""
+        _validate_non_empty(query, "query")
+        params = _clean_params(
+            {
+                "q": query,
+                "limit": limit,
+                "namespace": namespace,
+                "tags": tags,
+                "memory_type": memory_type,
+                "session_id": session_id,
+                "agent_id": agent_id,
+                "after": after,
+            }
+        )
+        data = self._run_request("GET", "/v1/memories/search", params=params)
+        return TextSearchResponse.model_validate(data)
+
     # ── Export ────────────────────────────────────────────────────────────
 
     def export(
@@ -802,7 +852,7 @@ class MemoClaw:
     def get_history(self, memory_id: str) -> list[HistoryEntry]:
         """Get the change history for a memory."""
         _validate_non_empty(memory_id, "memory_id")
-        data = self._run_request("GET", f"/v1/memories/{memory_id}/history")
+        data = self._run_request("GET", f"/v1/memories/{quote(memory_id, safe='')}/history")
         resp = HistoryResponse.model_validate(data)
         return resp.history
 
@@ -1156,7 +1206,7 @@ class AsyncMemoClaw:
     async def get(self, memory_id: str) -> Memory:
         """Retrieve a single memory by ID."""
         _validate_non_empty(memory_id, "memory_id")
-        data = await self._run_request("GET", f"/v1/memories/{memory_id}")
+        data = await self._run_request("GET", f"/v1/memories/{quote(memory_id, safe='')}")
         return Memory.model_validate(data)
 
     # ── Update ───────────────────────────────────────────────────────────
@@ -1191,7 +1241,7 @@ class AsyncMemoClaw:
             body["expires_at"] = expires_at
 
         data = await self._run_request(
-            "PATCH", f"/v1/memories/{memory_id}", json=body
+            "PATCH", f"/v1/memories/{quote(memory_id, safe='')}", json=body
         )
         return Memory.model_validate(data)
 
@@ -1237,7 +1287,7 @@ class AsyncMemoClaw:
 
     async def delete(self, memory_id: str) -> DeleteResult:
         """Delete a memory by ID."""
-        data = await self._run_request("DELETE", f"/v1/memories/{memory_id}")
+        data = await self._run_request("DELETE", f"/v1/memories/{quote(memory_id, safe='')}")
         return DeleteResult.model_validate(data)
 
     async def delete_batch(self, memory_ids: list[str]) -> list[DeleteResult]:
@@ -1385,14 +1435,14 @@ class AsyncMemoClaw:
         if metadata is not None:
             body["metadata"] = metadata
         data = await self._run_request(
-            "POST", f"/v1/memories/{memory_id}/relations", json=body
+            "POST", f"/v1/memories/{quote(memory_id, safe='')}/relations", json=body
         )
         return Relation.model_validate(data)
 
     async def list_relations(self, memory_id: str) -> list[RelationWithMemory]:
         """List all relationships for a memory."""
         data = await self._run_request(
-            "GET", f"/v1/memories/{memory_id}/relations"
+            "GET", f"/v1/memories/{quote(memory_id, safe='')}/relations"
         )
         resp = RelationsResponse.model_validate(data)
         return resp.relations  # type: ignore[return-value]
@@ -1402,7 +1452,7 @@ class AsyncMemoClaw:
     ) -> DeleteResult:
         """Delete a memory relationship."""
         data = await self._run_request(
-            "DELETE", f"/v1/memories/{memory_id}/relations/{relation_id}"
+            "DELETE", f"/v1/memories/{quote(memory_id, safe='')}/relations/{quote(relation_id, safe='')}"
         )
         return DeleteResult.model_validate(data)
 
@@ -1515,6 +1565,53 @@ class AsyncMemoClaw:
         data = await self._run_request("GET", "/v1/stats")
         return StatsResponse.model_validate(data)
 
+    # ── Core Memories ────────────────────────────────────────────────────
+
+    async def core_memories(
+        self,
+        *,
+        limit: int | None = None,
+        namespace: str | None = None,
+        agent_id: str | None = None,
+    ) -> CoreMemoriesResponse:
+        """Get high-importance, pinned, and frequently-accessed memories (FREE)."""
+        params = _clean_params(
+            {"limit": limit, "namespace": namespace, "agent_id": agent_id}
+        )
+        data = await self._run_request("GET", "/v1/core-memories", params=params)
+        return CoreMemoriesResponse.model_validate(data)
+
+    # ── Text Search ──────────────────────────────────────────────────────
+
+    async def text_search(
+        self,
+        query: str,
+        *,
+        limit: int | None = None,
+        namespace: str | None = None,
+        tags: list[str] | None = None,
+        memory_type: MemoryType | None = None,
+        session_id: str | None = None,
+        agent_id: str | None = None,
+        after: str | None = None,
+    ) -> TextSearchResponse:
+        """Keyword text search across memories (FREE)."""
+        _validate_non_empty(query, "query")
+        params = _clean_params(
+            {
+                "q": query,
+                "limit": limit,
+                "namespace": namespace,
+                "tags": tags,
+                "memory_type": memory_type,
+                "session_id": session_id,
+                "agent_id": agent_id,
+                "after": after,
+            }
+        )
+        data = await self._run_request("GET", "/v1/memories/search", params=params)
+        return TextSearchResponse.model_validate(data)
+
     # ── Export ────────────────────────────────────────────────────────────
 
     async def export(
@@ -1552,7 +1649,7 @@ class AsyncMemoClaw:
     async def get_history(self, memory_id: str) -> list[HistoryEntry]:
         """Get the change history for a memory."""
         _validate_non_empty(memory_id, "memory_id")
-        data = await self._run_request("GET", f"/v1/memories/{memory_id}/history")
+        data = await self._run_request("GET", f"/v1/memories/{quote(memory_id, safe='')}/history")
         resp = HistoryResponse.model_validate(data)
         return resp.history
 

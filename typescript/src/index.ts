@@ -78,4 +78,8 @@ export type {
   UpdateBatchRequest,
   UpdateBatchResponse,
   UpdateBatchResultItem,
+  CoreMemoriesParams,
+  CoreMemoriesResponse,
+  TextSearchParams,
+  TextSearchResponse,
 } from './types.js';

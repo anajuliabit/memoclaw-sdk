@@ -340,6 +340,20 @@ class UpdateBatchResult(BaseModel):
     tokens_used: int
 
 
+class CoreMemoriesResponse(BaseModel):
+    """Response from GET /v1/core-memories."""
+
+    memories: list[Memory]
+    total: int
+
+
+class TextSearchResponse(BaseModel):
+    """Response from GET /v1/memories/search."""
+
+    memories: list[Memory]
+    total: int
+
+
 class StoreInput(BaseModel):
     """Input for a single memory in a batch store request."""
 

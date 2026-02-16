@@ -40,6 +40,10 @@ import type {
   UpdateBatchItem,
   UpdateBatchRequest,
   UpdateBatchResponse,
+  CoreMemoriesParams,
+  CoreMemoriesResponse,
+  TextSearchParams,
+  TextSearchResponse,
 } from './types.js';
 import {
   MemoClawError,
@@ -481,6 +485,35 @@ export class MemoClawClient {
   /** Get memory usage statistics. */
   async stats(options?: { signal?: AbortSignal }): Promise<StatsResponse> {
     return this.request<StatsResponse>('GET', '/v1/stats', undefined, undefined, options?.signal);
+  }
+
+  // ── Core Memories ──────────────────────────────────────
+
+  /** Get high-importance, pinned, and frequently-accessed memories (FREE). */
+  async coreMemories(params: CoreMemoriesParams = {}, options?: { signal?: AbortSignal }): Promise<CoreMemoriesResponse> {
+    const query: Record<string, string> = {};
+    if (params.limit !== undefined) query['limit'] = String(params.limit);
+    if (params.namespace) query['namespace'] = params.namespace;
+    if (params.agent_id) query['agent_id'] = params.agent_id;
+    return this.request<CoreMemoriesResponse>('GET', '/v1/core-memories', undefined, Object.keys(query).length ? query : undefined, options?.signal);
+  }
+
+  // ── Text Search ───────────────────────────────────────
+
+  /** Keyword text search across memories (FREE). */
+  async textSearch(params: TextSearchParams, options?: { signal?: AbortSignal }): Promise<TextSearchResponse> {
+    if (!params.query?.trim()) {
+      throw new Error('query must be a non-empty string');
+    }
+    const query: Record<string, string> = { q: params.query };
+    if (params.limit !== undefined) query['limit'] = String(params.limit);
+    if (params.namespace) query['namespace'] = params.namespace;
+    if (params.tags?.length) query['tags'] = params.tags.join(',');
+    if (params.memory_type) query['memory_type'] = params.memory_type;
+    if (params.session_id) query['session_id'] = params.session_id;
+    if (params.agent_id) query['agent_id'] = params.agent_id;
+    if (params.after) query['after'] = params.after;
+    return this.request<TextSearchResponse>('GET', '/v1/memories/search', undefined, query, options?.signal);
   }
 
   // ── Export ─────────────────────────────────────────────

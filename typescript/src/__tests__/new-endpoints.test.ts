@@ -204,3 +204,66 @@ describe('updateBatch', () => {
     await expect(client.updateBatch([{ id: '', importance: 0.5 }])).rejects.toThrow('non-empty id');
   });
 });
+
+describe('coreMemories', () => {
+  it('should GET /v1/core-memories', async () => {
+    const body = { memories: [{ id: 'mem-1', content: 'core' }], total: 1 };
+    const fetchFn = mockFetch([{ status: 200, body }]);
+    const client = createClient(fetchFn);
+    const result = await client.coreMemories();
+    expect(result).toEqual(body);
+    expect(fetchFn).toHaveBeenCalledWith(
+      `${BASE_URL}/v1/core-memories`,
+      expect.objectContaining({ method: 'GET' }),
+    );
+  });
+
+  it('should pass query params', async () => {
+    const body = { memories: [], total: 0 };
+    const fetchFn = mockFetch([{ status: 200, body }]);
+    const client = createClient(fetchFn);
+    await client.coreMemories({ limit: 5, namespace: 'test' });
+    expect(fetchFn).toHaveBeenCalledWith(
+      expect.stringContaining('limit=5'),
+      expect.anything(),
+    );
+  });
+});
+
+describe('textSearch', () => {
+  it('should GET /v1/memories/search with query', async () => {
+    const body = { memories: [{ id: 'mem-1', content: 'hello' }], total: 1 };
+    const fetchFn = mockFetch([{ status: 200, body }]);
+    const client = createClient(fetchFn);
+    const result = await client.textSearch({ query: 'hello' });
+    expect(result).toEqual(body);
+    expect(fetchFn).toHaveBeenCalledWith(
+      expect.stringContaining('/v1/memories/search?q=hello'),
+      expect.objectContaining({ method: 'GET' }),
+    );
+  });
+
+  it('should throw on empty query', async () => {
+    const client = createClient(vi.fn());
+    await expect(client.textSearch({ query: '' })).rejects.toThrow('non-empty string');
+  });
+
+  it('should pass all filter params', async () => {
+    const body = { memories: [], total: 0 };
+    const fetchFn = mockFetch([{ status: 200, body }]);
+    const client = createClient(fetchFn);
+    await client.textSearch({
+      query: 'test',
+      limit: 10,
+      namespace: 'ns',
+      tags: ['a', 'b'],
+      memory_type: 'correction',
+    });
+    const url = (fetchFn as any).mock.calls[0][0] as string;
+    expect(url).toContain('q=test');
+    expect(url).toContain('limit=10');
+    expect(url).toContain('namespace=ns');
+    expect(url).toContain('tags=a%2Cb');
+    expect(url).toContain('memory_type=correction');
+  });
+});
