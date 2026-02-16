@@ -44,6 +44,7 @@ class MemoryBuilder:
         self._agent_id: str | None = None
         self._expires_at: str | None = None
         self._pinned: bool | None = None
+        self._immutable: bool | None = None
         self._metadata: dict[str, Any] | None = None
 
     def content(self, content: str) -> MemoryBuilder:
@@ -107,6 +108,11 @@ class MemoryBuilder:
         self._pinned = pinned
         return self
 
+    def immutable(self, immutable: bool = True) -> MemoryBuilder:
+        """Set immutable status (prevents future modifications)."""
+        self._immutable = immutable
+        return self
+
     def metadata(self, metadata: dict[str, Any]) -> MemoryBuilder:
         """Set custom metadata."""
         self._metadata = metadata
@@ -133,6 +139,7 @@ class MemoryBuilder:
             agent_id=self._agent_id,
             expires_at=self._expires_at,
             pinned=self._pinned,
+            immutable=self._immutable,
             metadata=self._metadata,
         )
 
@@ -712,6 +719,7 @@ class StoreBuilder:
         self._agent_id: str | None = None
         self._expires_at: str | None = None
         self._pinned: bool | None = None
+        self._immutable: bool | None = None
         self._metadata: dict[str, Any] | None = None
 
     def content(self, content: str) -> StoreBuilder:
@@ -768,6 +776,11 @@ class StoreBuilder:
         self._pinned = pinned
         return self
 
+    def immutable(self, immutable: bool = True) -> StoreBuilder:
+        """Make the memory immutable (prevents future modifications)."""
+        self._immutable = immutable
+        return self
+
     def metadata(self, metadata: dict[str, Any]) -> StoreBuilder:
         """Set custom metadata."""
         self._metadata = metadata
@@ -787,6 +800,7 @@ class StoreBuilder:
             agent_id=self._agent_id,
             expires_at=self._expires_at,
             pinned=self._pinned,
+            immutable=self._immutable,
             metadata=self._metadata,
         )
 
@@ -805,6 +819,7 @@ class AsyncStoreBuilder:
         self._agent_id: str | None = None
         self._expires_at: str | None = None
         self._pinned: bool | None = None
+        self._immutable: bool | None = None
         self._metadata: dict[str, Any] | None = None
 
     def content(self, content: str) -> AsyncStoreBuilder:
@@ -851,6 +866,10 @@ class AsyncStoreBuilder:
         self._pinned = pinned
         return self
 
+    def immutable(self, immutable: bool = True) -> AsyncStoreBuilder:
+        self._immutable = immutable
+        return self
+
     def metadata(self, metadata: dict[str, Any]) -> AsyncStoreBuilder:
         self._metadata = metadata
         return self
@@ -868,6 +887,7 @@ class AsyncStoreBuilder:
             agent_id=self._agent_id,
             expires_at=self._expires_at,
             pinned=self._pinned,
+            immutable=self._immutable,
             metadata=self._metadata,
         )
 

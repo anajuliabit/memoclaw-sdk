@@ -47,7 +47,7 @@ describe('RecallQuery', () => {
           agent_id: null,
           created_at: '2025-01-01T00:00:00Z',
           access_count: 1,
-          pinned: false,
+          pinned: false, immutable: false,
         },
       ],
       query_tokens: 5,
@@ -140,7 +140,7 @@ describe('MemoryFilter', () => {
       access_count: 0,
       deleted_at: null,
       expires_at: null,
-      pinned: false,
+      pinned: false, immutable: false,
     };
 
     mockFetch.mockResolvedValue({
@@ -391,7 +391,7 @@ describe('AsyncMemoryFilter', () => {
       access_count: 0,
       deleted_at: null,
       expires_at: null,
-      pinned: false,
+      pinned: false, immutable: false,
     };
 
     mockFetch.mockResolvedValue({
@@ -643,7 +643,7 @@ describe('MemoClawClient Extensions', () => {
       mockFetch.mockResolvedValue({
         ok: true,
         json: () => Promise.resolve({
-          memories: [{ id: 'm1', content: 'Test', metadata: {}, importance: 0.5, memory_type: 'general', namespace: 'default', session_id: null, agent_id: null, created_at: '2025-01-01', access_count: 0, pinned: false }],
+          memories: [{ id: 'm1', content: 'Test', metadata: {}, importance: 0.5, memory_type: 'general', namespace: 'default', session_id: null, agent_id: null, created_at: '2025-01-01', access_count: 0, pinned: false, immutable: false }],
           total: 1,
           limit: 50,
           offset: 0,
@@ -718,7 +718,7 @@ describe('AsyncRecallQuery', () => {
           agent_id: null,
           created_at: '2025-01-01T00:00:00Z',
           access_count: 1,
-          pinned: false,
+          pinned: false, immutable: false,
         },
       ],
       query_tokens: 5,
@@ -799,7 +799,7 @@ describe('AsyncRecallQuery', () => {
           agent_id: null,
           created_at: '2025-01-01T00:00:00Z',
           access_count: 1,
-          pinned: false,
+          pinned: false, immutable: false,
         },
         {
           id: 'm2',
@@ -813,7 +813,7 @@ describe('AsyncRecallQuery', () => {
           agent_id: null,
           created_at: '2025-01-01T00:00:00Z',
           access_count: 1,
-          pinned: false,
+          pinned: false, immutable: false,
         },
       ],
       query_tokens: 5,
