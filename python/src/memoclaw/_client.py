@@ -100,9 +100,11 @@ class _SyncHTTPClient:
         *,
         json: dict[str, Any] | None = None,
         params: dict[str, Any] | None = None,
+        timeout: float | None = None,
     ) -> Any:
         url = f"{self._base_url}{path}"
         last_exc: BaseException | None = None
+        req_timeout = timeout if timeout is not None else self._timeout
 
         for attempt in range(self._max_retries + 1):
             # Generate fresh auth header each attempt (timestamp-based)
@@ -110,7 +112,8 @@ class _SyncHTTPClient:
 
             try:
                 response = self._http.request(
-                    method, url, headers=headers, json=json, params=params
+                    method, url, headers=headers, json=json, params=params,
+                    timeout=req_timeout,
                 )
             except (httpx.ConnectError, httpx.ReadTimeout, httpx.WriteTimeout) as exc:
                 last_exc = exc
@@ -125,7 +128,8 @@ class _SyncHTTPClient:
                 if payment_headers:
                     headers.update(payment_headers)
                     response = self._http.request(
-                        method, url, headers=headers, json=json, params=params
+                        method, url, headers=headers, json=json, params=params,
+                        timeout=req_timeout,
                     )
 
             # Retry on transient server errors (429, 500, 502, 503, 504)
@@ -191,18 +195,21 @@ class _AsyncHTTPClient:
         *,
         json: dict[str, Any] | None = None,
         params: dict[str, Any] | None = None,
+        timeout: float | None = None,
     ) -> Any:
         import asyncio
 
         url = f"{self._base_url}{path}"
         last_exc: BaseException | None = None
+        req_timeout = timeout if timeout is not None else self._timeout
 
         for attempt in range(self._max_retries + 1):
             headers = {"x-wallet-auth": _generate_wallet_auth(self._account)}
 
             try:
                 response = await self._http.request(
-                    method, url, headers=headers, json=json, params=params
+                    method, url, headers=headers, json=json, params=params,
+                    timeout=req_timeout,
                 )
             except (httpx.ConnectError, httpx.ReadTimeout, httpx.WriteTimeout) as exc:
                 last_exc = exc
@@ -217,7 +224,8 @@ class _AsyncHTTPClient:
                 if payment_headers:
                     headers.update(payment_headers)
                     response = await self._http.request(
-                        method, url, headers=headers, json=json, params=params
+                        method, url, headers=headers, json=json, params=params,
+                        timeout=req_timeout,
                     )
 
             # Retry on transient server errors (429, 500, 502, 503, 504)
