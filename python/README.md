@@ -57,7 +57,7 @@ Set the environment variable:
 export MEMOCLAW_PRIVATE_KEY=0x...
 ```
 
-Every wallet gets **1,000 free API calls**. After that, the SDK automatically handles x402 micropayments if `x402` extras are installed.
+Every wallet gets **100 free API calls**. After that, the SDK automatically handles x402 micropayments if `x402` extras are installed.
 
 ## Async Support
 
@@ -76,17 +76,32 @@ async def main():
 |--------|-------------|
 | `store(content, **kwargs)` | Store a single memory |
 | `store_batch(memories)` | Store up to 100 memories |
+| `store_builder()` | Fluent builder for memory creation |
 | `recall(query, **kwargs)` | Semantic search |
 | `list(**kwargs)` | List memories with pagination |
+| `iter_memories(**kwargs)` | Iterator with auto-pagination |
+| `get(memory_id)` | Retrieve a single memory by ID |
 | `update(memory_id, **kwargs)` | Update a memory |
+| `update_batch(updates)` | Update up to 100 memories in batch |
 | `delete(memory_id)` | Delete a memory |
+| `delete_batch(ids)` | Delete multiple memories by ID |
+| `text_search(query, **kwargs)` | Free keyword text search |
 | `ingest(**kwargs)` | Auto-extract facts from conversation |
 | `extract(messages, **kwargs)` | Extract structured facts via LLM |
 | `consolidate(**kwargs)` | Merge similar memories |
-| `suggested(**kwargs)` | Get proactive memory suggestions |
+| `assemble_context(query, **kwargs)` | Assemble context block for LLM prompts |
 | `create_relation(memory_id, target_id, relation_type)` | Create a relationship |
 | `list_relations(memory_id)` | List relationships |
 | `delete_relation(memory_id, relation_id)` | Delete a relationship |
+| `get_memory_graph(memory_id, depth)` | Traverse the memory graph |
+| `find_related(memory_id, **kwargs)` | Find filtered relations |
+| `migrate(files, **kwargs)` | Bulk import markdown files |
+| `export(**kwargs)` | Export memories (JSON/CSV/Markdown) |
+| `get_history(memory_id)` | Get change history for a memory |
+| `core_memories(**kwargs)` | Get high-importance/pinned memories |
+| `suggested(**kwargs)` | Get proactive memory suggestions |
+| `list_namespaces()` | List namespaces with counts |
+| `stats()` | Get memory usage statistics |
 | `status()` | Check free tier remaining calls |
 
 ## Error Handling
