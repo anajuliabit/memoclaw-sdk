@@ -430,6 +430,37 @@ export interface HistoryResponse {
   history: HistoryEntry[];
 }
 
+// ── Core Memories ──────────────────────────────────────
+
+export interface CoreMemoriesParams {
+  limit?: number;
+  namespace?: string;
+  agent_id?: string;
+}
+
+export interface CoreMemoriesResponse {
+  memories: Memory[];
+  total: number;
+}
+
+// ── Text Search ────────────────────────────────────────
+
+export interface TextSearchParams {
+  query: string;
+  limit?: number;
+  namespace?: string;
+  tags?: string[];
+  memory_type?: MemoryType;
+  session_id?: string;
+  agent_id?: string;
+  after?: string;
+}
+
+export interface TextSearchResponse {
+  memories: Memory[];
+  total: number;
+}
+
 // ── Errors ─────────────────────────────────────────────
 
 export interface MemoClawErrorBody {
