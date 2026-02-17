@@ -481,12 +481,12 @@ export interface MemoClawErrorBody {
 export interface MemoClawOptions {
   /** Base URL of the MemoClaw API (default: https://api.memoclaw.com) */
   baseUrl?: string;
-  /** Wallet address for authentication (sent as X-Wallet header).
+  /** Wallet address for authentication (sent as x-wallet-auth header).
    *  If omitted, resolved from env MEMOCLAW_WALLET or ~/.memoclaw/config.json.
    *  When privateKey is provided, the wallet address is derived automatically. */
   wallet?: string;
   /** Ethereum private key for cryptographic wallet signature auth.
-   *  When provided, the X-Wallet header uses the format `address:timestamp:signature`
+   *  When provided, the x-wallet-auth header uses the format `address:timestamp:signature`
    *  matching the Python SDK behavior. If omitted, falls back to plain wallet address. */
   privateKey?: string;
   /** Optional fetch implementation (defaults to globalThis.fetch) */

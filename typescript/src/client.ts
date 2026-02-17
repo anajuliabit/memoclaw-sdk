@@ -186,7 +186,7 @@ export class MemoClawClient {
     } else {
       walletHeader = this.wallet;
     }
-    const headers: Record<string, string> = { 'X-Wallet': walletHeader };
+    const headers: Record<string, string> = { 'x-wallet-auth': walletHeader };
     if (processedBody !== undefined) {
       headers['Content-Type'] = 'application/json';
     }
