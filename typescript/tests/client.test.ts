@@ -426,3 +426,77 @@ describe('wallet signature auth', () => {
     expect(walletHeader).toContain(TEST_ADDRESS);
   });
 });
+
+describe('Request timeout', () => {
+  it('aborts requests that exceed client-level timeout', async () => {
+    const slowFetch = vi.fn(async (_url: string, init?: RequestInit) => {
+      // Wait longer than the timeout
+      await new Promise((resolve, reject) => {
+        const timer = setTimeout(resolve, 5000);
+        init?.signal?.addEventListener('abort', () => {
+          clearTimeout(timer);
+          reject(init.signal!.reason);
+        });
+      });
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ memories: [], total: 0 }),
+        headers: new Headers(),
+      } as unknown as Response;
+    });
+
+    const client = new MemoClawClient({
+      wallet: WALLET,
+      fetch: slowFetch as unknown as typeof globalThis.fetch,
+      maxRetries: 0,
+      timeout: 50, // 50ms timeout
+    });
+
+    await expect(client.list()).rejects.toThrow();
+  });
+
+  it('does not abort requests within timeout', async () => {
+    const fastFetch = mockFetch([{ status: 200, body: { memories: [], total: 0 } }]);
+
+    const client = new MemoClawClient({
+      wallet: WALLET,
+      fetch: fastFetch,
+      maxRetries: 0,
+      timeout: 5000,
+    });
+
+    const result = await client.list();
+    expect(result.memories).toEqual([]);
+  });
+
+  it('per-request signal takes effect alongside timeout', async () => {
+    const slowFetch = vi.fn(async (_url: string, init?: RequestInit) => {
+      await new Promise((resolve, reject) => {
+        const timer = setTimeout(resolve, 5000);
+        init?.signal?.addEventListener('abort', () => {
+          clearTimeout(timer);
+          reject(init.signal!.reason);
+        });
+      });
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ memories: [], total: 0 }),
+        headers: new Headers(),
+      } as unknown as Response;
+    });
+
+    const controller = new AbortController();
+    const client = new MemoClawClient({
+      wallet: WALLET,
+      fetch: slowFetch as unknown as typeof globalThis.fetch,
+      maxRetries: 0,
+      timeout: 60000, // high client timeout
+    });
+
+    // Abort via per-request signal
+    setTimeout(() => controller.abort(), 50);
+    await expect(client.list({}, { signal: controller.signal })).rejects.toThrow();
+  });
+});

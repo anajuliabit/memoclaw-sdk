@@ -497,4 +497,9 @@ export interface MemoClawOptions {
   retryDelay?: number;
   /** Path to config file (default: ~/.memoclaw/config.json) */
   configPath?: string;
+  /** Default request timeout in milliseconds. When set, each request will
+   *  be aborted if it hasn't completed within this duration. Per-request
+   *  `signal` options take precedence over (and are combined with) this
+   *  default via `AbortSignal.any`. Pass `0` to disable. */
+  timeout?: number;
 }

@@ -93,6 +93,7 @@ export class MemoClawClient {
   private readonly _fetch: typeof globalThis.fetch;
   private readonly maxRetries: number;
   private readonly retryDelay: number;
+  private readonly timeout: number;
   private readonly _beforeRequestHooks: BeforeRequestHook[] = [];
   private readonly _afterResponseHooks: AfterResponseHook[] = [];
   private readonly _onErrorHooks: OnErrorHook[] = [];
@@ -132,6 +133,7 @@ export class MemoClawClient {
     this._fetch = options.fetch ?? globalThis.fetch;
     this.maxRetries = options.maxRetries ?? 2;
     this.retryDelay = options.retryDelay ?? 500;
+    this.timeout = options.timeout ?? 0;
   }
 
   /** Register a hook called before each request. Returns this for chaining. */
@@ -191,14 +193,23 @@ export class MemoClawClient {
 
     const jsonBody = processedBody !== undefined ? JSON.stringify(processedBody) : undefined;
 
+    // Combine caller signal with client-level timeout
+    let combinedSignal = signal;
+    if (this.timeout > 0) {
+      const timeoutSignal = AbortSignal.timeout(this.timeout);
+      combinedSignal = signal
+        ? AbortSignal.any([signal, timeoutSignal])
+        : timeoutSignal;
+    }
+
     let lastError: MemoClawError | undefined;
 
     for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
       let res: Response;
       try {
-        res = await this._fetch(url, { method, headers, body: jsonBody, signal });
+        res = await this._fetch(url, { method, headers, body: jsonBody, signal: combinedSignal });
       } catch (err) {
-        if (err instanceof DOMException && err.name === 'AbortError') throw err;
+        if (err instanceof DOMException && (err.name === 'AbortError' || err.name === 'TimeoutError')) throw err;
         if (attempt < this.maxRetries) {
           const delay = this.retryDelay * Math.pow(2, attempt);
           const jitter = delay * 0.25 * Math.random();
