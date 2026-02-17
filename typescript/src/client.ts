@@ -58,6 +58,8 @@ import {
 } from './errors.js';
 import { loadConfig } from './config.js';
 import { StoreBuilder } from './builders.js';
+import { privateKeyToAccount, type PrivateKeyAccount } from 'viem/accounts';
+import type { Hex } from 'viem';
 
 const DEFAULT_BASE_URL = 'https://api.memoclaw.com';
 const MAX_BATCH_SIZE = 100;
@@ -87,6 +89,7 @@ export type OnErrorHook = (method: string, path: string, error: MemoClawError) =
 export class MemoClawClient {
   private readonly baseUrl: string;
   private readonly wallet: string;
+  private readonly _account: PrivateKeyAccount | null;
   private readonly _fetch: typeof globalThis.fetch;
   private readonly maxRetries: number;
   private readonly retryDelay: number;
@@ -97,7 +100,19 @@ export class MemoClawClient {
   constructor(options: MemoClawOptions = {}) {
     const config = loadConfig(options.configPath);
 
+    // Only resolve private key from env/config if not explicitly providing wallet-only auth
+    const privateKey = options.privateKey
+      ?? (options.wallet ? undefined : (process.env.MEMOCLAW_PRIVATE_KEY ?? config.privateKey));
+
+    if (privateKey) {
+      const hex = (privateKey.startsWith('0x') ? privateKey : `0x${privateKey}`) as Hex;
+      this._account = privateKeyToAccount(hex);
+    } else {
+      this._account = null;
+    }
+
     const wallet = options.wallet
+      ?? (this._account?.address)
       ?? process.env.MEMOCLAW_WALLET
       ?? config.wallet;
     if (!wallet) {
@@ -159,8 +174,17 @@ export class MemoClawClient {
       if (result !== undefined) processedBody = result;
     }
 
-    // Use wallet auth header if private key is provided, otherwise use simple wallet header
-    const headers: Record<string, string> = { 'X-Wallet': this.wallet };
+    // Use signed wallet auth header if private key is provided, otherwise plain wallet address
+    let walletHeader: string;
+    if (this._account) {
+      const timestamp = Math.floor(Date.now() / 1000).toString();
+      const message = `memoclaw-auth:${timestamp}`;
+      const signature = await this._account.signMessage({ message });
+      walletHeader = `${this._account.address}:${timestamp}:${signature}`;
+    } else {
+      walletHeader = this.wallet;
+    }
+    const headers: Record<string, string> = { 'X-Wallet': walletHeader };
     if (processedBody !== undefined) {
       headers['Content-Type'] = 'application/json';
     }
