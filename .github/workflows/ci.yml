@@ -9,7 +9,7 @@ on:
 
 jobs:
   python-tests:
-    runs-on: ubuntu-latest
+    runs-on: namespace-profile-default
     strategy:
       matrix:
         python-version: ["3.10", "3.11", "3.12", "3.13"]
@@ -37,7 +37,7 @@ jobs:
           mypy src/memoclaw --ignore-missing-imports --no-error-summary || true
 
   typescript-tests:
-    runs-on: ubuntu-latest
+    runs-on: namespace-profile-default
     strategy:
       matrix:
         node-version: ["18", "20", "22"]
