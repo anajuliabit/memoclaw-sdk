@@ -500,3 +500,101 @@ describe('Request timeout', () => {
     await expect(client.list({}, { signal: controller.signal })).rejects.toThrow();
   });
 });
+
+describe('migrateDirectory', () => {
+  it('reads files from directory and calls migrate', async () => {
+    const fs = await import('node:fs/promises');
+    const path = await import('node:path');
+    const os = await import('node:os');
+
+    // Create temp dir with test files
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'memoclaw-test-'));
+    try {
+      await fs.writeFile(path.join(tmpDir, 'a.md'), 'memory alpha');
+      await fs.writeFile(path.join(tmpDir, 'b.md'), 'memory beta');
+      await fs.writeFile(path.join(tmpDir, 'c.txt'), 'should be skipped');
+
+      let capturedBody: unknown;
+      const fakeFetch = vi.fn(async (_url: string, init?: RequestInit) => {
+        capturedBody = JSON.parse(init?.body as string);
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ migrated: 2, memories: [] }),
+          headers: new Headers(),
+        } as unknown as Response;
+      });
+
+      const client = new MemoClawClient({
+        wallet: WALLET,
+        fetch: fakeFetch as unknown as typeof globalThis.fetch,
+        maxRetries: 0,
+      });
+
+      const result = await client.migrateDirectory(tmpDir, { namespace: 'test' });
+      expect(result.migrated).toBe(2);
+      expect((capturedBody as any).files).toHaveLength(2);
+      expect((capturedBody as any).files[0].filename).toBe('a.md');
+      expect((capturedBody as any).files[1].filename).toBe('b.md');
+      expect((capturedBody as any).namespace).toBe('test');
+    } finally {
+      await fs.rm(tmpDir, { recursive: true });
+    }
+  });
+
+  it('throws if directory does not exist', async () => {
+    const client = createClient(mockFetch([{ status: 200, body: {} }]));
+    await expect(client.migrateDirectory('/nonexistent/path')).rejects.toThrow('Directory not found');
+  });
+
+  it('throws if no files match pattern', async () => {
+    const fs = await import('node:fs/promises');
+    const path = await import('node:path');
+    const os = await import('node:os');
+
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'memoclaw-test-'));
+    try {
+      await fs.writeFile(path.join(tmpDir, 'a.txt'), 'not markdown');
+
+      const client = createClient(mockFetch([{ status: 200, body: {} }]));
+      await expect(client.migrateDirectory(tmpDir)).rejects.toThrow("No files matching '*.md'");
+    } finally {
+      await fs.rm(tmpDir, { recursive: true });
+    }
+  });
+
+  it('supports custom glob pattern', async () => {
+    const fs = await import('node:fs/promises');
+    const path = await import('node:path');
+    const os = await import('node:os');
+
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'memoclaw-test-'));
+    try {
+      await fs.writeFile(path.join(tmpDir, 'a.txt'), 'text file');
+      await fs.writeFile(path.join(tmpDir, 'b.md'), 'markdown file');
+
+      let capturedBody: unknown;
+      const fakeFetch = vi.fn(async (_url: string, init?: RequestInit) => {
+        capturedBody = JSON.parse(init?.body as string);
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ migrated: 1, memories: [] }),
+          headers: new Headers(),
+        } as unknown as Response;
+      });
+
+      const client = new MemoClawClient({
+        wallet: WALLET,
+        fetch: fakeFetch as unknown as typeof globalThis.fetch,
+        maxRetries: 0,
+      });
+
+      await client.migrateDirectory(tmpDir, { pattern: '*.txt' });
+      expect((capturedBody as any).files).toHaveLength(1);
+      expect((capturedBody as any).files[0].filename).toBe('a.txt');
+    } finally {
+      await fs.rm(tmpDir, { recursive: true });
+    }
+  });
+});

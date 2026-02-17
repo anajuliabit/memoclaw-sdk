@@ -502,6 +502,74 @@ export class MemoClawClient {
     return this.request<MigrateResponse>('POST', '/v1/migrate', body, undefined, options?.signal);
   }
 
+  /**
+   * Convenience: migrate all matching files from a directory.
+   * Reads files from disk and sends them via the migrate endpoint.
+   *
+   * @param directory - Path to directory containing memory files
+   * @param options.pattern - Glob pattern (default: `*.md`)
+   *
+   * @example
+   * ```ts
+   * const result = await client.migrateDirectory('./memories', {
+   *   namespace: 'project-x',
+   * });
+   * ```
+   */
+  async migrateDirectory(
+    directory: string,
+    options?: {
+      pattern?: string;
+      namespace?: string;
+      agent_id?: string;
+      session_id?: string;
+      auto_tag?: boolean;
+      signal?: AbortSignal;
+    },
+  ): Promise<MigrateResponse> {
+    const { readdir, readFile, stat } = await import('node:fs/promises');
+    const { join, basename } = await import('node:path');
+    const { resolve } = await import('node:path');
+
+    const dirPath = resolve(directory);
+    const dirStat = await stat(dirPath).catch(() => null);
+    if (!dirStat?.isDirectory()) {
+      throw new Error(`Directory not found: ${directory}`);
+    }
+
+    const pattern = options?.pattern ?? '*.md';
+    // Simple glob matching: convert pattern to regex
+    const regexStr = '^' + pattern
+      .replace(/\./g, '\\.')
+      .replace(/\*/g, '.*')
+      .replace(/\?/g, '.') + '$';
+    const regex = new RegExp(regexStr);
+
+    const entries = await readdir(dirPath);
+    const matchingFiles = entries.filter((f) => regex.test(f)).sort();
+
+    const files: MigrateFile[] = [];
+    for (const filename of matchingFiles) {
+      const filePath = join(dirPath, filename);
+      const fileStat = await stat(filePath);
+      if (!fileStat.isFile()) continue;
+      const content = await readFile(filePath, 'utf-8');
+      files.push({ filename, content });
+    }
+
+    if (!files.length) {
+      throw new Error(`No files matching '${pattern}' in ${directory}`);
+    }
+
+    return this.migrate(files, {
+      namespace: options?.namespace,
+      agent_id: options?.agent_id,
+      session_id: options?.session_id,
+      auto_tag: options?.auto_tag,
+      signal: options?.signal,
+    });
+  }
+
   // ── Context ─────────────────────────────────────────────
 
   /** Assemble a context block from memories for LLM prompts. */
