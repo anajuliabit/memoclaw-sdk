@@ -66,7 +66,7 @@ describe('store', () => {
     const client = createClient(f);
     await client.store({ content: 'test' });
     const [, init] = f.mock.calls[0]!;
-    expect(init.headers['X-Wallet']).toBe(WALLET);
+    expect(init.headers['x-wallet-auth']).toBe(WALLET);
     expect(init.headers['Content-Type']).toBe('application/json');
     expect(init.method).toBe('POST');
   });
@@ -391,7 +391,7 @@ describe('wallet signature auth', () => {
     const client = new MemoClawClient({ privateKey: TEST_PRIVATE_KEY, fetch: f });
     await client.store({ content: 'test' });
     const [, init] = f.mock.calls[0]!;
-    const walletHeader = init.headers['X-Wallet'] as string;
+    const walletHeader = init.headers['x-wallet-auth'] as string;
     expect(walletHeader).toContain(TEST_ADDRESS);
   });
 
@@ -400,7 +400,7 @@ describe('wallet signature auth', () => {
     const client = new MemoClawClient({ privateKey: TEST_PRIVATE_KEY, fetch: f });
     await client.store({ content: 'test' });
     const [, init] = f.mock.calls[0]!;
-    const walletHeader = init.headers['X-Wallet'] as string;
+    const walletHeader = init.headers['x-wallet-auth'] as string;
     const parts = walletHeader.split(':');
     expect(parts).toHaveLength(3);
     expect(parts[0]).toBe(TEST_ADDRESS);
@@ -413,7 +413,7 @@ describe('wallet signature auth', () => {
     const client = new MemoClawClient({ wallet: WALLET, fetch: f });
     await client.store({ content: 'test' });
     const [, init] = f.mock.calls[0]!;
-    expect(init.headers['X-Wallet']).toBe(WALLET);
+    expect(init.headers['x-wallet-auth']).toBe(WALLET);
   });
 
   it('prefers explicit privateKey over env var', async () => {
@@ -421,7 +421,7 @@ describe('wallet signature auth', () => {
     const client = new MemoClawClient({ privateKey: TEST_PRIVATE_KEY, wallet: '0xIgnored', fetch: f });
     await client.store({ content: 'test' });
     const [, init] = f.mock.calls[0]!;
-    const walletHeader = init.headers['X-Wallet'] as string;
+    const walletHeader = init.headers['x-wallet-auth'] as string;
     // When privateKey is explicit, it should use signed auth even if wallet is also provided
     expect(walletHeader).toContain(TEST_ADDRESS);
   });
