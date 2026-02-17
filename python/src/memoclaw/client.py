@@ -1278,6 +1278,8 @@ class AsyncMemoClaw:
             body["namespace"] = namespace
         if pinned is not None:
             body["pinned"] = pinned
+        if immutable is not None:
+            body["immutable"] = immutable
         if expires_at is not ...:
             body["expires_at"] = expires_at
 
