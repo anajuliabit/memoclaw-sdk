@@ -380,3 +380,49 @@ describe('iterMemories', () => {
     expect(memories).toHaveLength(0);
   });
 });
+
+describe('wallet signature auth', () => {
+  // Well-known test private key (DO NOT use in production)
+  const TEST_PRIVATE_KEY = '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80';
+  const TEST_ADDRESS = '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266';
+
+  it('derives wallet address from private key', async () => {
+    const f = mockFetch([{ status: 200, body: { id: '1', stored: true, deduplicated: false, tokens_used: 10 } }]);
+    const client = new MemoClawClient({ privateKey: TEST_PRIVATE_KEY, fetch: f });
+    await client.store({ content: 'test' });
+    const [, init] = f.mock.calls[0]!;
+    const walletHeader = init.headers['X-Wallet'] as string;
+    expect(walletHeader).toContain(TEST_ADDRESS);
+  });
+
+  it('sends signed auth header in address:timestamp:signature format', async () => {
+    const f = mockFetch([{ status: 200, body: { id: '1', stored: true, deduplicated: false, tokens_used: 10 } }]);
+    const client = new MemoClawClient({ privateKey: TEST_PRIVATE_KEY, fetch: f });
+    await client.store({ content: 'test' });
+    const [, init] = f.mock.calls[0]!;
+    const walletHeader = init.headers['X-Wallet'] as string;
+    const parts = walletHeader.split(':');
+    expect(parts).toHaveLength(3);
+    expect(parts[0]).toBe(TEST_ADDRESS);
+    expect(Number(parts[1])).toBeGreaterThan(0); // timestamp
+    expect(parts[2]).toMatch(/^0x[0-9a-f]+$/i); // hex signature
+  });
+
+  it('uses plain wallet when privateKey not provided', async () => {
+    const f = mockFetch([{ status: 200, body: { id: '1', stored: true, deduplicated: false, tokens_used: 10 } }]);
+    const client = new MemoClawClient({ wallet: WALLET, fetch: f });
+    await client.store({ content: 'test' });
+    const [, init] = f.mock.calls[0]!;
+    expect(init.headers['X-Wallet']).toBe(WALLET);
+  });
+
+  it('prefers explicit privateKey over env var', async () => {
+    const f = mockFetch([{ status: 200, body: { id: '1', stored: true, deduplicated: false, tokens_used: 10 } }]);
+    const client = new MemoClawClient({ privateKey: TEST_PRIVATE_KEY, wallet: '0xIgnored', fetch: f });
+    await client.store({ content: 'test' });
+    const [, init] = f.mock.calls[0]!;
+    const walletHeader = init.headers['X-Wallet'] as string;
+    // When privateKey is explicit, it should use signed auth even if wallet is also provided
+    expect(walletHeader).toContain(TEST_ADDRESS);
+  });
+});
