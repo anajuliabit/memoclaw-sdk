@@ -19,7 +19,7 @@ from ._client import (
     _SyncHTTPClient,
 )
 from .builders import StoreBuilder, AsyncStoreBuilder
-from .config import load_config, resolve_base_url, resolve_private_key
+from .config import load_config, resolve_base_url, resolve_private_key, resolve_wallet_address
 from .types import (
     ConsolidateResult,
     ContextResult,
@@ -140,6 +140,11 @@ class MemoClaw:
     Args:
         private_key: Ethereum private key for wallet auth.
             Falls back to ``MEMOCLAW_PRIVATE_KEY`` env var.
+        wallet_address: Ethereum wallet address for read-only access to free
+            endpoints.  When only a wallet address is provided (no private key),
+            the client operates in *wallet-only* mode — signed requests are not
+            available, but all free endpoints (list, get, delete, stats, …) work.
+            Falls back to ``MEMOCLAW_WALLET`` env var.
         base_url: API base URL. Defaults to ``https://api.memoclaw.com``.
         timeout: Request timeout in seconds. Defaults to 30.
         max_retries: Maximum retry attempts for transient errors. Defaults to 2.
@@ -151,6 +156,7 @@ class MemoClaw:
         self,
         private_key: str | None = None,
         *,
+        wallet_address: str | None = None,
         base_url: str | None = None,
         timeout: float = DEFAULT_TIMEOUT,
         max_retries: int | None = None,
@@ -160,15 +166,26 @@ class MemoClaw:
     ) -> None:
         config = load_config(config_path)
         resolved_url = resolve_base_url(base_url, config)
-        resolved_key = resolve_private_key(private_key, config)
+        resolved_wallet = resolve_wallet_address(wallet_address, config)
+        resolved_key = resolve_private_key(private_key, config, wallet_address=resolved_wallet)
+
+        if resolved_key is None and resolved_wallet is None:
+            raise ValueError(
+                "No authentication provided. Pass private_key= or wallet_address=, "
+                "set MEMOCLAW_PRIVATE_KEY / MEMOCLAW_WALLET, "
+                "or run `memoclaw init` to create ~/.memoclaw/config.json."
+            )
 
         kwargs: dict[str, Any] = {
-            "private_key": resolved_key,
             "base_url": resolved_url,
             "timeout": timeout,
             "pool_max_connections": pool_max_connections,
             "pool_max_keepalive": pool_max_keepalive,
         }
+        if resolved_key is not None:
+            kwargs["private_key"] = resolved_key
+        else:
+            kwargs["wallet_address"] = resolved_wallet
         if max_retries is not None:
             kwargs["max_retries"] = max_retries
         self._http = _SyncHTTPClient(**kwargs)
@@ -973,6 +990,8 @@ class AsyncMemoClaw:
     Args:
         private_key: Ethereum private key for wallet auth.
             Falls back to ``MEMOCLAW_PRIVATE_KEY`` env var.
+        wallet_address: Ethereum wallet address for read-only access to free
+            endpoints.  See :class:`MemoClaw` for details on wallet-only mode.
         base_url: API base URL. Defaults to ``https://api.memoclaw.com``.
         timeout: Request timeout in seconds. Defaults to 30.
         max_retries: Maximum retry attempts for transient errors. Defaults to 2.
@@ -984,6 +1003,7 @@ class AsyncMemoClaw:
         self,
         private_key: str | None = None,
         *,
+        wallet_address: str | None = None,
         base_url: str | None = None,
         timeout: float = DEFAULT_TIMEOUT,
         max_retries: int | None = None,
@@ -993,15 +1013,26 @@ class AsyncMemoClaw:
     ) -> None:
         config = load_config(config_path)
         resolved_url = resolve_base_url(base_url, config)
-        resolved_key = resolve_private_key(private_key, config)
+        resolved_wallet = resolve_wallet_address(wallet_address, config)
+        resolved_key = resolve_private_key(private_key, config, wallet_address=resolved_wallet)
+
+        if resolved_key is None and resolved_wallet is None:
+            raise ValueError(
+                "No authentication provided. Pass private_key= or wallet_address=, "
+                "set MEMOCLAW_PRIVATE_KEY / MEMOCLAW_WALLET, "
+                "or run `memoclaw init` to create ~/.memoclaw/config.json."
+            )
 
         kwargs: dict[str, Any] = {
-            "private_key": resolved_key,
             "base_url": resolved_url,
             "timeout": timeout,
             "pool_max_connections": pool_max_connections,
             "pool_max_keepalive": pool_max_keepalive,
         }
+        if resolved_key is not None:
+            kwargs["private_key"] = resolved_key
+        else:
+            kwargs["wallet_address"] = resolved_wallet
         if max_retries is not None:
             kwargs["max_retries"] = max_retries
         self._http = _AsyncHTTPClient(**kwargs)

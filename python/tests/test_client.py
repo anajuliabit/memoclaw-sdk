@@ -496,8 +496,52 @@ class TestEnvVar:
 
     def test_missing_key_raises(self, monkeypatch):
         monkeypatch.delenv("MEMOCLAW_PRIVATE_KEY", raising=False)
-        with pytest.raises(ValueError, match="No private key"):
+        monkeypatch.delenv("MEMOCLAW_WALLET", raising=False)
+        with pytest.raises(ValueError, match="No private key|No authentication"):
             MemoClaw()
+
+
+class TestWalletOnlyAuth:
+    """Test wallet-only (read-only) authentication mode."""
+
+    def test_wallet_only_init(self, monkeypatch):
+        monkeypatch.delenv("MEMOCLAW_PRIVATE_KEY", raising=False)
+        monkeypatch.delenv("MEMOCLAW_WALLET", raising=False)
+        monkeypatch.delenv("MEMOCLAW_URL", raising=False)
+        c = MemoClaw(wallet_address="0x1234567890abcdef1234567890abcdef12345678", base_url=BASE_URL)
+        c.close()
+
+    def test_wallet_only_env_var(self, monkeypatch):
+        monkeypatch.delenv("MEMOCLAW_PRIVATE_KEY", raising=False)
+        monkeypatch.delenv("MEMOCLAW_URL", raising=False)
+        monkeypatch.setenv("MEMOCLAW_WALLET", "0x1234567890abcdef1234567890abcdef12345678")
+        c = MemoClaw(base_url=BASE_URL)
+        c.close()
+
+    @respx.mock
+    def test_wallet_only_sends_plain_address(self, monkeypatch):
+        monkeypatch.delenv("MEMOCLAW_PRIVATE_KEY", raising=False)
+        monkeypatch.delenv("MEMOCLAW_WALLET", raising=False)
+        monkeypatch.delenv("MEMOCLAW_URL", raising=False)
+        wallet = "0x1234567890abcdef1234567890abcdef12345678"
+        respx.get(f"{BASE_URL}/v1/free-tier/status").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "wallet": wallet,
+                    "free_tier_remaining": 100,
+                    "free_tier_total": 100,
+                    "free_tier_used": 0,
+                },
+            )
+        )
+        c = MemoClaw(wallet_address=wallet, base_url=BASE_URL)
+        result = c.status()
+        assert result.free_tier_remaining == 100
+        # Verify the auth header is just the wallet address (no signature)
+        req = respx.calls.last.request
+        assert req.headers["x-wallet-auth"] == wallet
+        c.close()
 
 
 class TestContextManager:
