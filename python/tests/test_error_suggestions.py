@@ -25,6 +25,33 @@ class TestErrorSuggestions:
         assert err.suggestion is None
         assert "💡" not in str(err)
 
+    def test_code_specific_suggestion_takes_priority(self):
+        """Error code suggestion should be preferred over status fallback."""
+        err = APIError(401, "INVALID_SIGNATURE", "Bad sig")
+        assert err.suggestion is not None
+        assert "private key" in err.suggestion
+
+    def test_status_fallback_for_unknown_code(self):
+        """Unknown code should fall back to status-based suggestion."""
+        err = APIError(502, "SOMETHING_WEIRD", "Bad gateway")
+        assert err.suggestion is not None
+        assert "restarting" in err.suggestion.lower() or "gateway" in err.suggestion.lower()
+
+    def test_payment_suggestions(self):
+        err = APIError(402, "FREE_TIER_EXHAUSTED", "No more free calls")
+        assert err.suggestion is not None
+        assert "100 free" in err.suggestion
+
+    def test_forbidden_suggestions(self):
+        err = APIError(403, "MEMORY_IMMUTABLE", "Cannot modify")
+        assert err.suggestion is not None
+        assert "immutable" in err.suggestion
+
+    def test_content_too_long_suggestion(self):
+        err = ValidationError(400, "CONTENT_TOO_LONG", "Too long")
+        assert err.suggestion is not None
+        assert "8192" in err.suggestion
+
     def test_from_response_preserves_suggestion(self):
         err = APIError.from_response(
             404, {"error": {"code": "NOT_FOUND", "message": "Not found"}}

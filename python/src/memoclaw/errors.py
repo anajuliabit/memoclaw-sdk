@@ -11,14 +11,59 @@ class MemoClawError(Exception):
 
 # ── Suggestions for common errors ────────────────────────────────────────────
 
-_ERROR_SUGGESTIONS: dict[tuple[int, str], str] = {
-    (401, "AUTH_ERROR"): "Check that your private key is correct and the signature hasn't expired. Ensure system clock is synced.",
-    (402, "PAYMENT_REQUIRED"): "Free tier exhausted. Install x402 (`pip install memoclaw[x402]`) for automatic payment, or upgrade your plan.",
-    (404, "NOT_FOUND"): "The memory ID may have been deleted or never existed. Use client.list() to verify.",
-    (422, "VALIDATION_ERROR"): "Check request payload — content max length is 8192 chars, importance must be 0.0-1.0.",
-    (429, "RATE_LIMITED"): "Too many requests. The SDK retries automatically, but consider adding delays between batch operations.",
-    (500, "INTERNAL_ERROR"): "Server error — this is usually transient. The SDK will retry automatically.",
+# Actionable suggestions keyed by error code (matched first, then status fallback).
+_CODE_SUGGESTIONS: dict[str, str] = {
+    # Auth
+    "MISSING_WALLET": "Pass a wallet address via the `wallet` option, set MEMOCLAW_WALLET env var, or run `memoclaw init`.",
+    "INVALID_WALLET": "Ensure the wallet address is a valid Ethereum address (0x-prefixed, 40 hex chars).",
+    "INVALID_SIGNATURE": "The signed auth header is invalid. Check that your private key matches the wallet address.",
+    "AUTH_EXPIRED": "The authentication timestamp has expired. Ensure your system clock is accurate.",
+    "AUTH_ERROR": "Check that your private key is correct and the signature hasn't expired. Ensure system clock is synced.",
+    # Payment
+    "FREE_TIER_EXHAUSTED": "You have used all 100 free API calls. Fund your wallet with USDC on Base to continue. See https://docs.memoclaw.com/payments",
+    "PAYMENT_REQUIRED": "This endpoint requires payment. Ensure your wallet has USDC on Base. See https://docs.memoclaw.com/payments",
+    "INSUFFICIENT_FUNDS": "Your wallet does not have enough USDC on Base. Top up and retry.",
+    # Validation
+    "CONTENT_TOO_LONG": "Memory content exceeds the 8192 character limit. Split it into smaller memories or summarize.",
+    "INVALID_IMPORTANCE": "Importance must be a number between 0 and 1.",
+    "INVALID_NAMESPACE": "Namespace must be alphanumeric with hyphens/underscores, max 64 chars.",
+    "MISSING_CONTENT": "The `content` field is required and must be a non-empty string.",
+    "MISSING_QUERY": "The `query` field is required for recall/search.",
+    "BATCH_TOO_LARGE": "Batch size exceeds the maximum of 100 items. Split into smaller batches.",
+    "VALIDATION_ERROR": "Check request payload — content max length is 8192 chars, importance must be 0.0-1.0.",
+    # Not found
+    "MEMORY_NOT_FOUND": "No memory exists with that ID. It may have been deleted. Use `client.list()` to browse existing memories.",
+    "NOT_FOUND": "The memory ID may have been deleted or never existed. Use client.list() to verify.",
+    "RELATION_NOT_FOUND": "No relation exists with that ID. Use `client.list_relations(memory_id)` to see existing relations.",
+    # Forbidden
+    "MEMORY_IMMUTABLE": "This memory is immutable and cannot be modified or deleted.",
+    "WALLET_MISMATCH": "You can only access memories belonging to your wallet address.",
+    # Rate limit
+    "RATE_LIMITED": "Too many requests. The SDK retries automatically, but consider adding delays between batch operations.",
+    # Server
+    "INTERNAL_ERROR": "An unexpected server error occurred. Retry in a moment. If it persists, check https://status.memoclaw.com",
+    "SERVICE_UNAVAILABLE": "The API is temporarily unavailable. Retry in a few seconds.",
 }
+
+# Fallback suggestions by HTTP status code when no specific error code matches.
+_STATUS_SUGGESTIONS: dict[int, str] = {
+    400: "Check the request body against the API docs: https://docs.memoclaw.com",
+    401: "Verify your wallet address or private key. Run `memoclaw init` to reconfigure.",
+    402: "This request requires payment. Ensure your wallet has USDC on Base. See https://docs.memoclaw.com/payments",
+    403: "You do not have permission for this resource. Check the wallet address and memory ownership.",
+    404: "The requested resource was not found. Verify the ID and that it has not been deleted.",
+    422: "The request body has invalid fields. Check types and required fields in the API docs.",
+    429: "Rate limited. Slow down requests or add retry logic with exponential backoff.",
+    500: "Internal server error. Retry shortly. If persistent, report at https://github.com/anajuliabit/memocloud/issues",
+    502: "Bad gateway. The API may be restarting. Retry in a few seconds.",
+    503: "Service unavailable. The API is temporarily down. Retry shortly.",
+    504: "Gateway timeout. The request took too long. Try a smaller batch or simpler query.",
+}
+
+
+def _get_suggestion(status_code: int, code: str) -> str | None:
+    """Look up an actionable suggestion for a given error code and status."""
+    return _CODE_SUGGESTIONS.get(code) or _STATUS_SUGGESTIONS.get(status_code)
 
 
 class APIError(MemoClawError):
@@ -49,7 +94,7 @@ class APIError(MemoClawError):
         self.code = code
         self.message = message
         self.details = details
-        self.suggestion = _ERROR_SUGGESTIONS.get((status_code, code))
+        self.suggestion = _get_suggestion(status_code, code)
         msg = f"[{status_code}] {code}: {message}"
         if self.suggestion:
             msg += f"\n  💡 {self.suggestion}"
