@@ -34,6 +34,11 @@ def _generate_wallet_auth(account: Account) -> str:
     return f"{account.address}:{timestamp}:{signed.signature.hex()}"
 
 
+def _generate_wallet_only_auth(wallet_address: str) -> str:
+    """Generate a plain wallet address auth header for read-only access."""
+    return wallet_address
+
+
 def _raise_for_status(response: httpx.Response) -> None:
     """Raise a typed :class:`APIError` for non-2xx responses."""
     if response.is_success:
@@ -74,14 +79,24 @@ def _try_x402_payment(
 class _SyncHTTPClient:
     def __init__(
         self,
-        private_key: str,
+        private_key: str | None = None,
         base_url: str = DEFAULT_BASE_URL,
         timeout: float = DEFAULT_TIMEOUT,
         max_retries: int = DEFAULT_MAX_RETRIES,
         pool_max_connections: int = DEFAULT_POOL_MAX_CONNECTIONS,
         pool_max_keepalive: int = DEFAULT_POOL_MAX_KEEPALIVE_CONNECTIONS,
+        wallet_address: str | None = None,
     ) -> None:
-        self._account = Account.from_key(private_key)
+        if private_key is not None:
+            self._account: Account | None = Account.from_key(private_key)
+            self._wallet_address = self._account.address
+        elif wallet_address is not None:
+            self._account = None
+            self._wallet_address = wallet_address
+        else:
+            raise ValueError(
+                "Either private_key or wallet_address must be provided."
+            )
         self._base_url = base_url.rstrip("/")
         self._timeout = timeout
         self._max_retries = max_retries
@@ -108,7 +123,10 @@ class _SyncHTTPClient:
 
         for attempt in range(self._max_retries + 1):
             # Generate fresh auth header each attempt (timestamp-based)
-            headers = {"x-wallet-auth": _generate_wallet_auth(self._account)}
+            if self._account is not None:
+                headers = {"x-wallet-auth": _generate_wallet_auth(self._account)}
+            else:
+                headers = {"x-wallet-auth": _generate_wallet_only_auth(self._wallet_address)}
 
             try:
                 response = self._http.request(
@@ -169,14 +187,24 @@ class _SyncHTTPClient:
 class _AsyncHTTPClient:
     def __init__(
         self,
-        private_key: str,
+        private_key: str | None = None,
         base_url: str = DEFAULT_BASE_URL,
         timeout: float = DEFAULT_TIMEOUT,
         max_retries: int = DEFAULT_MAX_RETRIES,
         pool_max_connections: int = DEFAULT_POOL_MAX_CONNECTIONS,
         pool_max_keepalive: int = DEFAULT_POOL_MAX_KEEPALIVE_CONNECTIONS,
+        wallet_address: str | None = None,
     ) -> None:
-        self._account = Account.from_key(private_key)
+        if private_key is not None:
+            self._account: Account | None = Account.from_key(private_key)
+            self._wallet_address = self._account.address
+        elif wallet_address is not None:
+            self._account = None
+            self._wallet_address = wallet_address
+        else:
+            raise ValueError(
+                "Either private_key or wallet_address must be provided."
+            )
         self._base_url = base_url.rstrip("/")
         self._timeout = timeout
         self._max_retries = max_retries
@@ -204,7 +232,10 @@ class _AsyncHTTPClient:
         req_timeout = timeout if timeout is not None else self._timeout
 
         for attempt in range(self._max_retries + 1):
-            headers = {"x-wallet-auth": _generate_wallet_auth(self._account)}
+            if self._account is not None:
+                headers = {"x-wallet-auth": _generate_wallet_auth(self._account)}
+            else:
+                headers = {"x-wallet-auth": _generate_wallet_only_auth(self._wallet_address)}
 
             try:
                 response = await self._http.request(

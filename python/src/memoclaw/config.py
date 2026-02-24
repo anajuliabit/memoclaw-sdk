@@ -54,26 +54,69 @@ def load_config(path: str | Path | None = None) -> MemoClawConfig:
 def resolve_private_key(
     explicit: str | None = None,
     config: MemoClawConfig | None = None,
-) -> str:
+    *,
+    wallet_address: str | None = None,
+) -> str | None:
     """Resolve private key from explicit arg > env var > config file.
 
+    When *wallet_address* is provided the private key becomes optional —
+    the caller can operate in wallet-only (read-only) mode.
+
+    Returns:
+        The private key string, or ``None`` when wallet-only mode is used.
+
     Raises:
-        ValueError: If no private key can be found.
+        ValueError: If neither a private key nor a wallet address can be found.
     """
     if explicit is not None:
         return explicit
 
-    env_key = os.environ.get("MEMOCLAW_PRIVATE_KEY")
-    if env_key:
-        return env_key
+    # Only auto-resolve from env/config when wallet-only auth is NOT requested
+    if wallet_address is None:
+        env_key = os.environ.get("MEMOCLAW_PRIVATE_KEY")
+        if env_key:
+            return env_key
 
-    if config and config.private_key:
-        return config.private_key
+        if config and config.private_key:
+            return config.private_key
+
+    else:
+        # Even in wallet-only mode, still pick up a key if explicitly set in env
+        env_key = os.environ.get("MEMOCLAW_PRIVATE_KEY")
+        if env_key:
+            return env_key
+        if config and config.private_key:
+            return config.private_key
+        # No key found — that's fine in wallet-only mode
+        return None
 
     raise ValueError(
         "No private key provided. Pass private_key=, set MEMOCLAW_PRIVATE_KEY, "
-        "or run `memoclaw init` to create ~/.memoclaw/config.json."
+        "or run `memoclaw init` to create ~/.memoclaw/config.json. "
+        "Alternatively, pass wallet_address= for read-only access to free endpoints."
     )
+
+
+def resolve_wallet_address(
+    explicit: str | None = None,
+    config: MemoClawConfig | None = None,
+) -> str | None:
+    """Resolve wallet address from explicit arg > env var > config file.
+
+    Returns ``None`` if no wallet address is available (private key mode
+    derives the address automatically).
+    """
+    if explicit is not None:
+        return explicit
+
+    env_wallet = os.environ.get("MEMOCLAW_WALLET")
+    if env_wallet:
+        return env_wallet
+
+    if config and config.wallet:
+        return config.wallet
+
+    return None
 
 
 def resolve_base_url(
