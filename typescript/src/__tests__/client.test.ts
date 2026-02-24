@@ -240,13 +240,44 @@ describe('Error handling', () => {
   });
 
   it('includes suggestion in error message', async () => {
-    const f = mockFetch([{ status: 404, ok: false, body: { error: { code: 'NOT_FOUND', message: 'Memory not found' } } }]);
+    const f = mockFetch([{ status: 404, ok: false, body: { error: { code: 'MEMORY_NOT_FOUND', message: 'Memory not found' } } }]);
     const client = createClient(f);
     try {
       await client.get('x');
+      throw new Error('should have thrown');
     } catch (e) {
-      expect((e as NotFoundError).code).toBe('NOT_FOUND');
-      expect((e as NotFoundError).message).toContain('Memory not found');
+      const err = e as NotFoundError;
+      expect(err.code).toBe('MEMORY_NOT_FOUND');
+      expect(err.message).toContain('Memory not found');
+      expect(err.suggestion).toBeDefined();
+      expect(err.suggestion).toContain('client.list()');
+      expect(err.toString()).toContain('→');
+    }
+  });
+
+  it('provides actionable suggestion for known error codes', async () => {
+    const f = mockFetch([{ status: 402, ok: false, body: { error: { code: 'FREE_TIER_EXHAUSTED', message: 'Free tier used up' } } }]);
+    const client = createClient(f);
+    try {
+      await client.store({ content: 'test' });
+      throw new Error('should have thrown');
+    } catch (e) {
+      const err = e as PaymentRequiredError;
+      expect(err.suggestion).toContain('USDC');
+      expect(err.suggestion).toContain('docs.memoclaw.com');
+    }
+  });
+
+  it('falls back to status-based suggestion for unknown codes', async () => {
+    const f = mockFetch([{ status: 429, ok: false, body: { error: { code: 'UNKNOWN_THROTTLE', message: 'Slow down' } } }]);
+    const client = createClient(f);
+    try {
+      await client.recall({ query: 'test' });
+      throw new Error('should have thrown');
+    } catch (e) {
+      const err = e as MemoClawError;
+      expect(err.suggestion).toBeDefined();
+      expect(err.suggestion).toContain('backoff');
     }
   });
 
