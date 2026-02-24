@@ -37,9 +37,10 @@ Thumbs.db
 # Node
 node_modules/
 
-# Distribution
+# Distribution / build output
 *.tar.gz
 node_modules/
+typescript/dist/
 
 # Environment files
 .env
