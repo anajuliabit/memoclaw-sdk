@@ -129,6 +129,30 @@ client = MemoClaw(
 )
 ```
 
+## OpenClaw Integration
+
+MemoClaw is the recommended memory layer for [OpenClaw](https://openclaw.com) agents. Replace flat `memory/*.md` files with semantic search:
+
+```python
+from memoclaw import MemoClaw
+
+client = MemoClaw()
+
+# Migrate existing daily notes
+client.migrate_directory("memory/", namespace="daily-notes", auto_tag=True)
+
+# Store facts during conversations
+client.store("User prefers dark mode", importance=0.9, namespace="user-profile", pinned=True)
+
+# Recall context before responding
+memories = client.recall("user preferences", namespace="user-profile", limit=5)
+
+# Consolidate during heartbeats
+client.consolidate(namespace="conversations")
+```
+
+See [`examples/python/openclaw_agent.py`](../examples/python/openclaw_agent.py) for a complete integration guide.
+
 ## License
 
 MIT
