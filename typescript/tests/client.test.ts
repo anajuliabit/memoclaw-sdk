@@ -10,6 +10,8 @@ import {
 } from '../src/errors.js';
 
 const WALLET = '0x1234567890abcdef1234567890abcdef12345678';
+// Well-known Hardhat test private key (DO NOT use in production)
+const DEFAULT_TEST_KEY = '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80';
 
 function mockFetch(responses: Array<{ status: number; body: unknown; ok?: boolean }>) {
   let callIndex = 0;
@@ -26,7 +28,7 @@ function mockFetch(responses: Array<{ status: number; body: unknown; ok?: boolea
 
 function createClient(fetch: typeof globalThis.fetch, opts?: Partial<{ maxRetries: number; retryDelay: number }>) {
   return new MemoClawClient({
-    wallet: WALLET,
+    privateKey: DEFAULT_TEST_KEY,
     fetch,
     maxRetries: opts?.maxRetries ?? 0,
     retryDelay: opts?.retryDelay ?? 1,
@@ -34,14 +36,20 @@ function createClient(fetch: typeof globalThis.fetch, opts?: Partial<{ maxRetrie
 }
 
 describe('MemoClawClient constructor', () => {
-  it('throws if wallet is missing', () => {
-    expect(() => new MemoClawClient({ wallet: '' })).toThrow('wallet is required');
+  it('throws if no private key is available', () => {
+    const orig = process.env.MEMOCLAW_PRIVATE_KEY;
+    delete process.env.MEMOCLAW_PRIVATE_KEY;
+    try {
+      expect(() => new MemoClawClient({ wallet: WALLET })).toThrow('private key is required for API authentication');
+    } finally {
+      if (orig !== undefined) process.env.MEMOCLAW_PRIVATE_KEY = orig;
+    }
   });
 
-  it('strips trailing slashes from baseUrl', () => {
+  it('strips trailing slashes from baseUrl', async () => {
     const f = mockFetch([{ status: 200, body: { wallet: WALLET, free_tier_remaining: 100, free_tier_total: 100, free_tier_used: 0 } }]);
-    const client = new MemoClawClient({ wallet: WALLET, baseUrl: 'https://custom.api.com///', fetch: f });
-    client.status();
+    const client = new MemoClawClient({ privateKey: DEFAULT_TEST_KEY, baseUrl: 'https://custom.api.com///', fetch: f });
+    await client.status();
     expect(f).toHaveBeenCalledWith(expect.stringContaining('https://custom.api.com/v1/'), expect.anything());
   });
 });
@@ -61,12 +69,16 @@ describe('store', () => {
     await expect(client.store({ content: '   ' })).rejects.toThrow('content must be a non-empty string');
   });
 
-  it('sends correct headers', async () => {
+  it('sends correct headers with signed auth', async () => {
     const f = mockFetch([{ status: 201, body: { id: 'mem-1', stored: true, deduplicated: false, tokens_used: 10 } }]);
     const client = createClient(f);
     await client.store({ content: 'test' });
     const [, init] = f.mock.calls[0]!;
-    expect(init.headers['x-wallet-auth']).toBe(WALLET);
+    const walletHeader = init.headers['x-wallet-auth'] as string;
+    const parts = walletHeader.split(':');
+    expect(parts).toHaveLength(3);
+    expect(parts[1]).toMatch(/^\d+$/); // timestamp
+    expect(parts[2]).toMatch(/^0x[0-9a-f]+$/i); // signature
     expect(init.headers['Content-Type']).toBe('application/json');
     expect(init.method).toBe('POST');
   });
@@ -408,12 +420,14 @@ describe('wallet signature auth', () => {
     expect(parts[2]).toMatch(/^0x[0-9a-f]+$/i); // hex signature
   });
 
-  it('uses plain wallet when privateKey not provided', async () => {
-    const f = mockFetch([{ status: 200, body: { id: '1', stored: true, deduplicated: false, tokens_used: 10 } }]);
-    const client = new MemoClawClient({ wallet: WALLET, fetch: f });
-    await client.store({ content: 'test' });
-    const [, init] = f.mock.calls[0]!;
-    expect(init.headers['x-wallet-auth']).toBe(WALLET);
+  it('throws when no privateKey is available', () => {
+    const orig = process.env.MEMOCLAW_PRIVATE_KEY;
+    delete process.env.MEMOCLAW_PRIVATE_KEY;
+    try {
+      expect(() => new MemoClawClient({ wallet: WALLET })).toThrow('private key is required for API authentication');
+    } finally {
+      if (orig !== undefined) process.env.MEMOCLAW_PRIVATE_KEY = orig;
+    }
   });
 
   it('prefers explicit privateKey over env var', async () => {
@@ -447,6 +461,7 @@ describe('Request timeout', () => {
     });
 
     const client = new MemoClawClient({
+      privateKey: DEFAULT_TEST_KEY,
       wallet: WALLET,
       fetch: slowFetch as unknown as typeof globalThis.fetch,
       maxRetries: 0,
@@ -460,6 +475,7 @@ describe('Request timeout', () => {
     const fastFetch = mockFetch([{ status: 200, body: { memories: [], total: 0 } }]);
 
     const client = new MemoClawClient({
+      privateKey: DEFAULT_TEST_KEY,
       wallet: WALLET,
       fetch: fastFetch,
       maxRetries: 0,
@@ -489,6 +505,7 @@ describe('Request timeout', () => {
 
     const controller = new AbortController();
     const client = new MemoClawClient({
+      privateKey: DEFAULT_TEST_KEY,
       wallet: WALLET,
       fetch: slowFetch as unknown as typeof globalThis.fetch,
       maxRetries: 0,
@@ -526,7 +543,8 @@ describe('migrateDirectory', () => {
       });
 
       const client = new MemoClawClient({
-        wallet: WALLET,
+        privateKey: DEFAULT_TEST_KEY,
+      wallet: WALLET,
         fetch: fakeFetch as unknown as typeof globalThis.fetch,
         maxRetries: 0,
       });
@@ -585,7 +603,8 @@ describe('migrateDirectory', () => {
       });
 
       const client = new MemoClawClient({
-        wallet: WALLET,
+        privateKey: DEFAULT_TEST_KEY,
+      wallet: WALLET,
         fetch: fakeFetch as unknown as typeof globalThis.fetch,
         maxRetries: 0,
       });

@@ -486,8 +486,8 @@ export interface MemoClawOptions {
    *  When privateKey is provided, the wallet address is derived automatically. */
   wallet?: string;
   /** Ethereum private key for cryptographic wallet signature auth.
-   *  When provided, the x-wallet-auth header uses the format `address:timestamp:signature`
-   *  matching the Python SDK behavior. If omitted, falls back to plain wallet address. */
+   *  The x-wallet-auth header uses the format `address:timestamp:signature`.
+   *  If omitted, resolved from MEMOCLAW_PRIVATE_KEY env var or ~/.memoclaw/config.json. */
   privateKey?: string;
   /** Optional fetch implementation (defaults to globalThis.fetch) */
   fetch?: typeof globalThis.fetch;

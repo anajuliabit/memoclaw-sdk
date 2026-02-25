@@ -28,9 +28,12 @@ function mockFetch(responses: Array<{ status: number; body?: unknown; ok?: boole
   });
 }
 
+// Well-known Hardhat test private key (DO NOT use in production)
+const TEST_PRIVATE_KEY = '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80';
+
 function createClient(fetchFn: typeof globalThis.fetch) {
   return new MemoClawClient({
-    wallet: '0xTestWallet',
+    privateKey: TEST_PRIVATE_KEY,
     baseUrl: BASE_URL,
     fetch: fetchFn,
     maxRetries: 1,
@@ -40,14 +43,20 @@ function createClient(fetchFn: typeof globalThis.fetch) {
 
 describe('MemoClawClient', () => {
   describe('constructor', () => {
-    it('throws if wallet is missing', () => {
-      expect(() => new MemoClawClient({ wallet: '' })).toThrow('wallet is required');
+    it('throws if no private key is available', () => {
+      const orig = process.env.MEMOCLAW_PRIVATE_KEY;
+      delete process.env.MEMOCLAW_PRIVATE_KEY;
+      try {
+        expect(() => new MemoClawClient({ wallet: '0xTest' })).toThrow('private key is required for API authentication');
+      } finally {
+        if (orig !== undefined) process.env.MEMOCLAW_PRIVATE_KEY = orig;
+      }
     });
 
-    it('strips trailing slashes from baseUrl', () => {
+    it('strips trailing slashes from baseUrl', async () => {
       const f = mockFetch([{ status: 200, body: { wallet: '0x', free_tier_remaining: 10, free_tier_total: 100, free_tier_used: 90 } }]);
-      const client = new MemoClawClient({ wallet: '0xTest', baseUrl: 'https://custom.api.com///', fetch: f });
-      client.status();
+      const client = new MemoClawClient({ privateKey: TEST_PRIVATE_KEY, baseUrl: 'https://custom.api.com///', fetch: f });
+      await client.status();
       expect(f).toHaveBeenCalledWith(expect.stringContaining('https://custom.api.com/v1'), expect.anything());
     });
   });

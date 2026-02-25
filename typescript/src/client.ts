@@ -89,7 +89,7 @@ export type OnErrorHook = (method: string, path: string, error: MemoClawError) =
 export class MemoClawClient {
   private readonly baseUrl: string;
   private readonly wallet: string;
-  private readonly _account: PrivateKeyAccount | null;
+  private readonly _account: PrivateKeyAccount;
   private readonly _fetch: typeof globalThis.fetch;
   private readonly maxRetries: number;
   private readonly retryDelay: number;
@@ -101,19 +101,24 @@ export class MemoClawClient {
   constructor(options: MemoClawOptions = {}) {
     const config = loadConfig(options.configPath);
 
-    // Only resolve private key from env/config if not explicitly providing wallet-only auth
+    // Resolve private key — required for API authentication (signed wallet auth)
     const privateKey = options.privateKey
-      ?? (options.wallet ? undefined : (process.env.MEMOCLAW_PRIVATE_KEY ?? config.privateKey));
+      ?? process.env.MEMOCLAW_PRIVATE_KEY
+      ?? config.privateKey;
 
-    if (privateKey) {
-      const hex = (privateKey.startsWith('0x') ? privateKey : `0x${privateKey}`) as Hex;
-      this._account = privateKeyToAccount(hex);
-    } else {
-      this._account = null;
+    if (!privateKey) {
+      throw new Error(
+        'A private key is required for API authentication. '
+        + 'Pass privateKey option, set MEMOCLAW_PRIVATE_KEY, '
+        + 'or run `memoclaw init` to create ~/.memoclaw/config.json.',
+      );
     }
 
+    const hex = (privateKey.startsWith('0x') ? privateKey : `0x${privateKey}`) as Hex;
+    this._account = privateKeyToAccount(hex);
+
     const wallet = options.wallet
-      ?? (this._account?.address)
+      ?? this._account.address
       ?? process.env.MEMOCLAW_WALLET
       ?? config.wallet;
     if (!wallet) {
@@ -176,16 +181,11 @@ export class MemoClawClient {
       if (result !== undefined) processedBody = result;
     }
 
-    // Use signed wallet auth header if private key is provided, otherwise plain wallet address
-    let walletHeader: string;
-    if (this._account) {
-      const timestamp = Math.floor(Date.now() / 1000).toString();
-      const message = `memoclaw-auth:${timestamp}`;
-      const signature = await this._account.signMessage({ message });
-      walletHeader = `${this._account.address}:${timestamp}:${signature}`;
-    } else {
-      walletHeader = this.wallet;
-    }
+    // Generate signed wallet auth header: {address}:{timestamp}:{signature}
+    const timestamp = Math.floor(Date.now() / 1000).toString();
+    const authMessage = `memoclaw-auth:${timestamp}`;
+    const signature = await this._account.signMessage({ message: authMessage });
+    const walletHeader = `${this._account.address}:${timestamp}:${signature}`;
     const headers: Record<string, string> = { 'x-wallet-auth': walletHeader };
     if (processedBody !== undefined) {
       headers['Content-Type'] = 'application/json';
