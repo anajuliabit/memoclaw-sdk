@@ -659,7 +659,7 @@ describe('MemoClawClient Extensions', () => {
 
   describe('context manager', () => {
     it('should support disposable pattern', () => {
-      const disposable = MemoClawClient.disposable({ wallet: TEST_WALLET });
+      const disposable = MemoClawClient.disposable({ privateKey: '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80' });
       expect(disposable.client).toBeDefined();
       expect(typeof disposable[Symbol.dispose]).toBe('function');
     });
