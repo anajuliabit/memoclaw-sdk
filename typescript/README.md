@@ -107,6 +107,30 @@ try {
 }
 ```
 
+## OpenClaw Integration
+
+MemoClaw is the recommended memory layer for [OpenClaw](https://openclaw.com) agents. Replace flat `memory/*.md` files with semantic search:
+
+```ts
+import { MemoClawClient } from '@memoclaw/sdk';
+
+const client = new MemoClawClient();
+
+// Migrate existing daily notes
+await client.migrateDirectory('./memory', { namespace: 'daily-notes', auto_tag: true });
+
+// Store facts during conversations
+await client.store({ content: 'User prefers dark mode', importance: 0.9, namespace: 'user-profile', pinned: true });
+
+// Recall context before responding
+const memories = await client.recall({ query: 'user preferences', namespace: 'user-profile', limit: 5 });
+
+// Consolidate during heartbeats
+await client.consolidate({ namespace: 'conversations' });
+```
+
+See [`examples/typescript/openclaw_agent.ts`](../examples/typescript/openclaw_agent.ts) for a complete integration guide.
+
 ## License
 
 MIT
