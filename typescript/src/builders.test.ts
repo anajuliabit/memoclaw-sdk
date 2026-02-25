@@ -28,7 +28,7 @@ describe('RecallQuery', () => {
   let client: MemoClawClient;
 
   beforeEach(() => {
-    client = new MemoClawClient({ wallet: TEST_WALLET });
+    client = new MemoClawClient({ privateKey: '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80' });
     mockFetch.mockReset();
   });
 
@@ -118,7 +118,7 @@ describe('MemoryFilter', () => {
   let client: MemoClawClient;
 
   beforeEach(() => {
-    client = new MemoClawClient({ wallet: TEST_WALLET });
+    client = new MemoClawClient({ privateKey: '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80' });
     mockFetch.mockReset();
   });
 
@@ -191,7 +191,7 @@ describe('RelationBuilder', () => {
   let client: MemoClawClient;
 
   beforeEach(() => {
-    client = new MemoClawClient({ wallet: TEST_WALLET });
+    client = new MemoClawClient({ privateKey: '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80' });
     mockFetch.mockReset();
   });
 
@@ -219,7 +219,7 @@ describe('BatchStore', () => {
   let client: MemoClawClient;
 
   beforeEach(() => {
-    client = new MemoClawClient({ wallet: TEST_WALLET });
+    client = new MemoClawClient({ privateKey: '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80' });
     mockFetch.mockReset();
   });
 
@@ -321,7 +321,7 @@ describe('AsyncRelationBuilder', () => {
   let client: MemoClawClient;
 
   beforeEach(() => {
-    client = new MemoClawClient({ wallet: TEST_WALLET });
+    client = new MemoClawClient({ privateKey: '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80' });
     mockFetch.mockReset();
   });
 
@@ -369,7 +369,7 @@ describe('AsyncMemoryFilter', () => {
   let client: MemoClawClient;
 
   beforeEach(() => {
-    client = new MemoClawClient({ wallet: TEST_WALLET });
+    client = new MemoClawClient({ privateKey: '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80' });
     mockFetch.mockReset();
   });
 
@@ -472,7 +472,7 @@ describe('StoreBuilder', () => {
   let client: MemoClawClient;
 
   beforeEach(() => {
-    client = new MemoClawClient({ wallet: TEST_WALLET });
+    client = new MemoClawClient({ privateKey: '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80' });
     mockFetch.mockReset();
   });
 
@@ -554,7 +554,7 @@ describe('MemoClawClient Extensions', () => {
     let client: MemoClawClient;
 
     beforeEach(() => {
-      client = new MemoClawClient({ wallet: TEST_WALLET });
+      client = new MemoClawClient({ privateKey: '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80' });
       mockFetch.mockReset();
     });
 
@@ -611,7 +611,7 @@ describe('MemoClawClient Extensions', () => {
     let client: MemoClawClient;
 
     beforeEach(() => {
-      client = new MemoClawClient({ wallet: TEST_WALLET });
+      client = new MemoClawClient({ privateKey: '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80' });
       mockFetch.mockReset();
     });
 
@@ -635,7 +635,7 @@ describe('MemoClawClient Extensions', () => {
     let client: MemoClawClient;
 
     beforeEach(() => {
-      client = new MemoClawClient({ wallet: TEST_WALLET });
+      client = new MemoClawClient({ privateKey: '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80' });
       mockFetch.mockReset();
     });
 
@@ -665,7 +665,7 @@ describe('MemoClawClient Extensions', () => {
     });
 
     it('should have Symbol.dispose on instance', () => {
-      const client = new MemoClawClient({ wallet: TEST_WALLET });
+      const client = new MemoClawClient({ privateKey: '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80' });
       expect(typeof client[Symbol.dispose]).toBe('function');
     });
   });
@@ -674,7 +674,7 @@ describe('MemoClawClient Extensions', () => {
     let client: MemoClawClient;
 
     beforeEach(() => {
-      client = new MemoClawClient({ wallet: TEST_WALLET });
+      client = new MemoClawClient({ privateKey: '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80' });
       mockFetch.mockReset();
     });
 
@@ -699,7 +699,7 @@ describe('AsyncRecallQuery', () => {
   let client: MemoClawClient;
 
   beforeEach(() => {
-    client = new MemoClawClient({ wallet: TEST_WALLET });
+    client = new MemoClawClient({ privateKey: '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80' });
     mockFetch.mockReset();
   });
 
@@ -841,7 +841,7 @@ describe('AsyncStoreBuilder', () => {
   let client: MemoClawClient;
 
   beforeEach(() => {
-    client = new MemoClawClient({ wallet: TEST_WALLET });
+    client = new MemoClawClient({ privateKey: '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80' });
     mockFetch.mockReset();
   });
 
