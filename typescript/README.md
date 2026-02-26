@@ -15,8 +15,9 @@ bun add @memoclaw/sdk
 ```ts
 import { MemoClawClient } from '@memoclaw/sdk';
 
+// Uses MEMOCLAW_PRIVATE_KEY env var, or pass directly
 const client = new MemoClawClient({
-  wallet: '0xYourWalletAddress',
+  privateKey: '0x...',
   // baseUrl: 'https://api.memoclaw.com', // default
 });
 
@@ -55,7 +56,22 @@ const suggestions = await client.suggested({ category: 'stale' });
 
 ## Authentication
 
-MemoClaw uses wallet-based authentication. Pass your wallet address when creating the client — it's sent as the `X-Wallet` header on every request.
+MemoClaw uses Ethereum wallet signatures for authentication. You need a private key (any Ethereum key works — no ETH balance needed for the free tier).
+
+The SDK signs each request with your private key, sending an `x-wallet-auth` header in the format `address:timestamp:signature`. The wallet address is derived automatically from the private key.
+
+```bash
+# Set via environment variable
+export MEMOCLAW_PRIVATE_KEY=0x...
+```
+
+Or pass it directly:
+
+```ts
+const client = new MemoClawClient({ privateKey: '0x...' });
+```
+
+Every wallet gets **100 free API calls**. After that, x402 micropayments are used automatically.
 
 ## API Reference
 
@@ -114,7 +130,7 @@ MemoClaw is the recommended memory layer for [OpenClaw](https://openclaw.com) ag
 ```ts
 import { MemoClawClient } from '@memoclaw/sdk';
 
-const client = new MemoClawClient();
+const client = new MemoClawClient({ privateKey: process.env.MEMOCLAW_PRIVATE_KEY });
 
 // Migrate existing daily notes
 await client.migrateDirectory('./memory', { namespace: 'daily-notes', auto_tag: true });
