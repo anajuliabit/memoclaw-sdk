@@ -41,8 +41,8 @@ dev = [
 
 [project.urls]
 Homepage = "https://memoclaw.com"
-Documentation = "https://memoclaw.com/docs"
-Repository = "https://github.com/memoclaw/memoclaw-sdk"
+Documentation = "https://docs.memoclaw.com"
+Repository = "https://github.com/anajuliabit/memoclaw-sdk"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/memoclaw"]

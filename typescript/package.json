@@ -33,7 +33,7 @@
   "author": "MemoClaw",
   "repository": {
     "type": "git",
-    "url": "https://github.com/memoclaw/memoclaw-sdk",
+    "url": "https://github.com/anajuliabit/memoclaw-sdk",
     "directory": "typescript"
   },
   "peerDependencies": {
