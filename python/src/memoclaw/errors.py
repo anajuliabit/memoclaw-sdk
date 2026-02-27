@@ -154,4 +154,7 @@ _STATUS_MAP: dict[int, type[APIError]] = {
     422: ValidationError,
     429: RateLimitError,
     500: InternalServerError,
+    502: InternalServerError,
+    503: InternalServerError,
+    504: InternalServerError,
 }

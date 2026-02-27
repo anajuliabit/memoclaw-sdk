@@ -20,7 +20,7 @@ DEFAULT_POOL_MAX_CONNECTIONS = 10
 DEFAULT_POOL_MAX_KEEPALIVE_CONNECTIONS = 5
 
 # Status codes that are safe to retry (transient server errors)
-_RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 504}
+_RETRYABLE_STATUS_CODES = {408, 429, 500, 502, 503, 504}
 
 # Base delay between retries in seconds (exponential backoff: base * 2^attempt)
 _RETRY_BASE_DELAY = 0.5
