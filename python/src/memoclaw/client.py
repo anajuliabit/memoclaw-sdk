@@ -1580,14 +1580,20 @@ class AsyncMemoClaw:
         auto_tag: bool | None = None,
     ) -> MigrateResult:
         """Convenience: migrate all matching files from a directory. See sync version for details."""
+        import asyncio
+
         dir_path = Path(directory)
-        if not dir_path.is_dir():
-            raise ValueError(f"Directory not found: {directory}")
-        files = [
-            {"filename": f.name, "content": f.read_text(encoding="utf-8")}
-            for f in sorted(dir_path.glob(pattern))
-            if f.is_file()
-        ]
+
+        def _read_files() -> list[dict[str, str]]:
+            if not dir_path.is_dir():
+                raise ValueError(f"Directory not found: {directory}")
+            return [
+                {"filename": f.name, "content": f.read_text(encoding="utf-8")}
+                for f in sorted(dir_path.glob(pattern))
+                if f.is_file()
+            ]
+
+        files = await asyncio.to_thread(_read_files)
         if not files:
             raise ValueError(f"No files matching '{pattern}' in {directory}")
         return await self.migrate(
