@@ -8,6 +8,7 @@ const ERROR_SUGGESTIONS: Record<string, string> = {
   INVALID_WALLET: 'Ensure the wallet address is a valid Ethereum address (0x-prefixed, 40 hex chars).',
   INVALID_SIGNATURE: 'The signed auth header is invalid. Check that your private key matches the wallet address.',
   AUTH_EXPIRED: 'The authentication timestamp has expired. Ensure your system clock is accurate.',
+  AUTH_ERROR: 'Check that your private key is correct and the signature hasn\'t expired. Ensure system clock is synced.',
 
   // Payment
   FREE_TIER_EXHAUSTED: 'You have used all 100 free API calls. Fund your wallet with USDC on Base to continue. See https://docs.memoclaw.com/payments',
@@ -21,9 +22,11 @@ const ERROR_SUGGESTIONS: Record<string, string> = {
   MISSING_CONTENT: 'The `content` field is required and must be a non-empty string.',
   MISSING_QUERY: 'The `query` field is required for recall/search.',
   BATCH_TOO_LARGE: 'Batch size exceeds the maximum of 100 items. Split into smaller batches.',
+  VALIDATION_ERROR: 'Check request payload — content max length is 8192 chars, importance must be 0.0-1.0.',
 
   // Not found
   MEMORY_NOT_FOUND: 'No memory exists with that ID. It may have been deleted. Use `client.list()` to browse existing memories.',
+  NOT_FOUND: 'The memory ID may have been deleted or never existed. Use client.list() to verify.',
   RELATION_NOT_FOUND: 'No relation exists with that ID. Use `client.listRelations(memoryId)` to see existing relations.',
 
   // Forbidden
@@ -31,7 +34,7 @@ const ERROR_SUGGESTIONS: Record<string, string> = {
   WALLET_MISMATCH: 'You can only access memories belonging to your wallet address.',
 
   // Rate limit
-  RATE_LIMITED: 'You are sending requests too quickly. Back off and retry after the delay indicated in the Retry-After header.',
+  RATE_LIMITED: 'Too many requests. The SDK retries automatically, but consider adding delays between batch operations.',
 
   // Server
   INTERNAL_ERROR: 'An unexpected server error occurred. Retry in a moment. If it persists, check https://status.memoclaw.com or open an issue.',

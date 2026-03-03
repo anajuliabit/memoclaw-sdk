@@ -629,6 +629,26 @@ describe('MemoClawClient Extensions', () => {
       expect(result.query_tokens).toBe(5);
       expect(mockFetch).toHaveBeenCalledTimes(1);
     });
+
+    it('should forward RequestOptions to recall', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({
+          memories: [],
+          query_tokens: 3,
+        }),
+      } as unknown as Response);
+
+      const controller = new AbortController();
+      const result = await client.search({ query: 'test' }, { signal: controller.signal, timeout: 5000 });
+
+      expect(result.query_tokens).toBe(3);
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      // Verify signal was passed through to fetch
+      const fetchCall = mockFetch.mock.calls[0];
+      expect(fetchCall).toBeDefined();
+      expect(fetchCall![1].signal).toBeDefined();
+    });
   });
 
   describe('listAll alias', () => {
