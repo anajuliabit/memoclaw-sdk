@@ -408,8 +408,8 @@ export class MemoClawClient {
   }
 
   /** Alias for recall — matches Mem0/Pinecone "search" convention. */
-  search(request: RecallRequest): Promise<RecallResponse> {
-    return this.recall(request);
+  search(request: RecallRequest, options?: RequestOptions): Promise<RecallResponse> {
+    return this.recall(request, options);
   }
 
   /** Ingest a conversation or text and auto-extract memories. */
