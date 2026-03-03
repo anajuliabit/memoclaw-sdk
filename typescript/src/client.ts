@@ -67,6 +67,15 @@ const MAX_BATCH_SIZE = 100;
 /** Status codes that are safe to retry (transient errors). */
 const RETRYABLE_STATUS_CODES = new Set([408, 429, 500, 502, 503, 504]);
 
+/** Options that can be passed to individual API methods. */
+export interface RequestOptions {
+  /** An AbortSignal for manual cancellation. */
+  signal?: AbortSignal;
+  /** Per-request timeout in milliseconds. Creates an AbortSignal internally.
+   *  Combined with `signal` via `AbortSignal.any` when both are provided. */
+  timeout?: number;
+}
+
 /** Hook called before each request. Can modify the body. */
 export type BeforeRequestHook = (method: string, path: string, body?: unknown) => unknown | void;
 /** Hook called after each successful response. */
@@ -166,7 +175,7 @@ export class MemoClawClient {
     path: string,
     body?: unknown,
     query?: Record<string, string>,
-    signal?: AbortSignal,
+    options?: RequestOptions,
   ): Promise<T> {
     let url = `${this.baseUrl}${path}`;
     if (query) {
@@ -193,14 +202,14 @@ export class MemoClawClient {
 
     const jsonBody = processedBody !== undefined ? JSON.stringify(processedBody) : undefined;
 
-    // Combine caller signal with client-level timeout
-    let combinedSignal = signal;
-    if (this.timeout > 0) {
-      const timeoutSignal = AbortSignal.timeout(this.timeout);
-      combinedSignal = signal
-        ? AbortSignal.any([signal, timeoutSignal])
-        : timeoutSignal;
-    }
+    // Combine caller signal/timeout with client-level timeout
+    const signals: AbortSignal[] = [];
+    if (options?.signal) signals.push(options.signal);
+    if (options?.timeout && options.timeout > 0) signals.push(AbortSignal.timeout(options.timeout));
+    if (this.timeout > 0) signals.push(AbortSignal.timeout(this.timeout));
+    const combinedSignal = signals.length > 1
+      ? AbortSignal.any(signals)
+      : signals[0] ?? undefined;
 
     let lastError: MemoClawError | undefined;
 
@@ -285,15 +294,15 @@ export class MemoClawClient {
   // ── Public API ─────────────────────────────────────
 
   /** Store a single memory. */
-  async store(request: StoreRequest, options?: { signal?: AbortSignal }): Promise<StoreResponse> {
+  async store(request: StoreRequest, options?: RequestOptions): Promise<StoreResponse> {
     if (!request.content?.trim()) {
       throw new Error('content must be a non-empty string');
     }
-    return this.request<StoreResponse>('POST', '/v1/store', request, undefined, options?.signal);
+    return this.request<StoreResponse>('POST', '/v1/store', request, undefined, options);
   }
 
   /** Store multiple memories in a single request (up to 100). */
-  async storeBatch(memories: StoreRequest[], options?: { signal?: AbortSignal }): Promise<StoreBatchResponse> {
+  async storeBatch(memories: StoreRequest[], options?: RequestOptions): Promise<StoreBatchResponse> {
     if (!memories.length) {
       throw new Error('memories array must not be empty');
     }
@@ -308,7 +317,7 @@ export class MemoClawClient {
     return this.request<StoreBatchResponse>(
       'POST', '/v1/store/batch',
       { memories } satisfies StoreBatchRequest,
-      undefined, options?.signal,
+      undefined, options,
     );
   }
 
@@ -318,15 +327,15 @@ export class MemoClawClient {
   }
 
   /** Recall memories via semantic search. */
-  async recall(request: RecallRequest, options?: { signal?: AbortSignal }): Promise<RecallResponse> {
+  async recall(request: RecallRequest, options?: RequestOptions): Promise<RecallResponse> {
     if (!request.query?.trim()) {
       throw new Error('query must be a non-empty string');
     }
-    return this.request<RecallResponse>('POST', '/v1/recall', request, undefined, options?.signal);
+    return this.request<RecallResponse>('POST', '/v1/recall', request, undefined, options);
   }
 
   /** List memories with pagination and optional filters. */
-  async list(params: ListMemoriesParams = {}, options?: { signal?: AbortSignal }): Promise<ListMemoriesResponse> {
+  async list(params: ListMemoriesParams = {}, options?: RequestOptions): Promise<ListMemoriesResponse> {
     const query: Record<string, string> = {};
     if (params.limit !== undefined) query['limit'] = String(params.limit);
     if (params.offset !== undefined) query['offset'] = String(params.offset);
@@ -334,7 +343,7 @@ export class MemoClawClient {
     if (params.namespace) query['namespace'] = params.namespace;
     if (params.session_id) query['session_id'] = params.session_id;
     if (params.agent_id) query['agent_id'] = params.agent_id;
-    return this.request<ListMemoriesResponse>('GET', '/v1/memories', undefined, query, options?.signal);
+    return this.request<ListMemoriesResponse>('GET', '/v1/memories', undefined, query, options);
   }
 
   /** Async iterator over all memories with automatic pagination. */
@@ -352,19 +361,19 @@ export class MemoClawClient {
   }
 
   /** Retrieve a single memory by ID. */
-  async get(id: string, options?: { signal?: AbortSignal }): Promise<Memory> {
+  async get(id: string, options?: RequestOptions): Promise<Memory> {
     if (!id?.trim()) throw new Error('id must be a non-empty string');
-    return this.request<Memory>('GET', `/v1/memories/${encodeURIComponent(id)}`, undefined, undefined, options?.signal);
+    return this.request<Memory>('GET', `/v1/memories/${encodeURIComponent(id)}`, undefined, undefined, options);
   }
 
   /** Update a memory by ID. */
-  async update(id: string, request: UpdateMemoryRequest, options?: { signal?: AbortSignal }): Promise<Memory> {
+  async update(id: string, request: UpdateMemoryRequest, options?: RequestOptions): Promise<Memory> {
     if (!id?.trim()) throw new Error('id must be a non-empty string');
-    return this.request<Memory>('PATCH', `/v1/memories/${encodeURIComponent(id)}`, request, undefined, options?.signal);
+    return this.request<Memory>('PATCH', `/v1/memories/${encodeURIComponent(id)}`, request, undefined, options);
   }
 
   /** Update multiple memories in a single request (up to 100). */
-  async updateBatch(updates: UpdateBatchItem[], options?: { signal?: AbortSignal }): Promise<UpdateBatchResponse> {
+  async updateBatch(updates: UpdateBatchItem[], options?: RequestOptions): Promise<UpdateBatchResponse> {
     if (!updates.length) {
       throw new Error('updates array must not be empty');
     }
@@ -379,18 +388,18 @@ export class MemoClawClient {
     return this.request<UpdateBatchResponse>(
       'POST', '/v1/memories/batch-update',
       { updates } satisfies UpdateBatchRequest,
-      undefined, options?.signal,
+      undefined, options,
     );
   }
 
   /** Delete a memory by ID (soft delete). */
-  async delete(id: string, options?: { signal?: AbortSignal }): Promise<DeleteResponse> {
+  async delete(id: string, options?: RequestOptions): Promise<DeleteResponse> {
     if (!id?.trim()) throw new Error('id must be a non-empty string');
-    return this.request<DeleteResponse>('DELETE', `/v1/memories/${encodeURIComponent(id)}`, undefined, undefined, options?.signal);
+    return this.request<DeleteResponse>('DELETE', `/v1/memories/${encodeURIComponent(id)}`, undefined, undefined, options);
   }
 
   /** Delete multiple memories by ID in batch. */
-  async deleteBatch(ids: string[], options?: { signal?: AbortSignal }): Promise<import('./types.js').DeleteBatchResult[]> {
+  async deleteBatch(ids: string[], options?: RequestOptions): Promise<import('./types.js').DeleteBatchResult[]> {
     const results: import('./types.js').DeleteBatchResult[] = [];
     // Process in chunks of 50
     for (let i = 0; i < ids.length; i += 50) {
@@ -399,9 +408,8 @@ export class MemoClawClient {
         'POST',
         '/v1/memories/batch-delete',
         { ids: chunk },
-        undefined,
-        options?.signal,
-      );
+        undefined, options,
+    );
       results.push(...response.results);
     }
     return results;
@@ -413,69 +421,69 @@ export class MemoClawClient {
   }
 
   /** Ingest a conversation or text and auto-extract memories. */
-  async ingest(request: IngestRequest, options?: { signal?: AbortSignal }): Promise<IngestResponse> {
+  async ingest(request: IngestRequest, options?: RequestOptions): Promise<IngestResponse> {
     if (!request.messages?.length && !request.text?.trim()) {
       throw new Error('Either messages or text must be provided');
     }
-    return this.request<IngestResponse>('POST', '/v1/ingest', request, undefined, options?.signal);
+    return this.request<IngestResponse>('POST', '/v1/ingest', request, undefined, options);
   }
 
   /** Check free tier remaining calls. */
-  async status(options?: { signal?: AbortSignal }): Promise<FreeTierStatus> {
-    return this.request<FreeTierStatus>('GET', '/v1/free-tier/status', undefined, undefined, options?.signal);
+  async status(options?: RequestOptions): Promise<FreeTierStatus> {
+    return this.request<FreeTierStatus>('GET', '/v1/free-tier/status', undefined, undefined, options);
   }
 
   /** Extract structured facts from a conversation via LLM. */
-  async extract(request: ExtractRequest, options?: { signal?: AbortSignal }): Promise<ExtractResponse> {
+  async extract(request: ExtractRequest, options?: RequestOptions): Promise<ExtractResponse> {
     if (!request.messages?.length) {
       throw new Error('messages must be a non-empty array');
     }
-    return this.request<ExtractResponse>('POST', '/v1/memories/extract', request, undefined, options?.signal);
+    return this.request<ExtractResponse>('POST', '/v1/memories/extract', request, undefined, options);
   }
 
   /** Merge similar memories by clustering. */
-  async consolidate(request: ConsolidateRequest = {}, options?: { signal?: AbortSignal }): Promise<ConsolidateResponse> {
-    return this.request<ConsolidateResponse>('POST', '/v1/memories/consolidate', request, undefined, options?.signal);
+  async consolidate(request: ConsolidateRequest = {}, options?: RequestOptions): Promise<ConsolidateResponse> {
+    return this.request<ConsolidateResponse>('POST', '/v1/memories/consolidate', request, undefined, options);
   }
 
   /** Create a relationship between two memories. */
-  async createRelation(memoryId: string, request: CreateRelationRequest, options?: { signal?: AbortSignal }): Promise<CreateRelationResponse> {
+  async createRelation(memoryId: string, request: CreateRelationRequest, options?: RequestOptions): Promise<CreateRelationResponse> {
     if (!memoryId?.trim()) throw new Error('memoryId must be a non-empty string');
     if (!request.target_id?.trim()) throw new Error('target_id must be a non-empty string');
     return this.request<CreateRelationResponse>(
       'POST', `/v1/memories/${encodeURIComponent(memoryId)}/relations`,
-      request, undefined, options?.signal,
+      request, undefined, options,
     );
   }
 
   /** List all relationships for a memory. */
-  async listRelations(memoryId: string, options?: { signal?: AbortSignal }): Promise<ListRelationsResponse> {
+  async listRelations(memoryId: string, options?: RequestOptions): Promise<ListRelationsResponse> {
     if (!memoryId?.trim()) throw new Error('memoryId must be a non-empty string');
     return this.request<ListRelationsResponse>(
       'GET', `/v1/memories/${encodeURIComponent(memoryId)}/relations`,
-      undefined, undefined, options?.signal,
+      undefined, undefined, options,
     );
   }
 
   /** Delete a relationship. */
-  async deleteRelation(memoryId: string, relationId: string, options?: { signal?: AbortSignal }): Promise<DeleteRelationResponse> {
+  async deleteRelation(memoryId: string, relationId: string, options?: RequestOptions): Promise<DeleteRelationResponse> {
     if (!memoryId?.trim()) throw new Error('memoryId must be a non-empty string');
     if (!relationId?.trim()) throw new Error('relationId must be a non-empty string');
     return this.request<DeleteRelationResponse>(
       'DELETE', `/v1/memories/${encodeURIComponent(memoryId)}/relations/${encodeURIComponent(relationId)}`,
-      undefined, undefined, options?.signal,
+      undefined, undefined, options,
     );
   }
 
   /** Get proactive memory suggestions. */
-  async suggested(params: SuggestedParams = {}, options?: { signal?: AbortSignal }): Promise<SuggestedResponse> {
+  async suggested(params: SuggestedParams = {}, options?: RequestOptions): Promise<SuggestedResponse> {
     const query: Record<string, string> = {};
     if (params.limit !== undefined) query['limit'] = String(params.limit);
     if (params.namespace) query['namespace'] = params.namespace;
     if (params.session_id) query['session_id'] = params.session_id;
     if (params.agent_id) query['agent_id'] = params.agent_id;
     if (params.category) query['category'] = params.category;
-    return this.request<SuggestedResponse>('GET', '/v1/suggested', undefined, query, options?.signal);
+    return this.request<SuggestedResponse>('GET', '/v1/suggested', undefined, query, options);
   }
 
   // ── Migrate ────────────────────────────────────────────
@@ -488,8 +496,7 @@ export class MemoClawClient {
       agent_id?: string;
       session_id?: string;
       auto_tag?: boolean;
-      signal?: AbortSignal;
-    },
+    } & RequestOptions,
   ): Promise<MigrateResponse> {
     if (!files.length) {
       throw new Error('files array must not be empty');
@@ -499,7 +506,7 @@ export class MemoClawClient {
     if (options?.agent_id !== undefined) body.agent_id = options.agent_id;
     if (options?.session_id !== undefined) body.session_id = options.session_id;
     if (options?.auto_tag !== undefined) body.auto_tag = options.auto_tag;
-    return this.request<MigrateResponse>('POST', '/v1/migrate', body, undefined, options?.signal);
+    return this.request<MigrateResponse>('POST', '/v1/migrate', body, undefined, options);
   }
 
   /**
@@ -524,8 +531,7 @@ export class MemoClawClient {
       agent_id?: string;
       session_id?: string;
       auto_tag?: boolean;
-      signal?: AbortSignal;
-    },
+    } & RequestOptions,
   ): Promise<MigrateResponse> {
     const { readdir, readFile, stat } = await import('node:fs/promises');
     const { join, basename } = await import('node:path');
@@ -567,46 +573,47 @@ export class MemoClawClient {
       session_id: options?.session_id,
       auto_tag: options?.auto_tag,
       signal: options?.signal,
+      timeout: options?.timeout,
     });
   }
 
   // ── Context ─────────────────────────────────────────────
 
   /** Assemble a context block from memories for LLM prompts. */
-  async assembleContext(request: ContextRequest, options?: { signal?: AbortSignal }): Promise<ContextResponse> {
+  async assembleContext(request: ContextRequest, options?: RequestOptions): Promise<ContextResponse> {
     if (!request.query?.trim()) throw new Error('query must be a non-empty string');
-    return this.request<ContextResponse>('POST', '/v1/context', request, undefined, options?.signal);
+    return this.request<ContextResponse>('POST', '/v1/context', request, undefined, options);
   }
 
   // ── Namespaces ─────────────────────────────────────────
 
   /** List all namespaces with memory counts. */
-  async listNamespaces(options?: { signal?: AbortSignal }): Promise<NamespacesResponse> {
-    return this.request<NamespacesResponse>('GET', '/v1/namespaces', undefined, undefined, options?.signal);
+  async listNamespaces(options?: RequestOptions): Promise<NamespacesResponse> {
+    return this.request<NamespacesResponse>('GET', '/v1/namespaces', undefined, undefined, options);
   }
 
   // ── Stats ──────────────────────────────────────────────
 
   /** Get memory usage statistics. */
-  async stats(options?: { signal?: AbortSignal }): Promise<StatsResponse> {
-    return this.request<StatsResponse>('GET', '/v1/stats', undefined, undefined, options?.signal);
+  async stats(options?: RequestOptions): Promise<StatsResponse> {
+    return this.request<StatsResponse>('GET', '/v1/stats', undefined, undefined, options);
   }
 
   // ── Core Memories ──────────────────────────────────────
 
   /** Get high-importance, pinned, and frequently-accessed memories (FREE). */
-  async coreMemories(params: CoreMemoriesParams = {}, options?: { signal?: AbortSignal }): Promise<CoreMemoriesResponse> {
+  async coreMemories(params: CoreMemoriesParams = {}, options?: RequestOptions): Promise<CoreMemoriesResponse> {
     const query: Record<string, string> = {};
     if (params.limit !== undefined) query['limit'] = String(params.limit);
     if (params.namespace) query['namespace'] = params.namespace;
     if (params.agent_id) query['agent_id'] = params.agent_id;
-    return this.request<CoreMemoriesResponse>('GET', '/v1/core-memories', undefined, Object.keys(query).length ? query : undefined, options?.signal);
+    return this.request<CoreMemoriesResponse>('GET', '/v1/core-memories', undefined, Object.keys(query).length ? query : undefined, options);
   }
 
   // ── Text Search ───────────────────────────────────────
 
   /** Keyword text search across memories (FREE). */
-  async textSearch(params: TextSearchParams, options?: { signal?: AbortSignal }): Promise<TextSearchResponse> {
+  async textSearch(params: TextSearchParams, options?: RequestOptions): Promise<TextSearchResponse> {
     if (!params.query?.trim()) {
       throw new Error('query must be a non-empty string');
     }
@@ -618,13 +625,13 @@ export class MemoClawClient {
     if (params.session_id) query['session_id'] = params.session_id;
     if (params.agent_id) query['agent_id'] = params.agent_id;
     if (params.after) query['after'] = params.after;
-    return this.request<TextSearchResponse>('GET', '/v1/memories/search', undefined, query, options?.signal);
+    return this.request<TextSearchResponse>('GET', '/v1/memories/search', undefined, query, options);
   }
 
   // ── Export ─────────────────────────────────────────────
 
   /** Export memories in JSON, CSV, or Markdown format. */
-  async export(params: ExportParams = {}, options?: { signal?: AbortSignal }): Promise<ExportResponse> {
+  async export(params: ExportParams = {}, options?: RequestOptions): Promise<ExportResponse> {
     const query: Record<string, string> = {};
     if (params.format) query['format'] = params.format;
     if (params.namespace) query['namespace'] = params.namespace;
@@ -635,17 +642,17 @@ export class MemoClawClient {
     if (params.before) query['before'] = params.before;
     if (params.after) query['after'] = params.after;
     if (params.include_deleted !== undefined) query['include_deleted'] = String(params.include_deleted);
-    return this.request<ExportResponse>('GET', '/v1/export', undefined, query, options?.signal);
+    return this.request<ExportResponse>('GET', '/v1/export', undefined, query, options);
   }
 
   // ── History ────────────────────────────────────────────
 
   /** Get the change history for a memory. */
-  async getHistory(memoryId: string, options?: { signal?: AbortSignal }): Promise<HistoryEntry[]> {
+  async getHistory(memoryId: string, options?: RequestOptions): Promise<HistoryEntry[]> {
     if (!memoryId?.trim()) throw new Error('memoryId must be a non-empty string');
     const resp = await this.request<HistoryResponse>(
       'GET', `/v1/memories/${encodeURIComponent(memoryId)}/history`,
-      undefined, undefined, options?.signal,
+      undefined, undefined, options,
     );
     return resp.history;
   }
