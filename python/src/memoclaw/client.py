@@ -4,11 +4,16 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from types import EllipsisType
 from urllib.parse import quote
 
-from collections.abc import AsyncIterator, Callable, Iterator
+from collections.abc import AsyncIterator, Callable, Iterator, Sequence
 
 from typing import Any
+
+# Preserve built-in ``list`` reference — the ``list()`` method on client
+# classes shadows the built-in within their class scope, confusing mypy.
+_list = list
 
 from ._client import (
     DEFAULT_BASE_URL,
@@ -189,9 +194,9 @@ class MemoClaw:
         if max_retries is not None:
             kwargs["max_retries"] = max_retries
         self._http = _SyncHTTPClient(**kwargs)
-        self._before_request_hooks: list[BeforeRequestHook] = []
-        self._after_response_hooks: list[AfterResponseHook] = []
-        self._on_error_hooks: list[OnErrorHook] = []
+        self._before_request_hooks: _list[BeforeRequestHook] = []
+        self._after_response_hooks: _list[AfterResponseHook] = []
+        self._on_error_hooks: _list[OnErrorHook] = []
 
     # ── Hooks API ────────────────────────────────────────────────────────
 
@@ -225,18 +230,18 @@ class MemoClaw:
             timeout: Per-request timeout in seconds. Overrides the client default.
         """
         body = json
-        for hook in self._before_request_hooks:
-            result = hook(method, path, body)
+        for before_hook in self._before_request_hooks:
+            result = before_hook(method, path, body)
             if result is not None:
                 body = result
         try:
             data = self._http.request(method, path, json=body, params=params, timeout=timeout)
         except Exception as exc:
-            for hook in self._on_error_hooks:
-                hook(method, path, exc)
+            for error_hook in self._on_error_hooks:
+                error_hook(method, path, exc)
             raise
-        for hook in self._after_response_hooks:
-            transformed = hook(method, path, data)
+        for after_hook in self._after_response_hooks:
+            transformed = after_hook(method, path, data)
             if transformed is not None:
                 data = transformed
         return data
@@ -267,7 +272,7 @@ class MemoClaw:
         content: str,
         *,
         importance: float | None = None,
-        tags: list[str] | None = None,
+        tags: _list[str] | None = None,
         namespace: str | None = None,
         memory_type: MemoryType | None = None,
         session_id: str | None = None,
@@ -302,7 +307,7 @@ class MemoClaw:
 
     def store_batch(
         self,
-        memories: list[StoreInput | dict[str, Any]],
+        memories: Sequence[StoreInput | dict[str, Any]],
         *,
         timeout: float | None = None,
     ) -> StoreBatchResult:
@@ -345,7 +350,7 @@ class MemoClaw:
         limit: int | None = None,
         min_similarity: float | None = None,
         namespace: str | None = None,
-        tags: list[str] | None = None,
+        tags: _list[str] | None = None,
         include_relations: bool | None = None,
         session_id: str | None = None,
         agent_id: str | None = None,
@@ -389,7 +394,7 @@ class MemoClaw:
         limit: int | None = None,
         offset: int | None = None,
         namespace: str | None = None,
-        tags: list[str] | None = None,
+        tags: _list[str] | None = None,
         session_id: str | None = None,
         agent_id: str | None = None,
         timeout: float | None = None,
@@ -413,7 +418,7 @@ class MemoClaw:
         *,
         batch_size: int = 50,
         namespace: str | None = None,
-        tags: list[str] | None = None,
+        tags: _list[str] | None = None,
         session_id: str | None = None,
         agent_id: str | None = None,
     ) -> Iterator[Memory]:
@@ -457,7 +462,7 @@ class MemoClaw:
         namespace: str | None = None,
         pinned: bool | None = None,
         immutable: bool | None = None,
-        expires_at: str | None = ...,  # type: ignore[assignment]
+        expires_at: str | None | EllipsisType = ...,
         timeout: float | None = None,
     ) -> Memory:
         """Update a memory by ID. Only provided fields are updated.
@@ -491,7 +496,7 @@ class MemoClaw:
 
     def update_batch(
         self,
-        updates: list[UpdateInput | dict[str, Any]],
+        updates: _list[UpdateInput | dict[str, Any]],
         *,
         timeout: float | None = None,
     ) -> UpdateBatchResult:
@@ -535,7 +540,7 @@ class MemoClaw:
         data = self._run_request("DELETE", f"/v1/memories/{quote(memory_id, safe='')}", timeout=timeout)
         return DeleteResult.model_validate(data)
 
-    def delete_batch(self, memory_ids: list[str], *, timeout: float | None = None) -> list[DeleteResult]:
+    def delete_batch(self, memory_ids: _list[str], *, timeout: float | None = None) -> _list[DeleteResult]:
         """Delete multiple memories by ID using the batch endpoint.
 
         Processes in chunks of 50 for API compatibility.
@@ -543,7 +548,7 @@ class MemoClaw:
         """
         if not memory_ids:
             return []
-        results: list[DeleteResult] = []
+        results: _list[DeleteResult] = []
         for i in range(0, len(memory_ids), 50):
             chunk = memory_ids[i : i + 50]
             data = self._run_request(
@@ -561,7 +566,7 @@ class MemoClaw:
     def ingest(
         self,
         *,
-        messages: list[Message | dict[str, str]] | None = None,
+        messages: _list[Message | dict[str, str]] | None = None,
         text: str | None = None,
         namespace: str | None = None,
         session_id: str | None = None,
@@ -597,7 +602,7 @@ class MemoClaw:
 
     def extract(
         self,
-        messages: list[Message | dict[str, str]],
+        messages: _list[Message | dict[str, str]],
         *,
         namespace: str | None = None,
         session_id: str | None = None,
@@ -709,7 +714,7 @@ class MemoClaw:
         )
         return Relation.model_validate(data)
 
-    def list_relations(self, memory_id: str, *, timeout: float | None = None) -> list[RelationWithMemory]:
+    def list_relations(self, memory_id: str, *, timeout: float | None = None) -> _list[RelationWithMemory]:
         """List all relationships for a memory.
 
         Args:
@@ -718,7 +723,7 @@ class MemoClaw:
         _validate_non_empty(memory_id, "memory_id")
         data = self._run_request("GET", f"/v1/memories/{quote(memory_id, safe='')}/relations", timeout=timeout)
         resp = RelationsResponse.model_validate(data)
-        return resp.relations  # type: ignore[return-value]
+        return resp.relations
 
     def delete_relation(self, memory_id: str, relation_id: str, *, timeout: float | None = None) -> DeleteResult:
         """Delete a memory relationship.
@@ -748,7 +753,7 @@ class MemoClaw:
 
     def migrate(
         self,
-        files: list[dict[str, str]],
+        files: _list[dict[str, str]],
         *,
         namespace: str | None = None,
         agent_id: str | None = None,
@@ -914,7 +919,7 @@ class MemoClaw:
         *,
         limit: int | None = None,
         namespace: str | None = None,
-        tags: list[str] | None = None,
+        tags: _list[str] | None = None,
         memory_type: MemoryType | None = None,
         session_id: str | None = None,
         agent_id: str | None = None,
@@ -950,7 +955,7 @@ class MemoClaw:
         format: str | None = None,
         namespace: str | None = None,
         memory_type: MemoryType | None = None,
-        tags: list[str] | None = None,
+        tags: _list[str] | None = None,
         session_id: str | None = None,
         agent_id: str | None = None,
         before: str | None = None,
@@ -981,7 +986,7 @@ class MemoClaw:
 
     # ── History ──────────────────────────────────────────────────────────
 
-    def get_history(self, memory_id: str, *, timeout: float | None = None) -> list[HistoryEntry]:
+    def get_history(self, memory_id: str, *, timeout: float | None = None) -> _list[HistoryEntry]:
         """Get the change history for a memory.
 
         Args:
@@ -999,7 +1004,7 @@ class MemoClaw:
         *,
         batch_size: int = 50,
         namespace: str | None = None,
-        tags: list[str] | None = None,
+        tags: _list[str] | None = None,
         session_id: str | None = None,
         agent_id: str | None = None,
     ) -> Iterator[Memory]:
@@ -1025,7 +1030,7 @@ class MemoClaw:
         memory_id: str,
         *,
         depth: int = 1,
-    ) -> dict[str, list[RelationWithMemory]]:
+    ) -> dict[str, _list[RelationWithMemory]]:
         """Traverse the memory graph from a starting node.
 
         Returns a dict mapping memory IDs to their relations, up to ``depth`` hops.
@@ -1036,11 +1041,11 @@ class MemoClaw:
             for mid, rels in graph.items():
                 print(f"{mid}: {len(rels)} relations")
         """
-        visited: dict[str, list[RelationWithMemory]] = {}
+        visited: dict[str, _list[RelationWithMemory]] = {}
         frontier = [memory_id]
 
         for _ in range(depth):
-            next_frontier: list[str] = []
+            next_frontier: _list[str] = []
             for mid in frontier:
                 if mid in visited:
                     continue
@@ -1062,7 +1067,7 @@ class MemoClaw:
         *,
         relation_type: RelationType | None = None,
         direction: str | None = None,
-    ) -> list[RelationWithMemory]:
+    ) -> _list[RelationWithMemory]:
         """Find relations for a memory, optionally filtered by type and direction.
 
         Example::
@@ -1129,9 +1134,9 @@ class AsyncMemoClaw:
         if max_retries is not None:
             kwargs["max_retries"] = max_retries
         self._http = _AsyncHTTPClient(**kwargs)
-        self._before_request_hooks: list[BeforeRequestHook] = []
-        self._after_response_hooks: list[AfterResponseHook] = []
-        self._on_error_hooks: list[OnErrorHook] = []
+        self._before_request_hooks: _list[BeforeRequestHook] = []
+        self._after_response_hooks: _list[AfterResponseHook] = []
+        self._on_error_hooks: _list[OnErrorHook] = []
 
     # ── Hooks API ────────────────────────────────────────────────────────
 
@@ -1165,18 +1170,18 @@ class AsyncMemoClaw:
             timeout: Per-request timeout in seconds. Overrides the client default.
         """
         body = json
-        for hook in self._before_request_hooks:
-            result = hook(method, path, body)
+        for before_hook in self._before_request_hooks:
+            result = before_hook(method, path, body)
             if result is not None:
                 body = result
         try:
             data = await self._http.request(method, path, json=body, params=params, timeout=timeout)
         except Exception as exc:
-            for hook in self._on_error_hooks:
-                hook(method, path, exc)
+            for error_hook in self._on_error_hooks:
+                error_hook(method, path, exc)
             raise
-        for hook in self._after_response_hooks:
-            transformed = hook(method, path, data)
+        for after_hook in self._after_response_hooks:
+            transformed = after_hook(method, path, data)
             if transformed is not None:
                 data = transformed
         return data
@@ -1207,7 +1212,7 @@ class AsyncMemoClaw:
         content: str,
         *,
         importance: float | None = None,
-        tags: list[str] | None = None,
+        tags: _list[str] | None = None,
         namespace: str | None = None,
         memory_type: MemoryType | None = None,
         session_id: str | None = None,
@@ -1242,7 +1247,7 @@ class AsyncMemoClaw:
 
     async def store_batch(
         self,
-        memories: list[StoreInput | dict[str, Any]],
+        memories: Sequence[StoreInput | dict[str, Any]],
         *,
         timeout: float | None = None,
     ) -> StoreBatchResult:
@@ -1287,7 +1292,7 @@ class AsyncMemoClaw:
         limit: int | None = None,
         min_similarity: float | None = None,
         namespace: str | None = None,
-        tags: list[str] | None = None,
+        tags: _list[str] | None = None,
         include_relations: bool | None = None,
         session_id: str | None = None,
         agent_id: str | None = None,
@@ -1331,7 +1336,7 @@ class AsyncMemoClaw:
         limit: int | None = None,
         offset: int | None = None,
         namespace: str | None = None,
-        tags: list[str] | None = None,
+        tags: _list[str] | None = None,
         session_id: str | None = None,
         agent_id: str | None = None,
         timeout: float | None = None,
@@ -1355,7 +1360,7 @@ class AsyncMemoClaw:
         *,
         batch_size: int = 50,
         namespace: str | None = None,
-        tags: list[str] | None = None,
+        tags: _list[str] | None = None,
         session_id: str | None = None,
         agent_id: str | None = None,
     ) -> AsyncIterator[Memory]:
@@ -1400,7 +1405,7 @@ class AsyncMemoClaw:
         namespace: str | None = None,
         pinned: bool | None = None,
         immutable: bool | None = None,
-        expires_at: str | None = ...,  # type: ignore[assignment]
+        expires_at: str | None | EllipsisType = ...,
         timeout: float | None = None,
     ) -> Memory:
         """Update a memory by ID. Only provided fields are updated.
@@ -1435,7 +1440,7 @@ class AsyncMemoClaw:
 
     async def update_batch(
         self,
-        updates: list[UpdateInput | dict[str, Any]],
+        updates: _list[UpdateInput | dict[str, Any]],
         *,
         timeout: float | None = None,
     ) -> UpdateBatchResult:
@@ -1479,7 +1484,7 @@ class AsyncMemoClaw:
         data = await self._run_request("DELETE", f"/v1/memories/{quote(memory_id, safe='')}", timeout=timeout)
         return DeleteResult.model_validate(data)
 
-    async def delete_batch(self, memory_ids: list[str], *, timeout: float | None = None) -> list[DeleteResult]:
+    async def delete_batch(self, memory_ids: _list[str], *, timeout: float | None = None) -> _list[DeleteResult]:
         """Delete multiple memories by ID using the batch endpoint.
 
         Processes in chunks of 50 for API compatibility.
@@ -1487,7 +1492,7 @@ class AsyncMemoClaw:
         """
         if not memory_ids:
             return []
-        results: list[DeleteResult] = []
+        results: _list[DeleteResult] = []
         for i in range(0, len(memory_ids), 50):
             chunk = memory_ids[i : i + 50]
             data = await self._run_request(
@@ -1505,7 +1510,7 @@ class AsyncMemoClaw:
     async def ingest(
         self,
         *,
-        messages: list[Message | dict[str, str]] | None = None,
+        messages: _list[Message | dict[str, str]] | None = None,
         text: str | None = None,
         namespace: str | None = None,
         session_id: str | None = None,
@@ -1541,7 +1546,7 @@ class AsyncMemoClaw:
 
     async def extract(
         self,
-        messages: list[Message | dict[str, str]],
+        messages: _list[Message | dict[str, str]],
         *,
         namespace: str | None = None,
         session_id: str | None = None,
@@ -1655,14 +1660,14 @@ class AsyncMemoClaw:
         )
         return Relation.model_validate(data)
 
-    async def list_relations(self, memory_id: str, *, timeout: float | None = None) -> list[RelationWithMemory]:
+    async def list_relations(self, memory_id: str, *, timeout: float | None = None) -> _list[RelationWithMemory]:
         """List all relationships for a memory."""
         _validate_non_empty(memory_id, "memory_id")
         data = await self._run_request(
             "GET", f"/v1/memories/{quote(memory_id, safe='')}/relations", timeout=timeout
         )
         resp = RelationsResponse.model_validate(data)
-        return resp.relations  # type: ignore[return-value]
+        return resp.relations
 
     async def delete_relation(
         self, memory_id: str, relation_id: str, *, timeout: float | None = None
@@ -1690,7 +1695,7 @@ class AsyncMemoClaw:
 
     async def migrate(
         self,
-        files: list[dict[str, str]],
+        files: _list[dict[str, str]],
         *,
         namespace: str | None = None,
         agent_id: str | None = None,
@@ -1729,7 +1734,7 @@ class AsyncMemoClaw:
 
         dir_path = Path(directory)
 
-        def _read_files() -> list[dict[str, str]]:
+        def _read_files() -> _list[dict[str, str]]:
             if not dir_path.is_dir():
                 raise ValueError(f"Directory not found: {directory}")
             return [
@@ -1839,7 +1844,7 @@ class AsyncMemoClaw:
         *,
         limit: int | None = None,
         namespace: str | None = None,
-        tags: list[str] | None = None,
+        tags: _list[str] | None = None,
         memory_type: MemoryType | None = None,
         session_id: str | None = None,
         agent_id: str | None = None,
@@ -1875,7 +1880,7 @@ class AsyncMemoClaw:
         format: str | None = None,
         namespace: str | None = None,
         memory_type: MemoryType | None = None,
-        tags: list[str] | None = None,
+        tags: _list[str] | None = None,
         session_id: str | None = None,
         agent_id: str | None = None,
         before: str | None = None,
@@ -1906,7 +1911,7 @@ class AsyncMemoClaw:
 
     # ── History ──────────────────────────────────────────────────────────
 
-    async def get_history(self, memory_id: str, *, timeout: float | None = None) -> list[HistoryEntry]:
+    async def get_history(self, memory_id: str, *, timeout: float | None = None) -> _list[HistoryEntry]:
         """Get the change history for a memory."""
         _validate_non_empty(memory_id, "memory_id")
         data = await self._run_request("GET", f"/v1/memories/{quote(memory_id, safe='')}/history", timeout=timeout)
@@ -1920,7 +1925,7 @@ class AsyncMemoClaw:
         *,
         batch_size: int = 50,
         namespace: str | None = None,
-        tags: list[str] | None = None,
+        tags: _list[str] | None = None,
         session_id: str | None = None,
         agent_id: str | None = None,
     ) -> AsyncIterator[Memory]:
@@ -1947,13 +1952,13 @@ class AsyncMemoClaw:
         memory_id: str,
         *,
         depth: int = 1,
-    ) -> dict[str, list[RelationWithMemory]]:
+    ) -> dict[str, _list[RelationWithMemory]]:
         """Traverse the memory graph from a starting node. See sync version for details."""
-        visited: dict[str, list[RelationWithMemory]] = {}
+        visited: dict[str, _list[RelationWithMemory]] = {}
         frontier = [memory_id]
 
         for _ in range(depth):
-            next_frontier: list[str] = []
+            next_frontier: _list[str] = []
             for mid in frontier:
                 if mid in visited:
                     continue
@@ -1975,7 +1980,7 @@ class AsyncMemoClaw:
         *,
         relation_type: RelationType | None = None,
         direction: str | None = None,
-    ) -> list[RelationWithMemory]:
+    ) -> _list[RelationWithMemory]:
         """Find relations for a memory, optionally filtered. See sync version for details."""
         rels = await self.list_relations(memory_id)
         if relation_type is not None:

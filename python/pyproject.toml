@@ -36,6 +36,7 @@ x402 = ["x402[httpx,evm]"]
 dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.24",
+    "pytest-cov>=6.0",
     "respx>=0.22",
 ]
 
@@ -47,6 +48,27 @@ Repository = "https://github.com/anajuliabit/memoclaw-sdk"
 [tool.hatch.build.targets.wheel]
 packages = ["src/memoclaw"]
 
+[tool.mypy]
+python_version = "3.10"
+strict = true
+ignore_missing_imports = true
+# The ``list()`` method on client classes intentionally shadows the built-in;
+# suppress the resulting false-positive valid-type errors inside class bodies.
+disable_error_code = ["import-untyped"]
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+
+[tool.coverage.run]
+source = ["memoclaw"]
+omit = ["*/tests/*"]
+
+[tool.coverage.report]
+fail_under = 75
+show_missing = true
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "if __name__ == .__main__.",
+]
