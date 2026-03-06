@@ -65,6 +65,8 @@ function getSuggestion(status: number, code: string): string | undefined {
 export class MemoClawError extends Error {
   /** Actionable suggestion for how to fix this error. */
   public readonly suggestion?: string;
+  /** Server-side request ID from the `x-request-id` response header, if available. */
+  public requestId?: string;
 
   constructor(
     public readonly status: number,
@@ -80,6 +82,7 @@ export class MemoClawError extends Error {
   /** Returns a developer-friendly string including the suggestion when available. */
   override toString(): string {
     let str = `${this.name} [${this.code}] (${this.status}): ${this.message}`;
+    if (this.requestId) str += `\n  request-id: ${this.requestId}`;
     if (this.suggestion) str += `\n  → ${this.suggestion}`;
     return str;
   }

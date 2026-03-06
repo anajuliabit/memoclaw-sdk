@@ -76,6 +76,11 @@ export interface RequestOptions {
   timeout?: number;
 }
 
+/** Minimal logger interface accepted by the SDK. */
+export interface Logger {
+  debug(message: string, ...args: unknown[]): void;
+}
+
 /** Hook called before each request. Can modify the body. */
 export type BeforeRequestHook = (method: string, path: string, body?: unknown) => unknown | void;
 /** Hook called after each successful response. */
@@ -106,6 +111,7 @@ export class MemoClawClient {
   private readonly _beforeRequestHooks: BeforeRequestHook[] = [];
   private readonly _afterResponseHooks: AfterResponseHook[] = [];
   private readonly _onErrorHooks: OnErrorHook[] = [];
+  private readonly _logger?: Logger;
 
   constructor(options: MemoClawOptions = {}) {
     const config = loadConfig(options.configPath);
@@ -148,6 +154,13 @@ export class MemoClawClient {
     this.maxRetries = options.maxRetries ?? 2;
     this.retryDelay = options.retryDelay ?? 500;
     this.timeout = options.timeout ?? 0;
+
+    // Debug logging: accepts a custom Logger or `debug: true` for console output
+    if (options.logger) {
+      this._logger = options.logger;
+    } else if (options.debug) {
+      this._logger = { debug: (msg: string, ...args: unknown[]) => console.debug(`[memoclaw] ${msg}`, ...args) };
+    }
   }
 
   /** Register a hook called before each request. Returns this for chaining. */
@@ -202,6 +215,9 @@ export class MemoClawClient {
 
     const jsonBody = processedBody !== undefined ? JSON.stringify(processedBody) : undefined;
 
+    this._logger?.debug(`${method} ${path}`, query ? `?${new URLSearchParams(query)}` : '');
+    const startTime = Date.now();
+
     // Combine caller signal/timeout with client-level timeout
     const signals: AbortSignal[] = [];
     if (options?.signal) signals.push(options.signal);
@@ -251,12 +267,17 @@ export class MemoClawClient {
         const message = errorBody?.error?.message ?? `HTTP ${res.status}`;
         const details = errorBody?.error?.details;
         lastError = createError(res.status, code, message, details);
+        lastError.requestId = res.headers?.get('x-request-id') ?? undefined;
 
+        this._logger?.debug(`${method} ${path} → ${res.status} [${code}], retrying in ${delay}ms (attempt ${attempt + 1}/${this.maxRetries})`);
         await new Promise((resolve) => setTimeout(resolve, delay));
         continue;
       }
 
       if (res.ok) {
+        const duration = Date.now() - startTime;
+        const reqId = res.headers?.get('x-request-id') ?? undefined;
+        this._logger?.debug(`${method} ${path} → ${res.status} (${duration}ms)`, reqId ? `req=${reqId}` : '');
         let data = (await res.json()) as T;
         // Run after-response hooks
         for (const hook of this._afterResponseHooks) {
@@ -278,11 +299,17 @@ export class MemoClawClient {
       const details = errorBody?.error?.details;
 
       lastError = createError(res.status, code, message, details);
+      lastError.requestId = res.headers?.get('x-request-id') ?? undefined;
+
+      const duration = Date.now() - startTime;
+      this._logger?.debug(`${method} ${path} → ${res.status} [${code}] (${duration}ms)`, lastError.requestId ? `req=${lastError.requestId}` : '');
 
       if (!RETRYABLE_STATUS_CODES.has(res.status)) {
         for (const hook of this._onErrorHooks) hook(method, path, lastError);
         throw lastError;
       }
+
+      this._logger?.debug(`Retrying ${method} ${path} (attempt ${attempt + 1}/${this.maxRetries})`);
     }
 
     if (lastError) {

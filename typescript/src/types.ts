@@ -502,4 +502,8 @@ export interface MemoClawOptions {
    *  `signal` options take precedence over (and are combined with) this
    *  default via `AbortSignal.any`. Pass `0` to disable. */
   timeout?: number;
+  /** Enable debug logging to console. For custom output, pass `logger` instead. */
+  debug?: boolean;
+  /** Custom logger for SDK debug output. Must implement `debug(message, ...args)`. */
+  logger?: { debug(message: string, ...args: unknown[]): void };
 }
