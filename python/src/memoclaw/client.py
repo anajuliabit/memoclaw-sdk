@@ -295,8 +295,14 @@ class MemoClaw:
     def store_batch(
         self,
         memories: list[StoreInput | dict[str, Any]],
+        *,
+        timeout: float | None = None,
     ) -> StoreBatchResult:
-        """Store up to 100 memories at once."""
+        """Store up to 100 memories at once.
+
+        Args:
+            timeout: Per-request timeout in seconds. Overrides the client default.
+        """
         if not memories:
             raise ValueError("memories list must not be empty")
         if len(memories) > MAX_BATCH_SIZE:
@@ -307,7 +313,7 @@ class MemoClaw:
             m.model_dump(exclude_none=True) if isinstance(m, StoreInput) else m
             for m in memories
         ]
-        data = self._run_request("POST", "/v1/store/batch", json={"memories": items})
+        data = self._run_request("POST", "/v1/store/batch", json={"memories": items}, timeout=timeout)
         return StoreBatchResult.model_validate(data)
 
     def store_builder(self) -> StoreBuilder:
@@ -444,8 +450,13 @@ class MemoClaw:
         pinned: bool | None = None,
         immutable: bool | None = None,
         expires_at: str | None = ...,  # type: ignore[assignment]
+        timeout: float | None = None,
     ) -> Memory:
-        """Update a memory by ID. Only provided fields are updated."""
+        """Update a memory by ID. Only provided fields are updated.
+
+        Args:
+            timeout: Per-request timeout in seconds. Overrides the client default.
+        """
         body: dict[str, Any] = {}
         if content is not None:
             body["content"] = content
@@ -465,7 +476,7 @@ class MemoClaw:
         if expires_at is not ...:
             body["expires_at"] = expires_at
 
-        data = self._run_request("PATCH", f"/v1/memories/{quote(memory_id, safe='')}", json=body)
+        data = self._run_request("PATCH", f"/v1/memories/{quote(memory_id, safe='')}", json=body, timeout=timeout)
         return Memory.model_validate(data)
 
     # ── Batch Update ─────────────────────────────────────────────────────
@@ -473,6 +484,8 @@ class MemoClaw:
     def update_batch(
         self,
         updates: list[UpdateInput | dict[str, Any]],
+        *,
+        timeout: float | None = None,
     ) -> UpdateBatchResult:
         """Update multiple memories in a single request.
 
@@ -502,7 +515,7 @@ class MemoClaw:
             if "id" not in item or not item["id"]:
                 raise ValueError("Each update must include a non-empty 'id'")
         data = self._run_request(
-            "POST", "/v1/memories/batch-update", json={"updates": items}
+            "POST", "/v1/memories/batch-update", json={"updates": items}, timeout=timeout
         )
         return UpdateBatchResult.model_validate(data)
 
@@ -514,7 +527,7 @@ class MemoClaw:
         data = self._run_request("DELETE", f"/v1/memories/{quote(memory_id, safe='')}", timeout=timeout)
         return DeleteResult.model_validate(data)
 
-    def delete_batch(self, memory_ids: list[str]) -> list[DeleteResult]:
+    def delete_batch(self, memory_ids: list[str], *, timeout: float | None = None) -> list[DeleteResult]:
         """Delete multiple memories by ID using the batch endpoint.
 
         Processes in chunks of 50 for API compatibility.
@@ -526,7 +539,7 @@ class MemoClaw:
         for i in range(0, len(memory_ids), 50):
             chunk = memory_ids[i : i + 50]
             data = self._run_request(
-                "POST", "/v1/memories/batch-delete", json={"ids": chunk}
+                "POST", "/v1/memories/batch-delete", json={"ids": chunk}, timeout=timeout
             )
             for item in data.get("results", []):
                 results.append(DeleteResult.model_validate(item))
@@ -546,8 +559,13 @@ class MemoClaw:
         session_id: str | None = None,
         agent_id: str | None = None,
         auto_relate: bool | None = None,
+        timeout: float | None = None,
     ) -> IngestResult:
-        """Auto-extract and store facts from conversation or text."""
+        """Auto-extract and store facts from conversation or text.
+
+        Args:
+            timeout: Per-request timeout in seconds. Overrides the client default.
+        """
         body: dict[str, Any] = {}
         if messages is not None:
             body["messages"] = [
@@ -564,7 +582,7 @@ class MemoClaw:
         if auto_relate is not None:
             body["auto_relate"] = auto_relate
 
-        data = self._run_request("POST", "/v1/ingest", json=body)
+        data = self._run_request("POST", "/v1/ingest", json=body, timeout=timeout)
         return IngestResult.model_validate(data)
 
     # ── Extract ──────────────────────────────────────────────────────────
@@ -576,8 +594,13 @@ class MemoClaw:
         namespace: str | None = None,
         session_id: str | None = None,
         agent_id: str | None = None,
+        timeout: float | None = None,
     ) -> ExtractResult:
-        """Extract structured facts from conversation via LLM."""
+        """Extract structured facts from conversation via LLM.
+
+        Args:
+            timeout: Per-request timeout in seconds. Overrides the client default.
+        """
         body: dict[str, Any] = {
             "messages": [
                 m.model_dump() if isinstance(m, Message) else m for m in messages
@@ -590,7 +613,7 @@ class MemoClaw:
         if agent_id is not None:
             body["agent_id"] = agent_id
 
-        data = self._run_request("POST", "/v1/memories/extract", json=body)
+        data = self._run_request("POST", "/v1/memories/extract", json=body, timeout=timeout)
         return ExtractResult.model_validate(data)
 
     # ── Consolidate ──────────────────────────────────────────────────────
@@ -602,8 +625,13 @@ class MemoClaw:
         min_similarity: float | None = None,
         mode: str | None = None,
         dry_run: bool | None = None,
+        timeout: float | None = None,
     ) -> ConsolidateResult:
-        """Merge similar memories by clustering."""
+        """Merge similar memories by clustering.
+
+        Args:
+            timeout: Per-request timeout in seconds. Overrides the client default.
+        """
         body = _clean_body(
             {
                 "namespace": namespace,
@@ -612,7 +640,7 @@ class MemoClaw:
                 "dry_run": dry_run,
             }
         )
-        data = self._run_request("POST", "/v1/memories/consolidate", json=body)
+        data = self._run_request("POST", "/v1/memories/consolidate", json=body, timeout=timeout)
         return ConsolidateResult.model_validate(data)
 
     # ── Suggested ────────────────────────────────────────────────────────
@@ -625,8 +653,13 @@ class MemoClaw:
         session_id: str | None = None,
         agent_id: str | None = None,
         category: SuggestedCategory | None = None,
+        timeout: float | None = None,
     ) -> SuggestedResponse:
-        """Get proactive memory suggestions."""
+        """Get proactive memory suggestions.
+
+        Args:
+            timeout: Per-request timeout in seconds. Overrides the client default.
+        """
         params = _clean_params(
             {
                 "limit": limit,
@@ -636,7 +669,7 @@ class MemoClaw:
                 "category": category,
             }
         )
-        data = self._run_request("GET", "/v1/suggested", params=params)
+        data = self._run_request("GET", "/v1/suggested", params=params, timeout=timeout)
         return SuggestedResponse.model_validate(data)
 
     # ── Relations ────────────────────────────────────────────────────────
@@ -648,8 +681,13 @@ class MemoClaw:
         relation_type: RelationType,
         *,
         metadata: dict[str, Any] | None = None,
+        timeout: float | None = None,
     ) -> Relation:
-        """Create a relationship between two memories."""
+        """Create a relationship between two memories.
+
+        Args:
+            timeout: Per-request timeout in seconds. Overrides the client default.
+        """
         _validate_non_empty(memory_id, "memory_id")
         _validate_non_empty(target_id, "target_id")
         body: dict[str, Any] = {
@@ -659,31 +697,43 @@ class MemoClaw:
         if metadata is not None:
             body["metadata"] = metadata
         data = self._run_request(
-            "POST", f"/v1/memories/{quote(memory_id, safe='')}/relations", json=body
+            "POST", f"/v1/memories/{quote(memory_id, safe='')}/relations", json=body, timeout=timeout
         )
         return Relation.model_validate(data)
 
-    def list_relations(self, memory_id: str) -> list[RelationWithMemory]:
-        """List all relationships for a memory."""
+    def list_relations(self, memory_id: str, *, timeout: float | None = None) -> list[RelationWithMemory]:
+        """List all relationships for a memory.
+
+        Args:
+            timeout: Per-request timeout in seconds. Overrides the client default.
+        """
         _validate_non_empty(memory_id, "memory_id")
-        data = self._run_request("GET", f"/v1/memories/{quote(memory_id, safe='')}/relations")
+        data = self._run_request("GET", f"/v1/memories/{quote(memory_id, safe='')}/relations", timeout=timeout)
         resp = RelationsResponse.model_validate(data)
         return resp.relations  # type: ignore[return-value]
 
-    def delete_relation(self, memory_id: str, relation_id: str) -> DeleteResult:
-        """Delete a memory relationship."""
+    def delete_relation(self, memory_id: str, relation_id: str, *, timeout: float | None = None) -> DeleteResult:
+        """Delete a memory relationship.
+
+        Args:
+            timeout: Per-request timeout in seconds. Overrides the client default.
+        """
         _validate_non_empty(memory_id, "memory_id")
         _validate_non_empty(relation_id, "relation_id")
         data = self._run_request(
-            "DELETE", f"/v1/memories/{quote(memory_id, safe='')}/relations/{quote(relation_id, safe='')}"
+            "DELETE", f"/v1/memories/{quote(memory_id, safe='')}/relations/{quote(relation_id, safe='')}", timeout=timeout
         )
         return DeleteResult.model_validate(data)
 
     # ── Status ───────────────────────────────────────────────────────────
 
-    def status(self) -> FreeTierStatus:
-        """Check free tier remaining calls."""
-        data = self._run_request("GET", "/v1/free-tier/status")
+    def status(self, *, timeout: float | None = None) -> FreeTierStatus:
+        """Check free tier remaining calls.
+
+        Args:
+            timeout: Per-request timeout in seconds. Overrides the client default.
+        """
+        data = self._run_request("GET", "/v1/free-tier/status", timeout=timeout)
         return FreeTierStatus.model_validate(data)
 
     # ── Migrate ───────────────────────────────────────────────────────────
@@ -696,6 +746,7 @@ class MemoClaw:
         agent_id: str | None = None,
         session_id: str | None = None,
         auto_tag: bool | None = None,
+        timeout: float | None = None,
     ) -> MigrateResult:
         """Bulk import markdown memory files.
 
@@ -727,7 +778,7 @@ class MemoClaw:
             body["session_id"] = session_id
         if auto_tag is not None:
             body["auto_tag"] = auto_tag
-        data = self._run_request("POST", "/v1/migrate", json=body)
+        data = self._run_request("POST", "/v1/migrate", json=body, timeout=timeout)
         return MigrateResult.model_validate(data)
 
     def migrate_directory(
@@ -739,6 +790,7 @@ class MemoClaw:
         agent_id: str | None = None,
         session_id: str | None = None,
         auto_tag: bool | None = None,
+        timeout: float | None = None,
     ) -> MigrateResult:
         """Convenience: migrate all matching files from a directory.
 
@@ -762,6 +814,7 @@ class MemoClaw:
             agent_id=agent_id,
             session_id=session_id,
             auto_tag=auto_tag,
+            timeout=timeout,
         )
 
     # ── Context ───────────────────────────────────────────────────────────
@@ -778,8 +831,13 @@ class MemoClaw:
         format: str | None = None,
         include_metadata: bool | None = None,
         summarize: bool | None = None,
+        timeout: float | None = None,
     ) -> ContextResult:
-        """Assemble a context block from memories for LLM prompts."""
+        """Assemble a context block from memories for LLM prompts.
+
+        Args:
+            timeout: Per-request timeout in seconds. Overrides the client default.
+        """
         _validate_non_empty(query, "query")
         body = _clean_body(
             {
@@ -794,21 +852,29 @@ class MemoClaw:
                 "summarize": summarize,
             }
         )
-        data = self._run_request("POST", "/v1/context", json=body)
+        data = self._run_request("POST", "/v1/context", json=body, timeout=timeout)
         return ContextResult.model_validate(data)
 
     # ── Namespaces ───────────────────────────────────────────────────────
 
-    def list_namespaces(self) -> NamespacesResponse:
-        """List all namespaces with memory counts."""
-        data = self._run_request("GET", "/v1/namespaces")
+    def list_namespaces(self, *, timeout: float | None = None) -> NamespacesResponse:
+        """List all namespaces with memory counts.
+
+        Args:
+            timeout: Per-request timeout in seconds. Overrides the client default.
+        """
+        data = self._run_request("GET", "/v1/namespaces", timeout=timeout)
         return NamespacesResponse.model_validate(data)
 
     # ── Stats ────────────────────────────────────────────────────────────
 
-    def stats(self) -> StatsResponse:
-        """Get memory usage statistics."""
-        data = self._run_request("GET", "/v1/stats")
+    def stats(self, *, timeout: float | None = None) -> StatsResponse:
+        """Get memory usage statistics.
+
+        Args:
+            timeout: Per-request timeout in seconds. Overrides the client default.
+        """
+        data = self._run_request("GET", "/v1/stats", timeout=timeout)
         return StatsResponse.model_validate(data)
 
     # ── Core Memories ────────────────────────────────────────────────────
@@ -819,12 +885,17 @@ class MemoClaw:
         limit: int | None = None,
         namespace: str | None = None,
         agent_id: str | None = None,
+        timeout: float | None = None,
     ) -> CoreMemoriesResponse:
-        """Get high-importance, pinned, and frequently-accessed memories (FREE)."""
+        """Get high-importance, pinned, and frequently-accessed memories (FREE).
+
+        Args:
+            timeout: Per-request timeout in seconds. Overrides the client default.
+        """
         params = _clean_params(
             {"limit": limit, "namespace": namespace, "agent_id": agent_id}
         )
-        data = self._run_request("GET", "/v1/core-memories", params=params)
+        data = self._run_request("GET", "/v1/core-memories", params=params, timeout=timeout)
         return CoreMemoriesResponse.model_validate(data)
 
     # ── Text Search ──────────────────────────────────────────────────────
@@ -840,8 +911,13 @@ class MemoClaw:
         session_id: str | None = None,
         agent_id: str | None = None,
         after: str | None = None,
+        timeout: float | None = None,
     ) -> TextSearchResponse:
-        """Keyword text search across memories (FREE)."""
+        """Keyword text search across memories (FREE).
+
+        Args:
+            timeout: Per-request timeout in seconds. Overrides the client default.
+        """
         _validate_non_empty(query, "query")
         params = _clean_params(
             {
@@ -855,7 +931,7 @@ class MemoClaw:
                 "after": after,
             }
         )
-        data = self._run_request("GET", "/v1/memories/search", params=params)
+        data = self._run_request("GET", "/v1/memories/search", params=params, timeout=timeout)
         return TextSearchResponse.model_validate(data)
 
     # ── Export ────────────────────────────────────────────────────────────
@@ -872,8 +948,13 @@ class MemoClaw:
         before: str | None = None,
         after: str | None = None,
         include_deleted: bool | None = None,
+        timeout: float | None = None,
     ) -> ExportResponse:
-        """Export memories in JSON, CSV, or Markdown format."""
+        """Export memories in JSON, CSV, or Markdown format.
+
+        Args:
+            timeout: Per-request timeout in seconds. Overrides the client default.
+        """
         params = _clean_params(
             {
                 "format": format,
@@ -887,15 +968,19 @@ class MemoClaw:
                 "include_deleted": include_deleted,
             }
         )
-        data = self._run_request("GET", "/v1/export", params=params)
+        data = self._run_request("GET", "/v1/export", params=params, timeout=timeout)
         return ExportResponse.model_validate(data)
 
     # ── History ──────────────────────────────────────────────────────────
 
-    def get_history(self, memory_id: str) -> list[HistoryEntry]:
-        """Get the change history for a memory."""
+    def get_history(self, memory_id: str, *, timeout: float | None = None) -> list[HistoryEntry]:
+        """Get the change history for a memory.
+
+        Args:
+            timeout: Per-request timeout in seconds. Overrides the client default.
+        """
         _validate_non_empty(memory_id, "memory_id")
-        data = self._run_request("GET", f"/v1/memories/{quote(memory_id, safe='')}/history")
+        data = self._run_request("GET", f"/v1/memories/{quote(memory_id, safe='')}/history", timeout=timeout)
         resp = HistoryResponse.model_validate(data)
         return resp.history
 
@@ -1142,8 +1227,14 @@ class AsyncMemoClaw:
     async def store_batch(
         self,
         memories: list[StoreInput | dict[str, Any]],
+        *,
+        timeout: float | None = None,
     ) -> StoreBatchResult:
-        """Store up to 100 memories at once."""
+        """Store up to 100 memories at once.
+
+        Args:
+            timeout: Per-request timeout in seconds. Overrides the client default.
+        """
         if not memories:
             raise ValueError("memories list must not be empty")
         if len(memories) > MAX_BATCH_SIZE:
@@ -1155,7 +1246,7 @@ class AsyncMemoClaw:
             for m in memories
         ]
         data = await self._run_request(
-            "POST", "/v1/store/batch", json={"memories": items}
+            "POST", "/v1/store/batch", json={"memories": items}, timeout=timeout
         )
         return StoreBatchResult.model_validate(data)
 
@@ -1294,8 +1385,13 @@ class AsyncMemoClaw:
         pinned: bool | None = None,
         immutable: bool | None = None,
         expires_at: str | None = ...,  # type: ignore[assignment]
+        timeout: float | None = None,
     ) -> Memory:
-        """Update a memory by ID. Only provided fields are updated."""
+        """Update a memory by ID. Only provided fields are updated.
+
+        Args:
+            timeout: Per-request timeout in seconds. Overrides the client default.
+        """
         body: dict[str, Any] = {}
         if content is not None:
             body["content"] = content
@@ -1315,7 +1411,7 @@ class AsyncMemoClaw:
             body["expires_at"] = expires_at
 
         data = await self._run_request(
-            "PATCH", f"/v1/memories/{quote(memory_id, safe='')}", json=body
+            "PATCH", f"/v1/memories/{quote(memory_id, safe='')}", json=body, timeout=timeout
         )
         return Memory.model_validate(data)
 
@@ -1324,6 +1420,8 @@ class AsyncMemoClaw:
     async def update_batch(
         self,
         updates: list[UpdateInput | dict[str, Any]],
+        *,
+        timeout: float | None = None,
     ) -> UpdateBatchResult:
         """Update multiple memories in a single request.
 
@@ -1353,7 +1451,7 @@ class AsyncMemoClaw:
             if "id" not in item or not item["id"]:
                 raise ValueError("Each update must include a non-empty 'id'")
         data = await self._run_request(
-            "POST", "/v1/memories/batch-update", json={"updates": items}
+            "POST", "/v1/memories/batch-update", json={"updates": items}, timeout=timeout
         )
         return UpdateBatchResult.model_validate(data)
 
@@ -1365,7 +1463,7 @@ class AsyncMemoClaw:
         data = await self._run_request("DELETE", f"/v1/memories/{quote(memory_id, safe='')}", timeout=timeout)
         return DeleteResult.model_validate(data)
 
-    async def delete_batch(self, memory_ids: list[str]) -> list[DeleteResult]:
+    async def delete_batch(self, memory_ids: list[str], *, timeout: float | None = None) -> list[DeleteResult]:
         """Delete multiple memories by ID using the batch endpoint.
 
         Processes in chunks of 50 for API compatibility.
@@ -1377,7 +1475,7 @@ class AsyncMemoClaw:
         for i in range(0, len(memory_ids), 50):
             chunk = memory_ids[i : i + 50]
             data = await self._run_request(
-                "POST", "/v1/memories/batch-delete", json={"ids": chunk}
+                "POST", "/v1/memories/batch-delete", json={"ids": chunk}, timeout=timeout
             )
             for item in data.get("results", []):
                 results.append(DeleteResult.model_validate(item))
@@ -1397,8 +1495,13 @@ class AsyncMemoClaw:
         session_id: str | None = None,
         agent_id: str | None = None,
         auto_relate: bool | None = None,
+        timeout: float | None = None,
     ) -> IngestResult:
-        """Auto-extract and store facts from conversation or text."""
+        """Auto-extract and store facts from conversation or text.
+
+        Args:
+            timeout: Per-request timeout in seconds. Overrides the client default.
+        """
         body: dict[str, Any] = {}
         if messages is not None:
             body["messages"] = [
@@ -1415,7 +1518,7 @@ class AsyncMemoClaw:
         if auto_relate is not None:
             body["auto_relate"] = auto_relate
 
-        data = await self._run_request("POST", "/v1/ingest", json=body)
+        data = await self._run_request("POST", "/v1/ingest", json=body, timeout=timeout)
         return IngestResult.model_validate(data)
 
     # ── Extract ──────────────────────────────────────────────────────────
@@ -1427,8 +1530,13 @@ class AsyncMemoClaw:
         namespace: str | None = None,
         session_id: str | None = None,
         agent_id: str | None = None,
+        timeout: float | None = None,
     ) -> ExtractResult:
-        """Extract structured facts from conversation via LLM."""
+        """Extract structured facts from conversation via LLM.
+
+        Args:
+            timeout: Per-request timeout in seconds. Overrides the client default.
+        """
         body: dict[str, Any] = {
             "messages": [
                 m.model_dump() if isinstance(m, Message) else m for m in messages
@@ -1441,7 +1549,7 @@ class AsyncMemoClaw:
         if agent_id is not None:
             body["agent_id"] = agent_id
 
-        data = await self._run_request("POST", "/v1/memories/extract", json=body)
+        data = await self._run_request("POST", "/v1/memories/extract", json=body, timeout=timeout)
         return ExtractResult.model_validate(data)
 
     # ── Consolidate ──────────────────────────────────────────────────────
@@ -1453,8 +1561,13 @@ class AsyncMemoClaw:
         min_similarity: float | None = None,
         mode: str | None = None,
         dry_run: bool | None = None,
+        timeout: float | None = None,
     ) -> ConsolidateResult:
-        """Merge similar memories by clustering."""
+        """Merge similar memories by clustering.
+
+        Args:
+            timeout: Per-request timeout in seconds. Overrides the client default.
+        """
         body = _clean_body(
             {
                 "namespace": namespace,
@@ -1464,7 +1577,7 @@ class AsyncMemoClaw:
             }
         )
         data = await self._run_request(
-            "POST", "/v1/memories/consolidate", json=body
+            "POST", "/v1/memories/consolidate", json=body, timeout=timeout
         )
         return ConsolidateResult.model_validate(data)
 
@@ -1478,8 +1591,13 @@ class AsyncMemoClaw:
         session_id: str | None = None,
         agent_id: str | None = None,
         category: SuggestedCategory | None = None,
+        timeout: float | None = None,
     ) -> SuggestedResponse:
-        """Get proactive memory suggestions."""
+        """Get proactive memory suggestions.
+
+        Args:
+            timeout: Per-request timeout in seconds. Overrides the client default.
+        """
         params = _clean_params(
             {
                 "limit": limit,
@@ -1489,7 +1607,7 @@ class AsyncMemoClaw:
                 "category": category,
             }
         )
-        data = await self._run_request("GET", "/v1/suggested", params=params)
+        data = await self._run_request("GET", "/v1/suggested", params=params, timeout=timeout)
         return SuggestedResponse.model_validate(data)
 
     # ── Relations ────────────────────────────────────────────────────────
@@ -1501,8 +1619,13 @@ class AsyncMemoClaw:
         relation_type: RelationType,
         *,
         metadata: dict[str, Any] | None = None,
+        timeout: float | None = None,
     ) -> Relation:
-        """Create a relationship between two memories."""
+        """Create a relationship between two memories.
+
+        Args:
+            timeout: Per-request timeout in seconds. Overrides the client default.
+        """
         _validate_non_empty(memory_id, "memory_id")
         _validate_non_empty(target_id, "target_id")
         body: dict[str, Any] = {
@@ -1512,35 +1635,39 @@ class AsyncMemoClaw:
         if metadata is not None:
             body["metadata"] = metadata
         data = await self._run_request(
-            "POST", f"/v1/memories/{quote(memory_id, safe='')}/relations", json=body
+            "POST", f"/v1/memories/{quote(memory_id, safe='')}/relations", json=body, timeout=timeout
         )
         return Relation.model_validate(data)
 
-    async def list_relations(self, memory_id: str) -> list[RelationWithMemory]:
+    async def list_relations(self, memory_id: str, *, timeout: float | None = None) -> list[RelationWithMemory]:
         """List all relationships for a memory."""
         _validate_non_empty(memory_id, "memory_id")
         data = await self._run_request(
-            "GET", f"/v1/memories/{quote(memory_id, safe='')}/relations"
+            "GET", f"/v1/memories/{quote(memory_id, safe='')}/relations", timeout=timeout
         )
         resp = RelationsResponse.model_validate(data)
         return resp.relations  # type: ignore[return-value]
 
     async def delete_relation(
-        self, memory_id: str, relation_id: str
+        self, memory_id: str, relation_id: str, *, timeout: float | None = None
     ) -> DeleteResult:
         """Delete a memory relationship."""
         _validate_non_empty(memory_id, "memory_id")
         _validate_non_empty(relation_id, "relation_id")
         data = await self._run_request(
-            "DELETE", f"/v1/memories/{quote(memory_id, safe='')}/relations/{quote(relation_id, safe='')}"
+            "DELETE", f"/v1/memories/{quote(memory_id, safe='')}/relations/{quote(relation_id, safe='')}", timeout=timeout
         )
         return DeleteResult.model_validate(data)
 
     # ── Status ───────────────────────────────────────────────────────────
 
-    async def status(self) -> FreeTierStatus:
-        """Check free tier remaining calls."""
-        data = await self._run_request("GET", "/v1/free-tier/status")
+    async def status(self, *, timeout: float | None = None) -> FreeTierStatus:
+        """Check free tier remaining calls.
+
+        Args:
+            timeout: Per-request timeout in seconds. Overrides the client default.
+        """
+        data = await self._run_request("GET", "/v1/free-tier/status", timeout=timeout)
         return FreeTierStatus.model_validate(data)
 
     # ── Migrate ───────────────────────────────────────────────────────────
@@ -1553,6 +1680,7 @@ class AsyncMemoClaw:
         agent_id: str | None = None,
         session_id: str | None = None,
         auto_tag: bool | None = None,
+        timeout: float | None = None,
     ) -> MigrateResult:
         """Bulk import markdown memory files. See sync version for details."""
         if not files:
@@ -1566,7 +1694,7 @@ class AsyncMemoClaw:
             body["session_id"] = session_id
         if auto_tag is not None:
             body["auto_tag"] = auto_tag
-        data = await self._run_request("POST", "/v1/migrate", json=body)
+        data = await self._run_request("POST", "/v1/migrate", json=body, timeout=timeout)
         return MigrateResult.model_validate(data)
 
     async def migrate_directory(
@@ -1578,6 +1706,7 @@ class AsyncMemoClaw:
         agent_id: str | None = None,
         session_id: str | None = None,
         auto_tag: bool | None = None,
+        timeout: float | None = None,
     ) -> MigrateResult:
         """Convenience: migrate all matching files from a directory. See sync version for details."""
         import asyncio
@@ -1602,6 +1731,7 @@ class AsyncMemoClaw:
             agent_id=agent_id,
             session_id=session_id,
             auto_tag=auto_tag,
+            timeout=timeout,
         )
 
     # ── Context ───────────────────────────────────────────────────────────
@@ -1618,8 +1748,13 @@ class AsyncMemoClaw:
         format: str | None = None,
         include_metadata: bool | None = None,
         summarize: bool | None = None,
+        timeout: float | None = None,
     ) -> ContextResult:
-        """Assemble a context block from memories for LLM prompts."""
+        """Assemble a context block from memories for LLM prompts.
+
+        Args:
+            timeout: Per-request timeout in seconds. Overrides the client default.
+        """
         _validate_non_empty(query, "query")
         body = _clean_body(
             {
@@ -1634,21 +1769,29 @@ class AsyncMemoClaw:
                 "summarize": summarize,
             }
         )
-        data = await self._run_request("POST", "/v1/context", json=body)
+        data = await self._run_request("POST", "/v1/context", json=body, timeout=timeout)
         return ContextResult.model_validate(data)
 
     # ── Namespaces ───────────────────────────────────────────────────────
 
-    async def list_namespaces(self) -> NamespacesResponse:
-        """List all namespaces with memory counts."""
-        data = await self._run_request("GET", "/v1/namespaces")
+    async def list_namespaces(self, *, timeout: float | None = None) -> NamespacesResponse:
+        """List all namespaces with memory counts.
+
+        Args:
+            timeout: Per-request timeout in seconds. Overrides the client default.
+        """
+        data = await self._run_request("GET", "/v1/namespaces", timeout=timeout)
         return NamespacesResponse.model_validate(data)
 
     # ── Stats ────────────────────────────────────────────────────────────
 
-    async def stats(self) -> StatsResponse:
-        """Get memory usage statistics."""
-        data = await self._run_request("GET", "/v1/stats")
+    async def stats(self, *, timeout: float | None = None) -> StatsResponse:
+        """Get memory usage statistics.
+
+        Args:
+            timeout: Per-request timeout in seconds. Overrides the client default.
+        """
+        data = await self._run_request("GET", "/v1/stats", timeout=timeout)
         return StatsResponse.model_validate(data)
 
     # ── Core Memories ────────────────────────────────────────────────────
@@ -1659,12 +1802,17 @@ class AsyncMemoClaw:
         limit: int | None = None,
         namespace: str | None = None,
         agent_id: str | None = None,
+        timeout: float | None = None,
     ) -> CoreMemoriesResponse:
-        """Get high-importance, pinned, and frequently-accessed memories (FREE)."""
+        """Get high-importance, pinned, and frequently-accessed memories (FREE).
+
+        Args:
+            timeout: Per-request timeout in seconds. Overrides the client default.
+        """
         params = _clean_params(
             {"limit": limit, "namespace": namespace, "agent_id": agent_id}
         )
-        data = await self._run_request("GET", "/v1/core-memories", params=params)
+        data = await self._run_request("GET", "/v1/core-memories", params=params, timeout=timeout)
         return CoreMemoriesResponse.model_validate(data)
 
     # ── Text Search ──────────────────────────────────────────────────────
@@ -1680,8 +1828,13 @@ class AsyncMemoClaw:
         session_id: str | None = None,
         agent_id: str | None = None,
         after: str | None = None,
+        timeout: float | None = None,
     ) -> TextSearchResponse:
-        """Keyword text search across memories (FREE)."""
+        """Keyword text search across memories (FREE).
+
+        Args:
+            timeout: Per-request timeout in seconds. Overrides the client default.
+        """
         _validate_non_empty(query, "query")
         params = _clean_params(
             {
@@ -1695,7 +1848,7 @@ class AsyncMemoClaw:
                 "after": after,
             }
         )
-        data = await self._run_request("GET", "/v1/memories/search", params=params)
+        data = await self._run_request("GET", "/v1/memories/search", params=params, timeout=timeout)
         return TextSearchResponse.model_validate(data)
 
     # ── Export ────────────────────────────────────────────────────────────
@@ -1712,8 +1865,13 @@ class AsyncMemoClaw:
         before: str | None = None,
         after: str | None = None,
         include_deleted: bool | None = None,
+        timeout: float | None = None,
     ) -> ExportResponse:
-        """Export memories in JSON, CSV, or Markdown format."""
+        """Export memories in JSON, CSV, or Markdown format.
+
+        Args:
+            timeout: Per-request timeout in seconds. Overrides the client default.
+        """
         params = _clean_params(
             {
                 "format": format,
@@ -1727,15 +1885,15 @@ class AsyncMemoClaw:
                 "include_deleted": include_deleted,
             }
         )
-        data = await self._run_request("GET", "/v1/export", params=params)
+        data = await self._run_request("GET", "/v1/export", params=params, timeout=timeout)
         return ExportResponse.model_validate(data)
 
     # ── History ──────────────────────────────────────────────────────────
 
-    async def get_history(self, memory_id: str) -> list[HistoryEntry]:
+    async def get_history(self, memory_id: str, *, timeout: float | None = None) -> list[HistoryEntry]:
         """Get the change history for a memory."""
         _validate_non_empty(memory_id, "memory_id")
-        data = await self._run_request("GET", f"/v1/memories/{quote(memory_id, safe='')}/history")
+        data = await self._run_request("GET", f"/v1/memories/{quote(memory_id, safe='')}/history", timeout=timeout)
         resp = HistoryResponse.model_validate(data)
         return resp.history
 
