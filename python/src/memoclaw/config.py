@@ -71,23 +71,15 @@ def resolve_private_key(
     if explicit is not None:
         return explicit
 
-    # Only auto-resolve from env/config when wallet-only auth is NOT requested
-    if wallet_address is None:
-        env_key = os.environ.get("MEMOCLAW_PRIVATE_KEY")
-        if env_key:
-            return env_key
+    env_key = os.environ.get("MEMOCLAW_PRIVATE_KEY")
+    if env_key:
+        return env_key
 
-        if config and config.private_key:
-            return config.private_key
+    if config and config.private_key:
+        return config.private_key
 
-    else:
-        # Even in wallet-only mode, still pick up a key if explicitly set in env
-        env_key = os.environ.get("MEMOCLAW_PRIVATE_KEY")
-        if env_key:
-            return env_key
-        if config and config.private_key:
-            return config.private_key
-        # No key found — that's fine in wallet-only mode
+    # No key found — acceptable only in wallet-only mode
+    if wallet_address is not None:
         return None
 
     raise ValueError(
