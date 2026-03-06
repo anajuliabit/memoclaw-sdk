@@ -13,7 +13,7 @@ export {
   RateLimitError,
   createError,
 } from './errors.js';
-export type { BeforeRequestHook, AfterResponseHook, OnErrorHook, RequestOptions } from './client.js';
+export type { BeforeRequestHook, AfterResponseHook, OnErrorHook, RequestOptions, Logger } from './client.js';
 export {
   RecallQuery,
   AsyncRecallQuery,

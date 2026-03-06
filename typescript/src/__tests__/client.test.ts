@@ -18,7 +18,9 @@ function mockFetch(responses: Array<{ status: number; body?: unknown; ok?: boole
   return vi.fn(async () => {
     const resp = responses[callIndex] ?? responses[responses.length - 1]!;
     callIndex++;
-    const hdrs = new Map(Object.entries(resp.headers ?? {}));
+    // Normalise header keys to lowercase for consistent lookup
+    const rawHeaders = resp.headers ?? {};
+    const hdrs = new Map(Object.entries(rawHeaders).map(([k, v]) => [k.toLowerCase(), v]));
     return {
       ok: resp.ok ?? (resp.status >= 200 && resp.status < 300),
       status: resp.status,
@@ -415,5 +417,68 @@ describe('getMemoryGraph', () => {
     expect(graph.size).toBe(2);
     expect(graph.has('m1')).toBe(true);
     expect(graph.has('m2')).toBe(true);
+  });
+});
+
+describe('requestId', () => {
+  it('attaches x-request-id to error on non-2xx response', async () => {
+    const f = mockFetch([{
+      status: 404,
+      body: { error: { code: 'NOT_FOUND', message: 'Memory not found' } },
+      headers: { 'x-request-id': 'req-abc-123' },
+    }]);
+    const client = createClient(f);
+    try {
+      await client.get('nonexistent');
+      expect.unreachable('should have thrown');
+    } catch (err) {
+      expect(err).toBeInstanceOf(MemoClawError);
+      const e = err as import('../errors.js').MemoClawError;
+      expect(e.requestId).toBe('req-abc-123');
+      expect(e.toString()).toContain('req-abc-123');
+    }
+  });
+
+  it('requestId is undefined when header is absent', async () => {
+    const f = mockFetch([{
+      status: 404,
+      body: { error: { code: 'NOT_FOUND', message: 'Memory not found' } },
+    }]);
+    const client = createClient(f);
+    try {
+      await client.get('nonexistent');
+      expect.unreachable('should have thrown');
+    } catch (err) {
+      const e = err as import('../errors.js').MemoClawError;
+      expect(e.requestId).toBeUndefined();
+    }
+  });
+});
+
+describe('debug logging', () => {
+  it('calls logger.debug on request and response', async () => {
+    const debugFn = vi.fn();
+    const f = mockFetch([{ status: 200, body: { wallet: '0x', free_tier_remaining: 10, free_tier_total: 100, free_tier_used: 90 } }]);
+    const client = new MemoClawClient({
+      privateKey: TEST_PRIVATE_KEY,
+      baseUrl: BASE_URL,
+      fetch: f,
+      logger: { debug: debugFn },
+    });
+    await client.status();
+    // Should have at least a request log and a response log
+    expect(debugFn).toHaveBeenCalled();
+    const calls = debugFn.mock.calls.map((c: unknown[]) => c[0] as string);
+    expect(calls.some((c: string) => c.includes('GET') && c.includes('/v1/free-tier/status'))).toBe(true);
+    expect(calls.some((c: string) => c.includes('200'))).toBe(true);
+  });
+
+  it('does not log when debug is not set', async () => {
+    const spy = vi.spyOn(console, 'debug').mockImplementation(() => {});
+    const f = mockFetch([{ status: 200, body: { wallet: '0x', free_tier_remaining: 10, free_tier_total: 100, free_tier_used: 90 } }]);
+    const client = createClient(f);
+    await client.status();
+    expect(spy).not.toHaveBeenCalled();
+    spy.mockRestore();
   });
 });

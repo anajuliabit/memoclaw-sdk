@@ -75,6 +75,7 @@ class APIError(MemoClawError):
         message: Human-readable error message.
         details: Optional structured error details.
         suggestion: Actionable suggestion for fixing the error.
+        request_id: Server-side request ID from the ``x-request-id`` header, if available.
     """
 
     status_code: int
@@ -82,6 +83,7 @@ class APIError(MemoClawError):
     message: str
     details: dict[str, Any] | None
     suggestion: str | None
+    request_id: str | None
 
     def __init__(
         self,
@@ -89,19 +91,24 @@ class APIError(MemoClawError):
         code: str,
         message: str,
         details: dict[str, Any] | None = None,
+        *,
+        request_id: str | None = None,
     ) -> None:
         self.status_code = status_code
         self.code = code
         self.message = message
         self.details = details
+        self.request_id = request_id
         self.suggestion = _get_suggestion(status_code, code)
         msg = f"[{status_code}] {code}: {message}"
+        if self.request_id:
+            msg += f"\n  request-id: {self.request_id}"
         if self.suggestion:
             msg += f"\n  💡 {self.suggestion}"
         super().__init__(msg)
 
     @classmethod
-    def from_response(cls, status_code: int, body: dict[str, Any]) -> APIError:
+    def from_response(cls, status_code: int, body: dict[str, Any], *, request_id: str | None = None) -> APIError:
         """Create the most specific error subclass from an API error response."""
         error = body.get("error", {})
         code = error.get("code", "UNKNOWN")
@@ -114,6 +121,7 @@ class APIError(MemoClawError):
             code=code,
             message=message,
             details=details,
+            request_id=request_id,
         )
 
 

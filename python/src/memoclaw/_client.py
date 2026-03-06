@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import time
 from typing import Any
 
@@ -10,6 +11,8 @@ from eth_account import Account
 from eth_account.messages import encode_defunct
 
 from .errors import APIError, PaymentRequiredError
+
+logger = logging.getLogger("memoclaw")
 
 DEFAULT_BASE_URL = "https://api.memoclaw.com"
 DEFAULT_TIMEOUT = 30.0
@@ -47,7 +50,8 @@ def _raise_for_status(response: httpx.Response) -> None:
         body = response.json()
     except Exception:
         body = {"error": {"code": "UNKNOWN", "message": response.text}}
-    raise APIError.from_response(response.status_code, body)
+    request_id = response.headers.get("x-request-id")
+    raise APIError.from_response(response.status_code, body, request_id=request_id)
 
 
 def _is_retryable(exc: BaseException) -> bool:
@@ -121,6 +125,9 @@ class _SyncHTTPClient:
         last_exc: BaseException | None = None
         req_timeout = timeout if timeout is not None else self._timeout
 
+        logger.debug("%s %s", method, path)
+        start = time.monotonic()
+
         for attempt in range(self._max_retries + 1):
             # Generate fresh auth header each attempt (timestamp-based)
             if self._account is not None:
@@ -136,9 +143,18 @@ class _SyncHTTPClient:
             except (httpx.ConnectError, httpx.ReadTimeout, httpx.WriteTimeout) as exc:
                 last_exc = exc
                 if attempt < self._max_retries:
+                    logger.debug("Network error on %s %s, retrying (attempt %d/%d)", method, path, attempt + 1, self._max_retries)
                     time.sleep(_RETRY_BASE_DELAY * (2**attempt))
                     continue
                 raise
+
+            duration_ms = (time.monotonic() - start) * 1000
+            req_id = response.headers.get("x-request-id", "")
+            logger.debug(
+                "%s %s → %d (%dms)%s",
+                method, path, response.status_code, duration_ms,
+                f" req={req_id}" if req_id else "",
+            )
 
             # 402 → attempt x402 payment and retry once
             if response.status_code == 402:
@@ -157,6 +173,7 @@ class _SyncHTTPClient:
                     delay = float(retry_after)
                 else:
                     delay = _RETRY_BASE_DELAY * (2**attempt)
+                logger.debug("Retrying %s %s in %.1fs (attempt %d/%d)", method, path, delay, attempt + 1, self._max_retries)
                 time.sleep(delay)
                 continue
 
@@ -231,6 +248,9 @@ class _AsyncHTTPClient:
         last_exc: BaseException | None = None
         req_timeout = timeout if timeout is not None else self._timeout
 
+        logger.debug("%s %s", method, path)
+        start = time.monotonic()
+
         for attempt in range(self._max_retries + 1):
             if self._account is not None:
                 headers = {"x-wallet-auth": _generate_wallet_auth(self._account)}
@@ -245,9 +265,18 @@ class _AsyncHTTPClient:
             except (httpx.ConnectError, httpx.ReadTimeout, httpx.WriteTimeout) as exc:
                 last_exc = exc
                 if attempt < self._max_retries:
+                    logger.debug("Network error on %s %s, retrying (attempt %d/%d)", method, path, attempt + 1, self._max_retries)
                     await asyncio.sleep(_RETRY_BASE_DELAY * (2**attempt))
                     continue
                 raise
+
+            duration_ms = (time.monotonic() - start) * 1000
+            req_id = response.headers.get("x-request-id", "")
+            logger.debug(
+                "%s %s → %d (%dms)%s",
+                method, path, response.status_code, duration_ms,
+                f" req={req_id}" if req_id else "",
+            )
 
             # 402 → attempt x402 payment and retry once
             if response.status_code == 402:
@@ -266,6 +295,7 @@ class _AsyncHTTPClient:
                     delay = float(retry_after)
                 else:
                     delay = _RETRY_BASE_DELAY * (2**attempt)
+                logger.debug("Retrying %s %s in %.1fs (attempt %d/%d)", method, path, delay, attempt + 1, self._max_retries)
                 await asyncio.sleep(delay)
                 continue
 
