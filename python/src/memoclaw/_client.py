@@ -9,6 +9,7 @@ from typing import Any
 import httpx
 from eth_account import Account
 from eth_account.messages import encode_defunct
+from eth_account.signers.local import LocalAccount
 
 from .errors import APIError, PaymentRequiredError
 
@@ -29,7 +30,7 @@ _RETRYABLE_STATUS_CODES = {408, 429, 500, 502, 503, 504}
 _RETRY_BASE_DELAY = 0.5
 
 
-def _generate_wallet_auth(account: Account) -> str:
+def _generate_wallet_auth(account: LocalAccount) -> str:
     """Generate ``{address}:{timestamp}:{signature}`` auth header."""
     timestamp = str(int(time.time()))
     message = f"memoclaw-auth:{timestamp}"
@@ -67,12 +68,13 @@ def _try_x402_payment(
     Returns payment headers on success, or ``None`` if x402 is unavailable.
     """
     try:
-        from x402.httpx import create_payment_headers  # type: ignore[import-untyped]
+        from x402.httpx import create_payment_headers
     except ImportError:
         return None
 
     try:
-        return create_payment_headers(response)
+        result: dict[str, str] = create_payment_headers(response)
+        return result
     except Exception:
         return None
 
@@ -92,7 +94,7 @@ class _SyncHTTPClient:
         wallet_address: str | None = None,
     ) -> None:
         if private_key is not None:
-            self._account: Account | None = Account.from_key(private_key)
+            self._account: LocalAccount | None = Account.from_key(private_key)
             self._wallet_address = self._account.address
         elif wallet_address is not None:
             self._account = None
@@ -186,7 +188,7 @@ class _SyncHTTPClient:
         # Should not reach here, but raise last error if we do
         if last_exc is not None:
             raise last_exc
-        _raise_for_status(response)  # type: ignore[possibly-undefined]
+        _raise_for_status(response)
 
     def close(self) -> None:
         self._http.close()
@@ -213,7 +215,7 @@ class _AsyncHTTPClient:
         wallet_address: str | None = None,
     ) -> None:
         if private_key is not None:
-            self._account: Account | None = Account.from_key(private_key)
+            self._account: LocalAccount | None = Account.from_key(private_key)
             self._wallet_address = self._account.address
         elif wallet_address is not None:
             self._account = None
@@ -307,7 +309,7 @@ class _AsyncHTTPClient:
 
         if last_exc is not None:
             raise last_exc
-        _raise_for_status(response)  # type: ignore[possibly-undefined]
+        _raise_for_status(response)
 
     async def close(self) -> None:
         await self._http.aclose()
