@@ -109,6 +109,31 @@ Every wallet gets **100 free API calls**. After that, x402 micropayments are use
 | `stats()` | Get memory usage statistics |
 | `status()` | Check free tier remaining calls |
 
+### Request Timeouts & Cancellation
+
+Every method accepts an optional `RequestOptions` second argument for per-request timeouts and cancellation:
+
+```ts
+// Per-request timeout (ms) — SDK creates an AbortSignal internally
+const results = await client.recall({ query: 'roadmap' }, { timeout: 5000 });
+
+// Manual cancellation with AbortController
+const controller = new AbortController();
+setTimeout(() => controller.abort(), 10_000); // cancel after 10s
+
+const memories = await client.list({ limit: 100 }, { signal: controller.signal });
+
+// Combine both — timeout + manual abort (shortest wins)
+const ac = new AbortController();
+const results2 = await client.recall(
+  { query: 'test' },
+  { signal: ac.signal, timeout: 5000 },
+);
+// ac.abort() will cancel immediately; otherwise times out at 5s
+```
+
+This works on all methods — `store`, `recall`, `list`, `ingest`, `consolidate`, `migrate`, etc.
+
 ### Error Handling
 
 ```ts
