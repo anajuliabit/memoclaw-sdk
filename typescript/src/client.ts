@@ -103,7 +103,7 @@ export type OnErrorHook = (method: string, path: string, error: MemoClawError) =
 export class MemoClawClient {
   private readonly baseUrl: string;
   private readonly wallet: string;
-  private readonly _account: PrivateKeyAccount;
+  private readonly _account: PrivateKeyAccount | null;
   private readonly _fetch: typeof globalThis.fetch;
   private readonly maxRetries: number;
   private readonly retryDelay: number;
@@ -116,29 +116,26 @@ export class MemoClawClient {
   constructor(options: MemoClawOptions = {}) {
     const config = loadConfig(options.configPath);
 
-    // Resolve private key — required for API authentication (signed wallet auth)
+    // Resolve private key (optional — allows wallet-only mode for free endpoints)
     const privateKey = options.privateKey
       ?? process.env.MEMOCLAW_PRIVATE_KEY
       ?? config.privateKey;
 
-    if (!privateKey) {
-      throw new Error(
-        'A private key is required for API authentication. '
-        + 'Pass privateKey option, set MEMOCLAW_PRIVATE_KEY, '
-        + 'or run `memoclaw init` to create ~/.memoclaw/config.json.',
-      );
+    if (privateKey) {
+      const hex = (privateKey.startsWith('0x') ? privateKey : `0x${privateKey}`) as Hex;
+      this._account = privateKeyToAccount(hex);
+    } else {
+      this._account = null;
     }
 
-    const hex = (privateKey.startsWith('0x') ? privateKey : `0x${privateKey}`) as Hex;
-    this._account = privateKeyToAccount(hex);
-
     const wallet = options.wallet
-      ?? this._account.address
+      ?? this._account?.address
       ?? process.env.MEMOCLAW_WALLET
       ?? config.wallet;
     if (!wallet) {
       throw new Error(
-        'wallet is required. Pass wallet option, set MEMOCLAW_WALLET, '
+        'Authentication required. Pass privateKey (for full access) or wallet (for free endpoints), '
+        + 'set MEMOCLAW_PRIVATE_KEY / MEMOCLAW_WALLET, '
         + 'or run `memoclaw init` to create ~/.memoclaw/config.json.',
       );
     }
@@ -183,6 +180,17 @@ export class MemoClawClient {
 
   // ── Internal helpers ───────────────────────────────
 
+  /** Throw if the client is in wallet-only mode (no private key). */
+  private requireSignedAuth(method: string): void {
+    if (!this._account) {
+      throw new Error(
+        `${method}() requires a private key for signed authentication. `
+        + 'Pass privateKey option, set MEMOCLAW_PRIVATE_KEY, '
+        + 'or run `memoclaw init`.',
+      );
+    }
+  }
+
   private async request<T>(
     method: string,
     path: string,
@@ -203,12 +211,16 @@ export class MemoClawClient {
       if (result !== undefined) processedBody = result;
     }
 
-    // Generate signed wallet auth header: {address}:{timestamp}:{signature}
-    const timestamp = Math.floor(Date.now() / 1000).toString();
-    const authMessage = `memoclaw-auth:${timestamp}`;
-    const signature = await this._account.signMessage({ message: authMessage });
-    const walletHeader = `${this._account.address}:${timestamp}:${signature}`;
-    const headers: Record<string, string> = { 'x-wallet-auth': walletHeader };
+    // Generate auth header — signed if private key is available, plain wallet otherwise
+    const headers: Record<string, string> = {};
+    if (this._account) {
+      const timestamp = Math.floor(Date.now() / 1000).toString();
+      const authMessage = `memoclaw-auth:${timestamp}`;
+      const signature = await this._account.signMessage({ message: authMessage });
+      headers['x-wallet-auth'] = `${this._account.address}:${timestamp}:${signature}`;
+    } else {
+      headers['x-wallet-auth'] = this.wallet;
+    }
     if (processedBody !== undefined) {
       headers['Content-Type'] = 'application/json';
     }
@@ -322,6 +334,7 @@ export class MemoClawClient {
 
   /** Store a single memory. */
   async store(request: StoreRequest, options?: RequestOptions): Promise<StoreResponse> {
+    this.requireSignedAuth('store');
     if (!request.content?.trim()) {
       throw new Error('content must be a non-empty string');
     }
@@ -330,6 +343,7 @@ export class MemoClawClient {
 
   /** Store multiple memories in a single request (up to 100). */
   async storeBatch(memories: StoreRequest[], options?: RequestOptions): Promise<StoreBatchResponse> {
+    this.requireSignedAuth('storeBatch');
     if (!memories.length) {
       throw new Error('memories array must not be empty');
     }
@@ -355,6 +369,7 @@ export class MemoClawClient {
 
   /** Recall memories via semantic search. */
   async recall(request: RecallRequest, options?: RequestOptions): Promise<RecallResponse> {
+    this.requireSignedAuth('recall');
     if (!request.query?.trim()) {
       throw new Error('query must be a non-empty string');
     }
@@ -395,12 +410,14 @@ export class MemoClawClient {
 
   /** Update a memory by ID. */
   async update(id: string, request: UpdateMemoryRequest, options?: RequestOptions): Promise<Memory> {
+    this.requireSignedAuth('update');
     if (!id?.trim()) throw new Error('id must be a non-empty string');
     return this.request<Memory>('PATCH', `/v1/memories/${encodeURIComponent(id)}`, request, undefined, options);
   }
 
   /** Update multiple memories in a single request (up to 100). */
   async updateBatch(updates: UpdateBatchItem[], options?: RequestOptions): Promise<UpdateBatchResponse> {
+    this.requireSignedAuth('updateBatch');
     if (!updates.length) {
       throw new Error('updates array must not be empty');
     }
@@ -449,6 +466,7 @@ export class MemoClawClient {
 
   /** Ingest a conversation or text and auto-extract memories. */
   async ingest(request: IngestRequest, options?: RequestOptions): Promise<IngestResponse> {
+    this.requireSignedAuth('ingest');
     if (!request.messages?.length && !request.text?.trim()) {
       throw new Error('Either messages or text must be provided');
     }
@@ -462,6 +480,7 @@ export class MemoClawClient {
 
   /** Extract structured facts from a conversation via LLM. */
   async extract(request: ExtractRequest, options?: RequestOptions): Promise<ExtractResponse> {
+    this.requireSignedAuth('extract');
     if (!request.messages?.length) {
       throw new Error('messages must be a non-empty array');
     }
@@ -470,11 +489,13 @@ export class MemoClawClient {
 
   /** Merge similar memories by clustering. */
   async consolidate(request: ConsolidateRequest = {}, options?: RequestOptions): Promise<ConsolidateResponse> {
+    this.requireSignedAuth('consolidate');
     return this.request<ConsolidateResponse>('POST', '/v1/memories/consolidate', request, undefined, options);
   }
 
   /** Create a relationship between two memories. */
   async createRelation(memoryId: string, request: CreateRelationRequest, options?: RequestOptions): Promise<CreateRelationResponse> {
+    this.requireSignedAuth('createRelation');
     if (!memoryId?.trim()) throw new Error('memoryId must be a non-empty string');
     if (!request.target_id?.trim()) throw new Error('target_id must be a non-empty string');
     return this.request<CreateRelationResponse>(
@@ -525,6 +546,7 @@ export class MemoClawClient {
       auto_tag?: boolean;
     } & RequestOptions,
   ): Promise<MigrateResponse> {
+    this.requireSignedAuth('migrate');
     if (!files.length) {
       throw new Error('files array must not be empty');
     }
@@ -608,6 +630,7 @@ export class MemoClawClient {
 
   /** Assemble a context block from memories for LLM prompts. */
   async assembleContext(request: ContextRequest, options?: RequestOptions): Promise<ContextResponse> {
+    this.requireSignedAuth('assembleContext');
     if (!request.query?.trim()) throw new Error('query must be a non-empty string');
     return this.request<ContextResponse>('POST', '/v1/context', request, undefined, options);
   }

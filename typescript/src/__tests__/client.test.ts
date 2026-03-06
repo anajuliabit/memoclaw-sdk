@@ -45,11 +45,25 @@ function createClient(fetchFn: typeof globalThis.fetch) {
 
 describe('MemoClawClient', () => {
   describe('constructor', () => {
-    it('throws if no private key is available', () => {
+    it('throws if neither privateKey nor wallet is available', () => {
+      const origKey = process.env.MEMOCLAW_PRIVATE_KEY;
+      const origWallet = process.env.MEMOCLAW_WALLET;
+      delete process.env.MEMOCLAW_PRIVATE_KEY;
+      delete process.env.MEMOCLAW_WALLET;
+      try {
+        expect(() => new MemoClawClient({})).toThrow('Authentication required');
+      } finally {
+        if (origKey !== undefined) process.env.MEMOCLAW_PRIVATE_KEY = origKey;
+        if (origWallet !== undefined) process.env.MEMOCLAW_WALLET = origWallet;
+      }
+    });
+
+    it('accepts wallet-only mode without private key', () => {
       const orig = process.env.MEMOCLAW_PRIVATE_KEY;
       delete process.env.MEMOCLAW_PRIVATE_KEY;
       try {
-        expect(() => new MemoClawClient({ wallet: '0xTest' })).toThrow('private key is required for API authentication');
+        const client = new MemoClawClient({ wallet: '0xTestWallet', fetch: mockFetch([]) });
+        expect(client).toBeDefined();
       } finally {
         if (orig !== undefined) process.env.MEMOCLAW_PRIVATE_KEY = orig;
       }
@@ -480,5 +494,83 @@ describe('debug logging', () => {
     await client.status();
     expect(spy).not.toHaveBeenCalled();
     spy.mockRestore();
+  });
+});
+
+describe('wallet-only mode', () => {
+  function createWalletOnlyClient(fetchFn: typeof globalThis.fetch) {
+    const orig = process.env.MEMOCLAW_PRIVATE_KEY;
+    delete process.env.MEMOCLAW_PRIVATE_KEY;
+    try {
+      return new MemoClawClient({
+        wallet: '0x1234567890abcdef1234567890abcdef12345678',
+        baseUrl: BASE_URL,
+        fetch: fetchFn,
+      });
+    } finally {
+      if (orig !== undefined) process.env.MEMOCLAW_PRIVATE_KEY = orig;
+    }
+  }
+
+  it('free endpoints work with wallet-only auth', async () => {
+    const f = mockFetch([{ status: 200, body: { memories: [], total: 0, limit: 20, offset: 0 } }]);
+    const client = createWalletOnlyClient(f);
+    const result = await client.list();
+    expect(result.total).toBe(0);
+    // Should send plain wallet address as auth header
+    expect(f).toHaveBeenCalledWith(
+      expect.stringContaining('/v1/memories'),
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          'x-wallet-auth': '0x1234567890abcdef1234567890abcdef12345678',
+        }),
+      }),
+    );
+  });
+
+  it('status() works with wallet-only auth', async () => {
+    const f = mockFetch([{ status: 200, body: { wallet: '0x', free_tier_remaining: 50, free_tier_total: 100, free_tier_used: 50 } }]);
+    const client = createWalletOnlyClient(f);
+    const result = await client.status();
+    expect(result.free_tier_remaining).toBe(50);
+  });
+
+  it('store() throws in wallet-only mode', async () => {
+    const client = createWalletOnlyClient(mockFetch([]));
+    await expect(client.store({ content: 'test' })).rejects.toThrow('store() requires a private key');
+  });
+
+  it('recall() throws in wallet-only mode', async () => {
+    const client = createWalletOnlyClient(mockFetch([]));
+    await expect(client.recall({ query: 'test' })).rejects.toThrow('recall() requires a private key');
+  });
+
+  it('storeBatch() throws in wallet-only mode', async () => {
+    const client = createWalletOnlyClient(mockFetch([]));
+    await expect(client.storeBatch([{ content: 'a' }])).rejects.toThrow('storeBatch() requires a private key');
+  });
+
+  it('update() throws in wallet-only mode', async () => {
+    const client = createWalletOnlyClient(mockFetch([]));
+    await expect(client.update('id', { content: 'new' })).rejects.toThrow('update() requires a private key');
+  });
+
+  it('ingest() throws in wallet-only mode', async () => {
+    const client = createWalletOnlyClient(mockFetch([]));
+    await expect(client.ingest({ text: 'hello' })).rejects.toThrow('ingest() requires a private key');
+  });
+
+  it('get() works in wallet-only mode (free endpoint)', async () => {
+    const f = mockFetch([{ status: 200, body: { id: 'mem-1', content: 'test', importance: 0.5, memory_type: 'general', namespace: 'default', created_at: '2025-01-01', metadata: {} } }]);
+    const client = createWalletOnlyClient(f);
+    const result = await client.get('mem-1');
+    expect(result.id).toBe('mem-1');
+  });
+
+  it('delete() works in wallet-only mode (free endpoint)', async () => {
+    const f = mockFetch([{ status: 200, body: { deleted: true } }]);
+    const client = createWalletOnlyClient(f);
+    const result = await client.delete('mem-1');
+    expect(result.deleted).toBe(true);
   });
 });

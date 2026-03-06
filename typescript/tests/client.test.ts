@@ -36,11 +36,24 @@ function createClient(fetch: typeof globalThis.fetch, opts?: Partial<{ maxRetrie
 }
 
 describe('MemoClawClient constructor', () => {
-  it('throws if no private key is available', () => {
+  it('throws if neither privateKey nor wallet is available', () => {
+    const origKey = process.env.MEMOCLAW_PRIVATE_KEY;
+    const origWallet = process.env.MEMOCLAW_WALLET;
+    delete process.env.MEMOCLAW_PRIVATE_KEY;
+    delete process.env.MEMOCLAW_WALLET;
+    try {
+      expect(() => new MemoClawClient({})).toThrow('Authentication required');
+    } finally {
+      if (origKey !== undefined) process.env.MEMOCLAW_PRIVATE_KEY = origKey;
+      if (origWallet !== undefined) process.env.MEMOCLAW_WALLET = origWallet;
+    }
+  });
+
+  it('allows wallet-only mode without private key', () => {
     const orig = process.env.MEMOCLAW_PRIVATE_KEY;
     delete process.env.MEMOCLAW_PRIVATE_KEY;
     try {
-      expect(() => new MemoClawClient({ wallet: WALLET })).toThrow('private key is required for API authentication');
+      expect(() => new MemoClawClient({ wallet: WALLET, fetch: mockFetch([]) })).not.toThrow();
     } finally {
       if (orig !== undefined) process.env.MEMOCLAW_PRIVATE_KEY = orig;
     }
@@ -420,11 +433,12 @@ describe('wallet signature auth', () => {
     expect(parts[2]).toMatch(/^0x[0-9a-f]+$/i); // hex signature
   });
 
-  it('throws when no privateKey is available', () => {
+  it('allows wallet-only mode in auth tests', () => {
     const orig = process.env.MEMOCLAW_PRIVATE_KEY;
     delete process.env.MEMOCLAW_PRIVATE_KEY;
     try {
-      expect(() => new MemoClawClient({ wallet: WALLET })).toThrow('private key is required for API authentication');
+      // Wallet-only mode should not throw
+      expect(() => new MemoClawClient({ wallet: WALLET, fetch: mockFetch([]) })).not.toThrow();
     } finally {
       if (orig !== undefined) process.env.MEMOCLAW_PRIVATE_KEY = orig;
     }
