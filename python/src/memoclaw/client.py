@@ -246,6 +246,14 @@ class MemoClaw:
                 data = transformed
         return data
 
+    # ── Representation ───────────────────────────────────────────────────
+
+    def __repr__(self) -> str:
+        wallet = self._http._wallet_address
+        truncated = f"{wallet[:6]}...{wallet[-4:]}" if len(wallet) > 10 else wallet
+        mode = "signed" if self._http._account is not None else "wallet-only"
+        return f"MemoClaw(base_url={self._http._base_url!r}, wallet={truncated!r}, mode={mode!r})"
+
     # ── Context manager ──────────────────────────────────────────────────
 
     def close(self) -> None:
@@ -1177,6 +1185,14 @@ class AsyncMemoClaw:
             if transformed is not None:
                 data = transformed
         return data
+
+    # ── Representation ───────────────────────────────────────────────────
+
+    def __repr__(self) -> str:
+        wallet = self._http._wallet_address
+        truncated = f"{wallet[:6]}...{wallet[-4:]}" if len(wallet) > 10 else wallet
+        mode = "signed" if self._http._account is not None else "wallet-only"
+        return f"AsyncMemoClaw(base_url={self._http._base_url!r}, wallet={truncated!r}, mode={mode!r})"
 
     # ── Context manager ──────────────────────────────────────────────────
 

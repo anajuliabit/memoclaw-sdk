@@ -178,6 +178,21 @@ export class MemoClawClient {
     return this;
   }
 
+  // ── Representation ──────────────────────────────────
+
+  /** Human-readable string for debugging. Wallet is truncated for security. */
+  toString(): string {
+    const w = this.wallet;
+    const truncated = w.length > 10 ? `${w.slice(0, 6)}...${w.slice(-4)}` : w;
+    const mode = this._account ? 'signed' : 'wallet-only';
+    return `MemoClawClient(baseUrl=${JSON.stringify(this.baseUrl)}, wallet=${JSON.stringify(truncated)}, mode=${JSON.stringify(mode)})`;
+  }
+
+  /** Custom inspect for Node.js `util.inspect` / `console.log`. */
+  [Symbol.for('nodejs.util.inspect.custom')](): string {
+    return this.toString();
+  }
+
   // ── Internal helpers ───────────────────────────────
 
   /** Throw if the client is in wallet-only mode (no private key). */
