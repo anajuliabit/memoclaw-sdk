@@ -25,10 +25,11 @@ env/
 *.swp
 *.swo
 
-# Testing
+# Testing / Coverage
 .pytest_cache/
 .coverage
 htmlcov/
+coverage/
 
 # OS
 .DS_Store
