@@ -593,6 +593,45 @@ class TestContextManager:
             assert result.free_tier_remaining == 1000
 
 
+class TestStoreBatch:
+    @respx.mock
+    def test_store_batch_nests_tags_in_metadata(self, client: MemoClaw):
+        """StoreInput.tags should be nested inside metadata, not sent as top-level field."""
+        from memoclaw import StoreInput
+
+        route = respx.post(f"{BASE_URL}/v1/store/batch").mock(
+            return_value=httpx.Response(
+                201,
+                json={
+                    "ids": ["m1", "m2"],
+                    "stored": True,
+                    "count": 2,
+                    "deduplicated_count": 0,
+                    "tokens_used": 84,
+                },
+            )
+        )
+        inputs = [
+            StoreInput(content="Memory A", tags=["tag1", "tag2"], importance=0.8),
+            StoreInput(content="Memory B", metadata={"existing": True}, tags=["tag3"]),
+        ]
+        result = client.store_batch(inputs)
+        assert result.count == 2
+
+        # Verify the request body has tags nested inside metadata
+        import json as json_mod
+        body = json_mod.loads(route.calls[0].request.content)
+        memories = body["memories"]
+        # First memory: tags should be inside metadata
+        assert "tags" not in memories[0] or "tags" in memories[0].get("metadata", {})
+        assert memories[0]["metadata"]["tags"] == ["tag1", "tag2"]
+        # Second memory: tags merged into existing metadata
+        assert memories[1]["metadata"]["tags"] == ["tag3"]
+        assert memories[1]["metadata"]["existing"] is True
+        # tags should NOT be a top-level field
+        assert "tags" not in {k for k in memories[0] if k != "metadata"}
+
+
 class TestIterMemories:
     @respx.mock
     def test_iter_memories_pagination(self, client: MemoClaw):
@@ -624,6 +663,39 @@ class TestIterMemories:
         assert len(memories) == 3
         assert [m.id for m in memories] == ["m1", "m2", "m3"]
         assert route.call_count == 2
+
+    @respx.mock
+    def test_iter_memories_with_filters(self, client: MemoClaw):
+        """iter_memories should pass memory_type, before, after, include_deleted to list()."""
+        mem_json = {
+            "id": "m1", "user_id": "u1", "namespace": "default",
+            "content": "mem 1", "embedding_model": "text-embedding-3-small",
+            "metadata": {}, "importance": 0.5, "memory_type": "preference",
+            "session_id": None, "agent_id": None,
+            "created_at": "2025-06-01T00:00:00Z",
+            "updated_at": "2025-06-01T00:00:00Z",
+            "accessed_at": "2025-06-01T00:00:00Z",
+            "access_count": 0, "deleted_at": None, "expires_at": None,
+            "pinned": False,
+        }
+        route = respx.get(f"{BASE_URL}/v1/memories").mock(
+            return_value=httpx.Response(200, json={
+                "memories": [mem_json],
+                "total": 1, "limit": 50, "offset": 0,
+            })
+        )
+        memories = list(client.iter_memories(
+            memory_type="preference",
+            after="2025-01-01T00:00:00Z",
+            before="2026-01-01T00:00:00Z",
+            include_deleted=True,
+        ))
+        assert len(memories) == 1
+        url_str = str(route.calls[0].request.url)
+        assert "memory_type=preference" in url_str
+        assert "after=2025-01-01" in url_str
+        assert "before=2026-01-01" in url_str
+        assert "include_deleted=true" in url_str
 
     @respx.mock
     def test_iter_export_pagination(self, client: MemoClaw):

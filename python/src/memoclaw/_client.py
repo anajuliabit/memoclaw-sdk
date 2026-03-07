@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import random
 import time
 from typing import Any
 
@@ -145,8 +146,10 @@ class _SyncHTTPClient:
             except (httpx.ConnectError, httpx.ReadTimeout, httpx.WriteTimeout) as exc:
                 last_exc = exc
                 if attempt < self._max_retries:
+                    delay = _RETRY_BASE_DELAY * (2**attempt)
+                    jitter = delay * 0.25 * random.random()
                     logger.debug("Network error on %s %s, retrying (attempt %d/%d)", method, path, attempt + 1, self._max_retries)
-                    time.sleep(_RETRY_BASE_DELAY * (2**attempt))
+                    time.sleep(delay + jitter)
                     continue
                 raise
 
@@ -175,6 +178,7 @@ class _SyncHTTPClient:
                     delay = float(retry_after)
                 else:
                     delay = _RETRY_BASE_DELAY * (2**attempt)
+                    delay += delay * 0.25 * random.random()
                 logger.debug("Retrying %s %s in %.1fs (attempt %d/%d)", method, path, delay, attempt + 1, self._max_retries)
                 time.sleep(delay)
                 continue
@@ -267,8 +271,10 @@ class _AsyncHTTPClient:
             except (httpx.ConnectError, httpx.ReadTimeout, httpx.WriteTimeout) as exc:
                 last_exc = exc
                 if attempt < self._max_retries:
+                    delay = _RETRY_BASE_DELAY * (2**attempt)
+                    jitter = delay * 0.25 * random.random()
                     logger.debug("Network error on %s %s, retrying (attempt %d/%d)", method, path, attempt + 1, self._max_retries)
-                    await asyncio.sleep(_RETRY_BASE_DELAY * (2**attempt))
+                    await asyncio.sleep(delay + jitter)
                     continue
                 raise
 
@@ -297,6 +303,7 @@ class _AsyncHTTPClient:
                     delay = float(retry_after)
                 else:
                     delay = _RETRY_BASE_DELAY * (2**attempt)
+                    delay += delay * 0.25 * random.random()
                 logger.debug("Retrying %s %s in %.1fs (attempt %d/%d)", method, path, delay, attempt + 1, self._max_retries)
                 await asyncio.sleep(delay)
                 continue
