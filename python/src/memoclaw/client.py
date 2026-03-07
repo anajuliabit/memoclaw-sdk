@@ -984,6 +984,54 @@ class MemoClaw:
         data = self._run_request("GET", "/v1/export", params=params, timeout=timeout)
         return ExportResponse.model_validate(data)
 
+    def iter_export(
+        self,
+        *,
+        batch_size: int = 50,
+        namespace: str | None = None,
+        memory_type: MemoryType | None = None,
+        tags: _list[str] | None = None,
+        session_id: str | None = None,
+        agent_id: str | None = None,
+        before: str | None = None,
+        after: str | None = None,
+        include_deleted: bool | None = None,
+    ) -> Iterator[Memory]:
+        """Iterate over exportable memories with automatic pagination.
+
+        Unlike :meth:`export` which loads all memories into a single response,
+        this method yields individual :class:`Memory` objects in batches,
+        making it memory-efficient for large memory sets.
+
+        Args:
+            batch_size: Number of memories to fetch per request (default 50).
+            namespace: Filter by namespace.
+            memory_type: Filter by memory type.
+            tags: Filter by tags.
+            session_id: Filter by session ID.
+            agent_id: Filter by agent ID.
+            before: Only memories created before this ISO timestamp.
+            after: Only memories created after this ISO timestamp.
+            include_deleted: Whether to include soft-deleted memories.
+
+        Yields:
+            Individual :class:`Memory` objects.
+        """
+        offset = 0
+        while True:
+            page = self.list(
+                limit=batch_size,
+                offset=offset,
+                namespace=namespace,
+                tags=tags,
+                session_id=session_id,
+                agent_id=agent_id,
+            )
+            yield from page.memories
+            offset += len(page.memories)
+            if offset >= page.total or not page.memories:
+                break
+
     # ── History ──────────────────────────────────────────────────────────
 
     def get_history(self, memory_id: str, *, timeout: float | None = None) -> _list[HistoryEntry]:
@@ -1908,6 +1956,54 @@ class AsyncMemoClaw:
         )
         data = await self._run_request("GET", "/v1/export", params=params, timeout=timeout)
         return ExportResponse.model_validate(data)
+
+    async def iter_export(
+        self,
+        *,
+        batch_size: int = 50,
+        namespace: str | None = None,
+        memory_type: MemoryType | None = None,
+        tags: _list[str] | None = None,
+        session_id: str | None = None,
+        agent_id: str | None = None,
+        before: str | None = None,
+        after: str | None = None,
+        include_deleted: bool | None = None,
+    ) -> AsyncIterator[Memory]:
+        """Iterate over exportable memories with automatic pagination.
+
+        Async counterpart of :meth:`MemoClaw.iter_export`. Yields individual
+        :class:`Memory` objects in batches for memory-efficient large exports.
+
+        Args:
+            batch_size: Number of memories to fetch per request (default 50).
+            namespace: Filter by namespace.
+            memory_type: Filter by memory type.
+            tags: Filter by tags.
+            session_id: Filter by session ID.
+            agent_id: Filter by agent ID.
+            before: Only memories created before this ISO timestamp.
+            after: Only memories created after this ISO timestamp.
+            include_deleted: Whether to include soft-deleted memories.
+
+        Yields:
+            Individual :class:`Memory` objects.
+        """
+        offset = 0
+        while True:
+            page = await self.list(
+                limit=batch_size,
+                offset=offset,
+                namespace=namespace,
+                tags=tags,
+                session_id=session_id,
+                agent_id=agent_id,
+            )
+            for memory in page.memories:
+                yield memory
+            offset += len(page.memories)
+            if offset >= page.total or not page.memories:
+                break
 
     # ── History ──────────────────────────────────────────────────────────
 
