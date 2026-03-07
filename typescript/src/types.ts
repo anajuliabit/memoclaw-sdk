@@ -126,6 +126,10 @@ export interface ListMemoriesParams {
   namespace?: string;
   session_id?: string;
   agent_id?: string;
+  memory_type?: MemoryType;
+  before?: string;
+  after?: string;
+  include_deleted?: boolean;
 }
 
 export interface UpdateMemoryRequest {
