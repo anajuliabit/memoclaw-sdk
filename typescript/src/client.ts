@@ -400,6 +400,10 @@ export class MemoClawClient {
     if (params.namespace) query['namespace'] = params.namespace;
     if (params.session_id) query['session_id'] = params.session_id;
     if (params.agent_id) query['agent_id'] = params.agent_id;
+    if (params.memory_type) query['memory_type'] = params.memory_type;
+    if (params.before) query['before'] = params.before;
+    if (params.after) query['after'] = params.after;
+    if (params.include_deleted !== undefined) query['include_deleted'] = String(params.include_deleted);
     return this.request<ListMemoriesResponse>('GET', '/v1/memories', undefined, query, options);
   }
 
@@ -732,6 +736,10 @@ export class MemoClawClient {
         tags: filters.tags,
         session_id: filters.session_id,
         agent_id: filters.agent_id,
+        memory_type: filters.memory_type,
+        before: filters.before,
+        after: filters.after,
+        include_deleted: filters.include_deleted,
       });
       for (const mem of page.memories) {
         yield mem;

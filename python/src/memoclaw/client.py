@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 from types import EllipsisType
 from urllib.parse import quote
@@ -397,6 +396,10 @@ class MemoClaw:
         tags: _list[str] | None = None,
         session_id: str | None = None,
         agent_id: str | None = None,
+        memory_type: MemoryType | None = None,
+        before: str | None = None,
+        after: str | None = None,
+        include_deleted: bool | None = None,
         timeout: float | None = None,
     ) -> ListResponse:
         """List memories with pagination."""
@@ -408,6 +411,10 @@ class MemoClaw:
                 "tags": tags,
                 "session_id": session_id,
                 "agent_id": agent_id,
+                "memory_type": memory_type,
+                "before": before,
+                "after": after,
+                "include_deleted": include_deleted,
             }
         )
         data = self._run_request("GET", "/v1/memories", params=params, timeout=timeout)
@@ -1026,6 +1033,10 @@ class MemoClaw:
                 tags=tags,
                 session_id=session_id,
                 agent_id=agent_id,
+                memory_type=memory_type,
+                before=before,
+                after=after,
+                include_deleted=include_deleted,
             )
             yield from page.memories
             offset += len(page.memories)
@@ -1387,6 +1398,10 @@ class AsyncMemoClaw:
         tags: _list[str] | None = None,
         session_id: str | None = None,
         agent_id: str | None = None,
+        memory_type: MemoryType | None = None,
+        before: str | None = None,
+        after: str | None = None,
+        include_deleted: bool | None = None,
         timeout: float | None = None,
     ) -> ListResponse:
         """List memories with pagination."""
@@ -1398,6 +1413,10 @@ class AsyncMemoClaw:
                 "tags": tags,
                 "session_id": session_id,
                 "agent_id": agent_id,
+                "memory_type": memory_type,
+                "before": before,
+                "after": after,
+                "include_deleted": include_deleted,
             }
         )
         data = await self._run_request("GET", "/v1/memories", params=params, timeout=timeout)
@@ -1998,6 +2017,10 @@ class AsyncMemoClaw:
                 tags=tags,
                 session_id=session_id,
                 agent_id=agent_id,
+                memory_type=memory_type,
+                before=before,
+                after=after,
+                include_deleted=include_deleted,
             )
             for memory in page.memories:
                 yield memory
