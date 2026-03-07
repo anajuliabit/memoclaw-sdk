@@ -70,6 +70,8 @@ class TestMemoryBuilder:
         )
         assert memory.expires_at is not None
         assert memory.expires_at.endswith("Z")
+        # Must not have double timezone suffix (e.g., "+00:00Z")
+        assert "+00:00Z" not in memory.expires_at
 
     def test_importance_validation_high(self):
         with pytest.raises(ValueError, match="between 0.0 and 1.0"):
@@ -524,6 +526,27 @@ class TestBatchStore:
         
         assert result["count"] == 0
         assert result["ids"] == []
+
+    def test_tags_nested_under_metadata(self, client: MemoClaw):
+        """Test that tags are correctly nested under metadata, not top-level."""
+        store = BatchStore(client)
+        store.add("Test memory", tags=["important", "test"])
+
+        assert store.count() == 1
+        memory = store._memories[0]
+        # Tags must be under metadata.tags, not at top level
+        assert "tags" not in memory or memory.get("tags") is None or isinstance(memory.get("metadata", {}).get("tags"), list)
+        assert memory["metadata"]["tags"] == ["important", "test"]
+        assert "tags" not in {k for k in memory if k != "metadata"}
+
+    def test_tags_merged_with_metadata(self, client: MemoClaw):
+        """Test that tags and custom metadata are merged correctly."""
+        store = BatchStore(client)
+        store.add("Test memory", tags=["test"], metadata={"source": "unit-test"})
+
+        memory = store._memories[0]
+        assert memory["metadata"]["tags"] == ["test"]
+        assert memory["metadata"]["source"] == "unit-test"
 
 
 class TestStoreBuilder:

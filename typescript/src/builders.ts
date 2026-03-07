@@ -406,20 +406,26 @@ export class AsyncRecallQuery {
     if (!this._query) {
       throw new Error('Query is required. Use .withQuery() to set it.');
     }
-    return this.client.recall({
+
+    const request: RecallRequest = {
       query: this._query,
-      limit: this._limit,
-      min_similarity: this._minSimilarity,
-      namespace: this._namespace,
-      session_id: this._sessionId,
-      agent_id: this._agentId,
-      include_relations: this._includeRelations,
-      filters: {
-        tags: this._tags,
-        after: this._after,
-        memory_type: this._memoryType,
-      },
-    });
+    };
+
+    if (this._limit !== undefined) request.limit = this._limit;
+    if (this._minSimilarity !== undefined) request.min_similarity = this._minSimilarity;
+    if (this._namespace) request.namespace = this._namespace;
+    if (this._sessionId) request.session_id = this._sessionId;
+    if (this._agentId) request.agent_id = this._agentId;
+    if (this._includeRelations !== undefined) request.include_relations = this._includeRelations;
+
+    if (this._tags !== undefined || this._memoryType !== undefined || this._after !== undefined) {
+      request.filters = {};
+      if (this._tags) request.filters.tags = this._tags;
+      if (this._memoryType) request.filters.memory_type = this._memoryType;
+      if (this._after) request.filters.after = this._after;
+    }
+
+    return this.client.recall(request);
   }
 
   /** Execute and iterate over results as an async generator. */

@@ -576,6 +576,10 @@ describe('MemoClawClient Extensions', () => {
       expect(results.every(r => r.deleted)).toBe(true);
     });
 
+    it('should throw on empty ids array', async () => {
+      await expect(client.deleteBatch([])).rejects.toThrow('ids array must not be empty');
+    });
+
     it('should chunk large batches', async () => {
       // 150 ids should be split into 3 chunks of 50
       const ids = Array.from({ length: 150 }, (_, i) => `m${i}`);
