@@ -198,6 +198,21 @@ class MemoClaw:
         self._after_response_hooks: _list[AfterResponseHook] = []
         self._on_error_hooks: _list[OnErrorHook] = []
 
+    # ── Auth helpers ────────────────────────────────────────────────────
+
+    def _require_signed_auth(self, method_name: str) -> None:
+        """Raise if the client is in wallet-only mode (no private key).
+
+        Paid endpoints require cryptographic signature auth. This gives a
+        clear client-side error instead of a confusing server 401/403.
+        """
+        if self._http._account is None:
+            raise ValueError(
+                f"{method_name}() requires a private key for signed authentication. "
+                "Pass private_key= option, set MEMOCLAW_PRIVATE_KEY, "
+                "or run `memoclaw init`."
+            )
+
     # ── Hooks API ────────────────────────────────────────────────────────
 
     def on_before_request(self, hook: BeforeRequestHook) -> MemoClaw:
@@ -288,6 +303,7 @@ class MemoClaw:
         Args:
             timeout: Per-request timeout in seconds. Overrides the client default.
         """
+        self._require_signed_auth("store")
         _validate_non_empty(content, "content")
         body = _build_store_body(
             content,
@@ -316,6 +332,7 @@ class MemoClaw:
         Args:
             timeout: Per-request timeout in seconds. Overrides the client default.
         """
+        self._require_signed_auth("store_batch")
         if not memories:
             raise ValueError("memories list must not be empty")
         if len(memories) > MAX_BATCH_SIZE:
@@ -359,6 +376,7 @@ class MemoClaw:
         timeout: float | None = None,
     ) -> RecallResponse:
         """Semantic recall of memories matching a query."""
+        self._require_signed_auth("recall")
         _validate_non_empty(query, "query")
         body: dict[str, Any] = {"query": query}
         if limit is not None:
@@ -478,6 +496,7 @@ class MemoClaw:
         Args:
             timeout: Per-request timeout in seconds. Overrides the client default.
         """
+        self._require_signed_auth("update")
         body: dict[str, Any] = {}
         if content is not None:
             body["content"] = content
@@ -522,6 +541,7 @@ class MemoClaw:
                 {"id": "mem-2", "content": "Updated content", "pinned": True},
             ])
         """
+        self._require_signed_auth("update_batch")
         if not updates:
             raise ValueError("updates list must not be empty")
         if len(updates) > MAX_BATCH_SIZE:
@@ -587,6 +607,7 @@ class MemoClaw:
         Args:
             timeout: Per-request timeout in seconds. Overrides the client default.
         """
+        self._require_signed_auth("ingest")
         body: dict[str, Any] = {}
         if messages is not None:
             body["messages"] = [
@@ -622,6 +643,7 @@ class MemoClaw:
         Args:
             timeout: Per-request timeout in seconds. Overrides the client default.
         """
+        self._require_signed_auth("extract")
         body: dict[str, Any] = {
             "messages": [
                 m.model_dump() if isinstance(m, Message) else m for m in messages
@@ -653,6 +675,7 @@ class MemoClaw:
         Args:
             timeout: Per-request timeout in seconds. Overrides the client default.
         """
+        self._require_signed_auth("consolidate")
         body = _clean_body(
             {
                 "namespace": namespace,
@@ -709,6 +732,7 @@ class MemoClaw:
         Args:
             timeout: Per-request timeout in seconds. Overrides the client default.
         """
+        self._require_signed_auth("create_relation")
         _validate_non_empty(memory_id, "memory_id")
         _validate_non_empty(target_id, "target_id")
         body: dict[str, Any] = {
@@ -788,6 +812,7 @@ class MemoClaw:
             ]
             result = client.migrate(files, namespace="imported")
         """
+        self._require_signed_auth("migrate")
         if not files:
             raise ValueError("files list must not be empty")
         body: dict[str, Any] = {"files": files}
@@ -859,6 +884,7 @@ class MemoClaw:
         Args:
             timeout: Per-request timeout in seconds. Overrides the client default.
         """
+        self._require_signed_auth("assemble_context")
         _validate_non_empty(query, "query")
         body = _clean_body(
             {
@@ -1198,6 +1224,21 @@ class AsyncMemoClaw:
         self._after_response_hooks: _list[AfterResponseHook] = []
         self._on_error_hooks: _list[OnErrorHook] = []
 
+    # ── Auth helpers ────────────────────────────────────────────────────
+
+    def _require_signed_auth(self, method_name: str) -> None:
+        """Raise if the client is in wallet-only mode (no private key).
+
+        Paid endpoints require cryptographic signature auth. This gives a
+        clear client-side error instead of a confusing server 401/403.
+        """
+        if self._http._account is None:
+            raise ValueError(
+                f"{method_name}() requires a private key for signed authentication. "
+                "Pass private_key= option, set MEMOCLAW_PRIVATE_KEY, "
+                "or run `memoclaw init`."
+            )
+
     # ── Hooks API ────────────────────────────────────────────────────────
 
     def on_before_request(self, hook: BeforeRequestHook) -> AsyncMemoClaw:
@@ -1288,6 +1329,7 @@ class AsyncMemoClaw:
         Args:
             timeout: Per-request timeout in seconds. Overrides the client default.
         """
+        self._require_signed_auth("store")
         _validate_non_empty(content, "content")
         body = _build_store_body(
             content,
@@ -1316,6 +1358,7 @@ class AsyncMemoClaw:
         Args:
             timeout: Per-request timeout in seconds. Overrides the client default.
         """
+        self._require_signed_auth("store_batch")
         if not memories:
             raise ValueError("memories list must not be empty")
         if len(memories) > MAX_BATCH_SIZE:
@@ -1361,6 +1404,7 @@ class AsyncMemoClaw:
         timeout: float | None = None,
     ) -> RecallResponse:
         """Semantic recall of memories matching a query."""
+        self._require_signed_auth("recall")
         _validate_non_empty(query, "query")
         body: dict[str, Any] = {"query": query}
         if limit is not None:
@@ -1481,6 +1525,7 @@ class AsyncMemoClaw:
         Args:
             timeout: Per-request timeout in seconds. Overrides the client default.
         """
+        self._require_signed_auth("update")
         body: dict[str, Any] = {}
         if content is not None:
             body["content"] = content
@@ -1526,6 +1571,7 @@ class AsyncMemoClaw:
                 {"id": "mem-2", "content": "Updated content", "pinned": True},
             ])
         """
+        self._require_signed_auth("update_batch")
         if not updates:
             raise ValueError("updates list must not be empty")
         if len(updates) > MAX_BATCH_SIZE:
@@ -1591,6 +1637,7 @@ class AsyncMemoClaw:
         Args:
             timeout: Per-request timeout in seconds. Overrides the client default.
         """
+        self._require_signed_auth("ingest")
         body: dict[str, Any] = {}
         if messages is not None:
             body["messages"] = [
@@ -1626,6 +1673,7 @@ class AsyncMemoClaw:
         Args:
             timeout: Per-request timeout in seconds. Overrides the client default.
         """
+        self._require_signed_auth("extract")
         body: dict[str, Any] = {
             "messages": [
                 m.model_dump() if isinstance(m, Message) else m for m in messages
@@ -1657,6 +1705,7 @@ class AsyncMemoClaw:
         Args:
             timeout: Per-request timeout in seconds. Overrides the client default.
         """
+        self._require_signed_auth("consolidate")
         body = _clean_body(
             {
                 "namespace": namespace,
@@ -1715,6 +1764,7 @@ class AsyncMemoClaw:
         Args:
             timeout: Per-request timeout in seconds. Overrides the client default.
         """
+        self._require_signed_auth("create_relation")
         _validate_non_empty(memory_id, "memory_id")
         _validate_non_empty(target_id, "target_id")
         body: dict[str, Any] = {
@@ -1772,6 +1822,7 @@ class AsyncMemoClaw:
         timeout: float | None = None,
     ) -> MigrateResult:
         """Bulk import markdown memory files. See sync version for details."""
+        self._require_signed_auth("migrate")
         if not files:
             raise ValueError("files list must not be empty")
         body: dict[str, Any] = {"files": files}
@@ -1844,6 +1895,7 @@ class AsyncMemoClaw:
         Args:
             timeout: Per-request timeout in seconds. Overrides the client default.
         """
+        self._require_signed_auth("assemble_context")
         _validate_non_empty(query, "query")
         body = _clean_body(
             {

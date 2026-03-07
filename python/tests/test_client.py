@@ -543,6 +543,36 @@ class TestWalletOnlyAuth:
         assert req.headers["x-wallet-auth"] == wallet
         c.close()
 
+    def test_wallet_only_rejects_paid_endpoints(self, monkeypatch):
+        """Wallet-only clients should raise ValueError for paid endpoints."""
+        monkeypatch.delenv("MEMOCLAW_PRIVATE_KEY", raising=False)
+        monkeypatch.delenv("MEMOCLAW_WALLET", raising=False)
+        monkeypatch.delenv("MEMOCLAW_URL", raising=False)
+        wallet = "0x1234567890abcdef1234567890abcdef12345678"
+        c = MemoClaw(wallet_address=wallet, base_url=BASE_URL)
+
+        import pytest
+
+        paid_methods = [
+            ("store", lambda: c.store("test")),
+            ("store_batch", lambda: c.store_batch([{"content": "test"}])),
+            ("recall", lambda: c.recall("query")),
+            ("update", lambda: c.update("mem-1", content="new")),
+            ("update_batch", lambda: c.update_batch([{"id": "mem-1", "content": "new"}])),
+            ("ingest", lambda: c.ingest(text="test")),
+            ("extract", lambda: c.extract([{"role": "user", "content": "test"}])),
+            ("consolidate", lambda: c.consolidate()),
+            ("create_relation", lambda: c.create_relation("m1", "m2", "related_to")),
+            ("migrate", lambda: c.migrate([{"filename": "f.md", "content": "c"}])),
+            ("assemble_context", lambda: c.assemble_context("query")),
+        ]
+
+        for method_name, fn in paid_methods:
+            with pytest.raises(ValueError, match="requires a private key"):
+                fn()
+
+        c.close()
+
 
 class TestContextManager:
     @respx.mock
