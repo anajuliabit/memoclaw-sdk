@@ -52,6 +52,7 @@ export type {
   SuggestedResponse,
   ExtractRequest,
   ExtractResponse,
+  ClusterInfo,
   ConsolidateRequest,
   ConsolidateResponse,
   CreateRelationRequest,

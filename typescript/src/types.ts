@@ -248,12 +248,17 @@ export interface ConsolidateRequest {
   dry_run?: boolean;
 }
 
+export interface ClusterInfo {
+  memory_ids: string[];
+  similarity: number;
+  merged_into?: string;
+}
+
 export interface ConsolidateResponse {
-  clusters: number;
-  merged: number;
-  tokens_used: number;
-  dry_run: boolean;
-  details?: unknown[];
+  clusters_found: number;
+  memories_merged: number;
+  memories_created: number;
+  clusters: ClusterInfo[];
 }
 
 // ── Relations (mutations) ──────────────────────────────
@@ -266,7 +271,11 @@ export interface CreateRelationRequest {
 
 export interface CreateRelationResponse {
   id: string;
-  created: boolean;
+  source_id: string;
+  target_id: string;
+  relation_type: RelationType;
+  metadata: Record<string, unknown>;
+  created_at: string;
 }
 
 export interface ListRelationsResponse {

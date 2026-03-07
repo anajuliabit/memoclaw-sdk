@@ -193,19 +193,23 @@ describe('MemoClawClient', () => {
 
   describe('consolidate', () => {
     it('sends POST /v1/memories/consolidate', async () => {
-      const f = mockFetch([{ status: 200, body: { clusters: 2, merged: 3, tokens_used: 100, dry_run: false } }]);
+      const f = mockFetch([{ status: 200, body: { clusters_found: 2, memories_merged: 3, memories_created: 0, clusters: [{ memory_ids: ['a', 'b'], similarity: 0.92, merged_into: 'c' }] } }]);
       const client = createClient(f);
       const result = await client.consolidate({ min_similarity: 0.9 });
-      expect(result.clusters).toBe(2);
+      expect(result.clusters_found).toBe(2);
+      expect(result.memories_merged).toBe(3);
+      expect(result.clusters[0]?.merged_into).toBe('c');
     });
   });
 
   describe('relations', () => {
     it('creates a relation', async () => {
-      const f = mockFetch([{ status: 201, body: { id: 'rel-1', created: true } }]);
+      const f = mockFetch([{ status: 201, body: { id: 'rel-1', source_id: 'm1', target_id: 'm2', relation_type: 'related_to', metadata: {}, created_at: '2025-01-01T00:00:00Z' } }]);
       const client = createClient(f);
       const result = await client.createRelation('m1', { target_id: 'm2', relation_type: 'related_to' });
       expect(result.id).toBe('rel-1');
+      expect(result.source_id).toBe('m1');
+      expect(result.relation_type).toBe('related_to');
     });
 
     it('lists relations', async () => {

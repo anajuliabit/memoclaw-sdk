@@ -28,6 +28,7 @@ from .types import (
     ConsolidateResult,
     ContextResult,
     CoreMemoriesResponse,
+    DeleteBatchItemResult,
     DeleteResult,
     ExportResponse,
     ExtractResult,
@@ -547,22 +548,22 @@ class MemoClaw:
         data = self._run_request("DELETE", f"/v1/memories/{quote(memory_id, safe='')}", timeout=timeout)
         return DeleteResult.model_validate(data)
 
-    def delete_batch(self, memory_ids: _list[str], *, timeout: float | None = None) -> _list[DeleteResult]:
+    def delete_batch(self, memory_ids: _list[str], *, timeout: float | None = None) -> _list[DeleteBatchItemResult]:
         """Delete multiple memories by ID using the batch endpoint.
 
         Processes in chunks of 50 for API compatibility.
-        Returns a list of :class:`DeleteResult` objects.
+        Returns a list of :class:`DeleteBatchItemResult` objects.
         """
         if not memory_ids:
             return []
-        results: _list[DeleteResult] = []
+        results: _list[DeleteBatchItemResult] = []
         for i in range(0, len(memory_ids), 50):
             chunk = memory_ids[i : i + 50]
             data = self._run_request(
                 "POST", "/v1/memories/batch-delete", json={"ids": chunk}, timeout=timeout
             )
             for item in data.get("results", []):
-                results.append(DeleteResult.model_validate(item))
+                results.append(DeleteBatchItemResult.model_validate(item))
         return results
 
     #: Alias for :meth:`recall` — matches Mem0/Pinecone ``search`` convention.
@@ -1551,22 +1552,22 @@ class AsyncMemoClaw:
         data = await self._run_request("DELETE", f"/v1/memories/{quote(memory_id, safe='')}", timeout=timeout)
         return DeleteResult.model_validate(data)
 
-    async def delete_batch(self, memory_ids: _list[str], *, timeout: float | None = None) -> _list[DeleteResult]:
+    async def delete_batch(self, memory_ids: _list[str], *, timeout: float | None = None) -> _list[DeleteBatchItemResult]:
         """Delete multiple memories by ID using the batch endpoint.
 
         Processes in chunks of 50 for API compatibility.
-        Returns a list of :class:`DeleteResult` objects.
+        Returns a list of :class:`DeleteBatchItemResult` objects.
         """
         if not memory_ids:
             return []
-        results: _list[DeleteResult] = []
+        results: _list[DeleteBatchItemResult] = []
         for i in range(0, len(memory_ids), 50):
             chunk = memory_ids[i : i + 50]
             data = await self._run_request(
                 "POST", "/v1/memories/batch-delete", json={"ids": chunk}, timeout=timeout
             )
             for item in data.get("results", []):
-                results.append(DeleteResult.model_validate(item))
+                results.append(DeleteBatchItemResult.model_validate(item))
         return results
 
     #: Alias for :meth:`recall` — matches Mem0/Pinecone ``search`` convention.
