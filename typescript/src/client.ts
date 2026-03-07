@@ -132,7 +132,7 @@ export class MemoClawClient {
       ?? this._account?.address
       ?? process.env.MEMOCLAW_WALLET
       ?? config.wallet;
-    if (!wallet) {
+    if (!wallet || !wallet.trim()) {
       throw new Error(
         'Authentication required. Pass privateKey (for full access) or wallet (for free endpoints), '
         + 'set MEMOCLAW_PRIVATE_KEY / MEMOCLAW_WALLET, '

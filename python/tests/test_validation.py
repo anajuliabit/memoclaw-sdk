@@ -21,6 +21,20 @@ def async_client():
     return AsyncMemoClaw(private_key=TEST_PRIVATE_KEY)
 
 
+class TestConstructorValidation:
+    def test_empty_wallet_address_raises(self):
+        with pytest.raises(ValueError, match="non-empty"):
+            MemoClaw(wallet_address="")
+
+    def test_whitespace_wallet_address_raises(self):
+        with pytest.raises(ValueError, match="non-empty"):
+            MemoClaw(wallet_address="   ")
+
+    def test_async_empty_wallet_address_raises(self):
+        with pytest.raises(ValueError, match="non-empty"):
+            AsyncMemoClaw(wallet_address="")
+
+
 class TestSyncValidation:
     def test_store_empty_content(self, client: MemoClaw):
         with pytest.raises(ValueError, match="content"):
