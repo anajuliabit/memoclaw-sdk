@@ -78,9 +78,19 @@ jobs:
         with:
           node-version: ${{ matrix.node-version }}
 
+      - name: Build local SDK
+        working-directory: typescript
+        run: |
+          npm ci
+          npm run build
+
       - name: Install dependencies
         working-directory: mcp-server
-        run: npm ci
+        run: npm ci --legacy-peer-deps
+
+      - name: Link local SDK
+        working-directory: mcp-server
+        run: npm install --no-save ../typescript
 
       - name: Type check
         working-directory: mcp-server
