@@ -100,7 +100,7 @@ class MemoryBuilder:
         """Set expiration relative to now (in days)."""
         from datetime import datetime, timedelta, timezone
         expires = datetime.now(timezone.utc) + timedelta(days=days)
-        self._expires_at = expires.isoformat() + "Z"
+        self._expires_at = expires.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
         return self
 
     def pinned(self, pinned: bool = True) -> MemoryBuilder:
@@ -634,8 +634,6 @@ class BatchStore:
         memory: dict[str, Any] = {"content": content}
         if importance is not None:
             memory["importance"] = importance
-        if tags is not None:
-            memory["tags"] = tags
         if namespace is not None:
             memory["namespace"] = namespace
         if memory_type is not None:
@@ -644,8 +642,12 @@ class BatchStore:
             memory["session_id"] = session_id
         if agent_id is not None:
             memory["agent_id"] = agent_id
-        if metadata is not None:
-            memory["metadata"] = metadata
+        # Nest tags under metadata to match API's StoreRequest format
+        if tags is not None or metadata is not None:
+            md: dict[str, Any] = metadata.copy() if metadata else {}
+            if tags is not None:
+                md["tags"] = tags
+            memory["metadata"] = md
         self._memories.append(memory)
         return self
 

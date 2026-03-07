@@ -463,6 +463,9 @@ export class MemoClawClient {
 
   /** Delete multiple memories by ID in batch. */
   async deleteBatch(ids: string[], options?: RequestOptions): Promise<import('./types.js').DeleteBatchResult[]> {
+    if (!ids.length) {
+      throw new Error('ids array must not be empty');
+    }
     const results: import('./types.js').DeleteBatchResult[] = [];
     // Process in chunks of 50
     for (let i = 0; i < ids.length; i += 50) {
