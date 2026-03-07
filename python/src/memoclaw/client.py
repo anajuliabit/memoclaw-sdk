@@ -82,6 +82,17 @@ def _clean_body(body: dict[str, Any]) -> dict[str, Any]:
 MAX_BATCH_SIZE = 100
 
 
+def _normalize_store_input(m: StoreInput) -> dict[str, Any]:
+    """Serialize a StoreInput, nesting ``tags`` inside ``metadata`` to match the API schema."""
+    data = m.model_dump(exclude_none=True)
+    tags = data.pop("tags", None)
+    if tags is not None:
+        md: dict[str, Any] = data.get("metadata") or {}
+        md["tags"] = tags
+        data["metadata"] = md
+    return data
+
+
 def _validate_non_empty(value: str | None, name: str) -> None:
     """Raise ValueError if value is empty or whitespace-only."""
     if not value or not value.strip():
@@ -340,7 +351,7 @@ class MemoClaw:
                 f"Batch size {len(memories)} exceeds maximum of {MAX_BATCH_SIZE}"
             )
         items = [
-            m.model_dump(exclude_none=True) if isinstance(m, StoreInput) else m
+            _normalize_store_input(m) if isinstance(m, StoreInput) else m
             for m in memories
         ]
         data = self._run_request("POST", "/v1/store/batch", json={"memories": items}, timeout=timeout)
@@ -447,10 +458,15 @@ class MemoClaw:
         tags: _list[str] | None = None,
         session_id: str | None = None,
         agent_id: str | None = None,
+        memory_type: MemoryType | None = None,
+        before: str | None = None,
+        after: str | None = None,
+        include_deleted: bool | None = None,
     ) -> Iterator[Memory]:
         """Iterate over all memories with automatic pagination.
 
         Yields individual :class:`Memory` objects, fetching pages transparently.
+        Supports all the same filters as :meth:`list`.
         """
         offset = 0
         while True:
@@ -461,6 +477,10 @@ class MemoClaw:
                 tags=tags,
                 session_id=session_id,
                 agent_id=agent_id,
+                memory_type=memory_type,
+                before=before,
+                after=after,
+                include_deleted=include_deleted,
             )
             yield from page.memories
             offset += len(page.memories)
@@ -1366,7 +1386,7 @@ class AsyncMemoClaw:
                 f"Batch size {len(memories)} exceeds maximum of {MAX_BATCH_SIZE}"
             )
         items = [
-            m.model_dump(exclude_none=True) if isinstance(m, StoreInput) else m
+            _normalize_store_input(m) if isinstance(m, StoreInput) else m
             for m in memories
         ]
         data = await self._run_request(
@@ -1475,10 +1495,15 @@ class AsyncMemoClaw:
         tags: _list[str] | None = None,
         session_id: str | None = None,
         agent_id: str | None = None,
+        memory_type: MemoryType | None = None,
+        before: str | None = None,
+        after: str | None = None,
+        include_deleted: bool | None = None,
     ) -> AsyncIterator[Memory]:
         """Iterate over all memories with automatic pagination.
 
         Yields individual :class:`Memory` objects, fetching pages transparently.
+        Supports all the same filters as :meth:`list`.
         """
         offset = 0
         while True:
@@ -1489,6 +1514,10 @@ class AsyncMemoClaw:
                 tags=tags,
                 session_id=session_id,
                 agent_id=agent_id,
+                memory_type=memory_type,
+                before=before,
+                after=after,
+                include_deleted=include_deleted,
             )
             for mem in page.memories:
                 yield mem
