@@ -1,0 +1,64 @@
+{
+  "name": "@memoclaw/mcp-server",
+  "version": "0.1.0",
+  "description": "MCP (Model Context Protocol) server for MemoClaw memory API",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "memoclaw-mcp-server": "./dist/index.js"
+  },
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "memoclaw",
+    "mcp",
+    "model-context-protocol",
+    "memory",
+    "ai",
+    "claude-desktop",
+    "cursor"
+  ],
+  "license": "MIT",
+  "author": "MemoClaw",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/anajuliabit/memoclaw-sdk",
+    "directory": "mcp-server"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "zod": "^3.24.0"
+  },
+  "peerDependencies": {
+    "@memoclaw/sdk": ">=0.1.0"
+  },
+  "peerDependenciesMeta": {
+    "@memoclaw/sdk": {
+      "optional": false
+    }
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "typescript": "^5",
+    "vitest": "^4.0.18",
+    "viem": "^2.46.1"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

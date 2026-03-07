@@ -8,12 +8,13 @@
 
 Official SDKs for the [MemoClaw](https://memoclaw.com) memory API.
 
-## Available SDKs
+## Available Packages
 
-| Language | Package | Directory |
-|----------|---------|-----------|
-| Python | [`memoclaw`](https://pypi.org/project/memoclaw/) | [`./python`](./python/) |
-| TypeScript | [`@memoclaw/sdk`](https://www.npmjs.com/package/@memoclaw/sdk) | [`./typescript`](./typescript/) |
+| Package | Language | Directory | Description |
+|---------|----------|-----------|-------------|
+| [`memoclaw`](https://pypi.org/project/memoclaw/) | Python | [`./python`](./python/) | Python SDK |
+| [`@memoclaw/sdk`](https://www.npmjs.com/package/@memoclaw/sdk) | TypeScript | [`./typescript`](./typescript/) | TypeScript SDK |
+| [`@memoclaw/mcp-server`](https://www.npmjs.com/package/@memoclaw/mcp-server) | TypeScript | [`./mcp-server`](./mcp-server/) | MCP server for Claude Desktop, Cursor, etc. |
 
 ## What is MemoClaw?
 
