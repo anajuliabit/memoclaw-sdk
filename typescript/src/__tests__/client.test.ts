@@ -198,7 +198,7 @@ describe('MemoClawClient', () => {
       const result = await client.consolidate({ min_similarity: 0.9 });
       expect(result.clusters_found).toBe(2);
       expect(result.memories_merged).toBe(3);
-      expect(result.clusters[0].merged_into).toBe('c');
+      expect(result.clusters[0]?.merged_into).toBe('c');
     });
   });
 
