@@ -58,6 +58,20 @@ describe('MemoClawClient', () => {
       }
     });
 
+    it('rejects empty string wallet address', () => {
+      const origKey = process.env.MEMOCLAW_PRIVATE_KEY;
+      const origWallet = process.env.MEMOCLAW_WALLET;
+      delete process.env.MEMOCLAW_PRIVATE_KEY;
+      delete process.env.MEMOCLAW_WALLET;
+      try {
+        expect(() => new MemoClawClient({ wallet: '' })).toThrow('Authentication required');
+        expect(() => new MemoClawClient({ wallet: '   ' })).toThrow('Authentication required');
+      } finally {
+        if (origKey !== undefined) process.env.MEMOCLAW_PRIVATE_KEY = origKey;
+        if (origWallet !== undefined) process.env.MEMOCLAW_WALLET = origWallet;
+      }
+    });
+
     it('accepts wallet-only mode without private key', () => {
       const orig = process.env.MEMOCLAW_PRIVATE_KEY;
       delete process.env.MEMOCLAW_PRIVATE_KEY;

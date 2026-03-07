@@ -270,3 +270,116 @@ describe('textSearch', () => {
     expect(url).toContain('memory_type=correction');
   });
 });
+
+describe('deleteBatch', () => {
+  it('should POST /v1/memories/batch-delete', async () => {
+    const fetch = mockFetch([{
+      status: 200,
+      body: {
+        results: [
+          { id: 'mem-1', deleted: true },
+          { id: 'mem-2', deleted: true },
+        ],
+      },
+    }]);
+    const client = createClient(fetch);
+    const results = await client.deleteBatch(['mem-1', 'mem-2']);
+    expect(results).toHaveLength(2);
+    expect(results[0]!.deleted).toBe(true);
+    expect(results[0]!.id).toBe('mem-1');
+    expect(fetch).toHaveBeenCalledWith(
+      `${BASE_URL}/v1/memories/batch-delete`,
+      expect.objectContaining({ method: 'POST' }),
+    );
+  });
+
+  it('should throw on empty array', async () => {
+    const client = createClient(vi.fn());
+    await expect(client.deleteBatch([])).rejects.toThrow('ids array must not be empty');
+  });
+
+  it('should chunk large batches into groups of 50', async () => {
+    const ids = Array.from({ length: 75 }, (_, i) => `mem-${i}`);
+    const fetch = mockFetch([
+      {
+        status: 200,
+        body: {
+          results: ids.slice(0, 50).map((id) => ({ id, deleted: true })),
+        },
+      },
+      {
+        status: 200,
+        body: {
+          results: ids.slice(50).map((id) => ({ id, deleted: true })),
+        },
+      },
+    ]);
+    const client = createClient(fetch);
+    const results = await client.deleteBatch(ids);
+    expect(results).toHaveLength(75);
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('iterExport', () => {
+  it('should paginate through memories', async () => {
+    const fetch = mockFetch([
+      {
+        status: 200,
+        body: {
+          memories: [
+            { id: 'mem-1', content: 'first' },
+            { id: 'mem-2', content: 'second' },
+          ],
+          total: 3,
+          limit: 2,
+          offset: 0,
+        },
+      },
+      {
+        status: 200,
+        body: {
+          memories: [{ id: 'mem-3', content: 'third' }],
+          total: 3,
+          limit: 2,
+          offset: 2,
+        },
+      },
+    ]);
+    const client = createClient(fetch);
+    const memories: unknown[] = [];
+    for await (const mem of client.iterExport({ batchSize: 2 })) {
+      memories.push(mem);
+    }
+    expect(memories).toHaveLength(3);
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('should handle empty result', async () => {
+    const fetch = mockFetch([{
+      status: 200,
+      body: { memories: [], total: 0, limit: 50, offset: 0 },
+    }]);
+    const client = createClient(fetch);
+    const memories: unknown[] = [];
+    for await (const mem of client.iterExport()) {
+      memories.push(mem);
+    }
+    expect(memories).toEqual([]);
+  });
+
+  it('should pass filter params', async () => {
+    const fetch = mockFetch([{
+      status: 200,
+      body: { memories: [], total: 0, limit: 50, offset: 0 },
+    }]);
+    const client = createClient(fetch);
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    for await (const _ of client.iterExport({ namespace: 'test', tags: ['a'] })) {
+      // consume
+    }
+    const url = (fetch as any).mock.calls[0][0] as string;
+    expect(url).toContain('namespace=test');
+    expect(url).toContain('tags=a');
+  });
+});

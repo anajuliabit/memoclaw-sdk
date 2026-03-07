@@ -97,15 +97,23 @@ def resolve_wallet_address(
 
     Returns ``None`` if no wallet address is available (private key mode
     derives the address automatically).
+
+    Raises:
+        ValueError: If an explicit empty string is passed.
     """
     if explicit is not None:
+        if not explicit.strip():
+            raise ValueError(
+                "wallet_address must be a non-empty string. "
+                "Pass a valid Ethereum address or omit the argument."
+            )
         return explicit
 
     env_wallet = os.environ.get("MEMOCLAW_WALLET")
-    if env_wallet:
+    if env_wallet and env_wallet.strip():
         return env_wallet
 
-    if config and config.wallet:
+    if config and config.wallet and config.wallet.strip():
         return config.wallet
 
     return None
