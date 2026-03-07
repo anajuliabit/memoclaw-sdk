@@ -595,6 +595,63 @@ class TestIterMemories:
         assert [m.id for m in memories] == ["m1", "m2", "m3"]
         assert route.call_count == 2
 
+    @respx.mock
+    def test_iter_export_pagination(self, client: MemoClaw):
+        """iter_export should auto-paginate through all memories."""
+        mem_json = lambda i: {
+            "id": f"m{i}", "user_id": "u1", "namespace": "default",
+            "content": f"mem {i}", "embedding_model": "text-embedding-3-small",
+            "metadata": {}, "importance": 0.5, "memory_type": "general",
+            "session_id": None, "agent_id": None,
+            "created_at": "2025-01-01T00:00:00Z",
+            "updated_at": "2025-01-01T00:00:00Z",
+            "accessed_at": "2025-01-01T00:00:00Z",
+            "access_count": 0, "deleted_at": None, "expires_at": None,
+            "pinned": False,
+        }
+        route = respx.get(f"{BASE_URL}/v1/memories").mock(
+            side_effect=[
+                httpx.Response(200, json={
+                    "memories": [mem_json(1), mem_json(2)],
+                    "total": 3, "limit": 2, "offset": 0,
+                }),
+                httpx.Response(200, json={
+                    "memories": [mem_json(3)],
+                    "total": 3, "limit": 2, "offset": 2,
+                }),
+            ]
+        )
+        memories = list(client.iter_export(batch_size=2))
+        assert len(memories) == 3
+        assert [m.id for m in memories] == ["m1", "m2", "m3"]
+        assert route.call_count == 2
+
+    @respx.mock
+    def test_iter_export_with_namespace_filter(self, client: MemoClaw):
+        """iter_export should pass namespace filter to list."""
+        mem_json = {
+            "id": "m1", "user_id": "u1", "namespace": "project-a",
+            "content": "mem 1", "embedding_model": "text-embedding-3-small",
+            "metadata": {}, "importance": 0.5, "memory_type": "general",
+            "session_id": None, "agent_id": None,
+            "created_at": "2025-01-01T00:00:00Z",
+            "updated_at": "2025-01-01T00:00:00Z",
+            "accessed_at": "2025-01-01T00:00:00Z",
+            "access_count": 0, "deleted_at": None, "expires_at": None,
+            "pinned": False,
+        }
+        route = respx.get(f"{BASE_URL}/v1/memories").mock(
+            return_value=httpx.Response(200, json={
+                "memories": [mem_json],
+                "total": 1, "limit": 50, "offset": 0,
+            })
+        )
+        memories = list(client.iter_export(namespace="project-a"))
+        assert len(memories) == 1
+        assert memories[0].namespace == "project-a"
+        # Verify the namespace param was sent
+        assert "namespace=project-a" in str(route.calls[0].request.url)
+
 
 class TestAsyncClient:
     @respx.mock

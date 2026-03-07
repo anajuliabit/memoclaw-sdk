@@ -710,6 +710,37 @@ export class MemoClawClient {
     return this.request<ExportResponse>('GET', '/v1/export', undefined, query, options);
   }
 
+  /**
+   * Iterate over exportable memories with automatic pagination.
+   *
+   * Unlike {@link export} which loads all memories into a single response,
+   * this method yields individual {@link Memory} objects in batches,
+   * making it memory-efficient for large memory sets.
+   *
+   * @param params - Filter parameters and optional batchSize (default 50).
+   */
+  async *iterExport(
+    params: Omit<ExportParams, 'format'> & { batchSize?: number } = {},
+  ): AsyncGenerator<Memory, void, unknown> {
+    const { batchSize = 50, ...filters } = params;
+    let offset = 0;
+    while (true) {
+      const page = await this.list({
+        limit: batchSize,
+        offset,
+        namespace: filters.namespace,
+        tags: filters.tags,
+        session_id: filters.session_id,
+        agent_id: filters.agent_id,
+      });
+      for (const mem of page.memories) {
+        yield mem;
+      }
+      offset += page.memories.length;
+      if (offset >= page.total || page.memories.length === 0) break;
+    }
+  }
+
   // ── History ────────────────────────────────────────────
 
   /** Get the change history for a memory. */
