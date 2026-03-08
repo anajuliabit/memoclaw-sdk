@@ -60,6 +60,7 @@ from .types import (
 from .builders import (
     AsyncMemoryFilter,
     AsyncRecallQuery,
+    AsyncRelationBuilder,
     AsyncStoreBuilder,
     BatchStore,
     MemoryFilter,
@@ -134,6 +135,7 @@ __all__ = [
     "MemoryFilter",
     "AsyncMemoryFilter",
     "RelationBuilder",
+    "AsyncRelationBuilder",
     "BatchStore",
     "StoreBuilder",
     "AsyncStoreBuilder",

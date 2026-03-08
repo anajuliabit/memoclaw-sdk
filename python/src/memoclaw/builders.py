@@ -179,6 +179,7 @@ class RecallBuilder:
         self._agent_id: str | None = None
         self._include_relations: bool | None = None
         self._memory_type: MemoryType | None = None
+        self._after: str | None = None
 
     def query(self, query: str) -> RecallBuilder:
         """Set the search query."""
@@ -227,6 +228,11 @@ class RecallBuilder:
         self._memory_type = memory_type
         return self
 
+    def after(self, after: str) -> RecallBuilder:
+        """Filter memories created after this ISO timestamp."""
+        self._after = after
+        return self
+
     def build(self) -> dict[str, Any]:
         """Build the recall parameters dict."""
         if not self._query:
@@ -247,12 +253,14 @@ class RecallBuilder:
         if self._include_relations is not None:
             params["include_relations"] = self._include_relations
         
-        if self._tags is not None or self._memory_type is not None:
+        if self._tags is not None or self._memory_type is not None or self._after is not None:
             filters: dict[str, Any] = {}
             if self._tags is not None:
                 filters["tags"] = self._tags
             if self._memory_type is not None:
                 filters["memory_type"] = self._memory_type
+            if self._after is not None:
+                filters["after"] = self._after
             params["filters"] = filters
         
         return params
@@ -606,6 +614,49 @@ class RelationBuilder:
         return results
 
 
+class AsyncRelationBuilder:
+    """Async version of RelationBuilder for use with AsyncMemoClaw.
+
+    Example::
+
+        async with AsyncMemoClaw() as client:
+            results = await (AsyncRelationBuilder(client, "memory-123")
+                .relate_to("memory-456", "related_to")
+                .relate_to("memory-789", "supports")
+                .create_all())
+    """
+
+    def __init__(self, client: "AsyncMemoClaw", source_id: str) -> None:
+        self._client = client
+        self._source_id = source_id
+        self._relations: list[tuple[str, RelationType, dict[str, Any] | None]] = []
+
+    def relate_to(
+        self,
+        target_id: str,
+        relation_type: RelationType,
+        metadata: dict[str, Any] | None = None,
+    ) -> AsyncRelationBuilder:
+        """Add a relation to be created."""
+        self._relations.append((target_id, relation_type, metadata))
+        return self
+
+    async def create_all(self) -> list[dict[str, Any]]:
+        """Create all pending relations."""
+        results = []
+        for target_id, relation_type, metadata in self._relations:
+            result = await self._client.create_relation(
+                self._source_id, target_id, relation_type, metadata=metadata
+            )
+            results.append({
+                "id": result.id,
+                "target_id": target_id,
+                "relation_type": relation_type,
+            })
+        self._relations.clear()
+        return results
+
+
 class BatchStore:
     """Efficient batch storage with automatic chunking.
 
@@ -917,6 +968,7 @@ __all__ = [
     "MemoryFilter",
     "AsyncMemoryFilter",
     "RelationBuilder",
+    "AsyncRelationBuilder",
     "BatchStore",
     "StoreBuilder",
     "AsyncStoreBuilder",

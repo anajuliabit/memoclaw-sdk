@@ -621,3 +621,124 @@ class TestStoreBuilder:
         """Test that invalid importance raises ValueError."""
         with pytest.raises(ValueError, match="importance must be between"):
             StoreBuilder(client).content("test").importance(1.5)
+
+
+class TestRecallBuilderAfter:
+    """Test that RecallBuilder supports the after() filter."""
+
+    def test_after_included_in_filters(self):
+        params = (
+            RecallBuilder()
+            .query("test query")
+            .after("2026-01-01T00:00:00Z")
+            .build()
+        )
+        assert params["query"] == "test query"
+        assert "filters" in params
+        assert params["filters"]["after"] == "2026-01-01T00:00:00Z"
+
+    def test_after_combined_with_other_filters(self):
+        params = (
+            RecallBuilder()
+            .query("test")
+            .tags(["important"])
+            .memory_type("preference")
+            .after("2026-03-01T00:00:00Z")
+            .build()
+        )
+        filters = params["filters"]
+        assert filters["tags"] == ["important"]
+        assert filters["memory_type"] == "preference"
+        assert filters["after"] == "2026-03-01T00:00:00Z"
+
+    def test_after_only_filter(self):
+        params = (
+            RecallBuilder()
+            .query("test")
+            .after("2026-01-01T00:00:00Z")
+            .build()
+        )
+        assert params["filters"] == {"after": "2026-01-01T00:00:00Z"}
+
+    def test_no_filters_when_none_set(self):
+        params = RecallBuilder().query("test").build()
+        assert "filters" not in params
+
+
+class TestAsyncRelationBuilder:
+    """Test AsyncRelationBuilder for use with AsyncMemoClaw."""
+
+    @pytest.fixture
+    def async_client(self):
+        import httpx
+        import respx
+        from memoclaw import AsyncMemoClaw
+        c = AsyncMemoClaw(private_key="0x4c0883a69102937d6231471b5dbb6204fe512961708279f15a8f7e20b4e3b1fb")
+        return c
+
+    @pytest.mark.asyncio
+    async def test_create_all_relations(self, async_client):
+        import respx
+        from httpx import Response
+        from memoclaw.builders import AsyncRelationBuilder
+
+        with respx.mock:
+            route = respx.post(url__regex=r".*v1/memories/.*/relations").mock(
+                side_effect=[
+                    Response(201, json={
+                        "id": "rel-1",
+                        "source_id": "mem-123",
+                        "target_id": "mem-456",
+                        "relation_type": "related_to",
+                        "created_at": "2026-01-01T00:00:00Z",
+                    }),
+                    Response(201, json={
+                        "id": "rel-2",
+                        "source_id": "mem-123",
+                        "target_id": "mem-789",
+                        "relation_type": "supports",
+                        "created_at": "2026-01-01T00:00:00Z",
+                    }),
+                ]
+            )
+
+            builder = AsyncRelationBuilder(async_client, "mem-123")
+            results = await (
+                builder
+                .relate_to("mem-456", "related_to")
+                .relate_to("mem-789", "supports")
+                .create_all()
+            )
+
+            assert len(results) == 2
+            assert results[0]["id"] == "rel-1"
+            assert results[0]["target_id"] == "mem-456"
+            assert results[0]["relation_type"] == "related_to"
+            assert results[1]["id"] == "rel-2"
+            assert results[1]["target_id"] == "mem-789"
+            assert route.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_create_all_clears_pending(self, async_client):
+        import respx
+        from httpx import Response
+        from memoclaw.builders import AsyncRelationBuilder
+
+        with respx.mock:
+            respx.post(url__regex=r".*v1/memories/.*/relations").mock(
+                return_value=Response(201, json={
+                    "id": "rel-1",
+                    "source_id": "mem-123",
+                    "target_id": "mem-456",
+                    "relation_type": "related_to",
+                    "created_at": "2026-01-01T00:00:00Z",
+                })
+            )
+
+            builder = AsyncRelationBuilder(async_client, "mem-123")
+            builder.relate_to("mem-456", "related_to")
+            await builder.create_all()
+            
+            # Second call should return empty since relations were cleared
+            results = await builder.create_all()
+            assert results == []

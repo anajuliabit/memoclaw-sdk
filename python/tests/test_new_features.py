@@ -116,8 +116,8 @@ class TestDeleteBatch:
 
     @respx.mock
     def test_delete_batch_empty(self, client: MemoClaw):
-        results = client.delete_batch([])
-        assert results == []
+        with pytest.raises(ValueError, match="memory_ids list must not be empty"):
+            client.delete_batch([])
 
     @respx.mock
     @pytest.mark.asyncio
