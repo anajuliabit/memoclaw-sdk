@@ -42,6 +42,7 @@ from .types import (
     MigrateResult,
     Message,
     NamespacesResponse,
+    PingResult,
     RecallResponse,
     Relation,
     RelationWithMemory,
@@ -195,6 +196,7 @@ class MemoClaw:
         pool_max_connections: int = DEFAULT_POOL_MAX_CONNECTIONS,
         pool_max_keepalive: int = DEFAULT_POOL_MAX_KEEPALIVE_CONNECTIONS,
         config_path: str | Path | None = None,
+        validate_on_init: bool = False,
     ) -> None:
         config = load_config(config_path)
         resolved_url = resolve_base_url(base_url, config)
@@ -224,6 +226,14 @@ class MemoClaw:
         self._before_request_hooks: _list[BeforeRequestHook] = []
         self._after_response_hooks: _list[AfterResponseHook] = []
         self._on_error_hooks: _list[OnErrorHook] = []
+
+        if validate_on_init:
+            result = self.ping()
+            if not result.ok:
+                raise ConnectionError(
+                    f"MemoClaw health check failed (latency: {result.latency_ms:.0f}ms). "
+                    "Check your network connection and base_url."
+                )
 
     # ── Auth helpers ────────────────────────────────────────────────────
 
@@ -839,6 +849,47 @@ class MemoClaw:
         """
         data = self._run_request("GET", "/v1/free-tier/status", timeout=timeout)
         return FreeTierStatus.model_validate(data)
+
+    # ── Ping / Health Check ──────────────────────────────────────────────
+
+    def ping(self, *, timeout: float | None = None) -> PingResult:
+        """Validate SDK configuration with a lightweight health check.
+
+        Calls the free-tier status endpoint to verify connectivity and auth,
+        and measures round-trip latency.
+
+        Returns:
+            :class:`PingResult` with ``ok``, ``latency_ms``, ``auth`` mode,
+            and ``free_tier_remaining``.
+
+        Example::
+
+            health = client.ping()
+            assert health.ok
+            print(f"Latency: {health.latency_ms:.0f}ms")
+        """
+        import time
+
+        auth_mode = "signed" if self._http._account is not None else "wallet-only"
+        start = time.monotonic()
+        try:
+            data = self._run_request("GET", "/v1/free-tier/status", timeout=timeout)
+            elapsed_ms = (time.monotonic() - start) * 1000
+            ft = FreeTierStatus.model_validate(data)
+            return PingResult(
+                ok=True,
+                latency_ms=round(elapsed_ms, 1),
+                auth=auth_mode,
+                free_tier_remaining=ft.free_tier_remaining,
+            )
+        except Exception:
+            elapsed_ms = (time.monotonic() - start) * 1000
+            return PingResult(
+                ok=False,
+                latency_ms=round(elapsed_ms, 1),
+                auth=auth_mode,
+                free_tier_remaining=0,
+            )
 
     # ── Migrate ───────────────────────────────────────────────────────────
 
@@ -1899,6 +1950,36 @@ class AsyncMemoClaw:
         """
         data = await self._run_request("GET", "/v1/free-tier/status", timeout=timeout)
         return FreeTierStatus.model_validate(data)
+
+    # ── Ping / Health Check ──────────────────────────────────────────────
+
+    async def ping(self, *, timeout: float | None = None) -> PingResult:
+        """Validate SDK configuration with a lightweight health check.
+
+        Async version of :meth:`MemoClaw.ping`. See sync version for details.
+        """
+        import time
+
+        auth_mode = "signed" if self._http._account is not None else "wallet-only"
+        start = time.monotonic()
+        try:
+            data = await self._run_request("GET", "/v1/free-tier/status", timeout=timeout)
+            elapsed_ms = (time.monotonic() - start) * 1000
+            ft = FreeTierStatus.model_validate(data)
+            return PingResult(
+                ok=True,
+                latency_ms=round(elapsed_ms, 1),
+                auth=auth_mode,
+                free_tier_remaining=ft.free_tier_remaining,
+            )
+        except Exception:
+            elapsed_ms = (time.monotonic() - start) * 1000
+            return PingResult(
+                ok=False,
+                latency_ms=round(elapsed_ms, 1),
+                auth=auth_mode,
+                free_tier_remaining=0,
+            )
 
     # ── Migrate ───────────────────────────────────────────────────────────
 

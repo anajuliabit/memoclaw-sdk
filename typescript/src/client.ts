@@ -26,6 +26,7 @@ import type {
   ListRelationsResponse,
   DeleteRelationResponse,
   FreeTierStatus,
+  PingResult,
   MigrateFile,
   MigrateRequest,
   MigrateResponse,
@@ -517,6 +518,64 @@ export class MemoClawClient {
   /** Check free tier remaining calls. */
   async status(options?: RequestOptions): Promise<FreeTierStatus> {
     return this.request<FreeTierStatus>('GET', '/v1/free-tier/status', undefined, undefined, options);
+  }
+
+  /**
+   * Validate SDK configuration with a lightweight health check.
+   *
+   * Calls the free-tier status endpoint to verify connectivity and auth,
+   * and measures round-trip latency.
+   *
+   * @example
+   * ```ts
+   * const health = await client.ping();
+   * console.log(health); // { ok: true, latencyMs: 42, auth: 'signed', freeTierRemaining: 87 }
+   * ```
+   */
+  async ping(options?: RequestOptions): Promise<PingResult> {
+    const authMode: PingResult['auth'] = this._account ? 'signed' : 'wallet-only';
+    const start = performance.now();
+    try {
+      const ft = await this.status(options);
+      const latencyMs = Math.round((performance.now() - start) * 10) / 10;
+      return {
+        ok: true,
+        latencyMs,
+        auth: authMode,
+        freeTierRemaining: ft.free_tier_remaining,
+      };
+    } catch {
+      const latencyMs = Math.round((performance.now() - start) * 10) / 10;
+      return {
+        ok: false,
+        latencyMs,
+        auth: authMode,
+        freeTierRemaining: 0,
+      };
+    }
+  }
+
+  /**
+   * Async factory that optionally validates the connection on creation.
+   *
+   * @example
+   * ```ts
+   * const client = await MemoClawClient.create({ wallet: '0x...', validateOnInit: true });
+   * // Connection already verified!
+   * ```
+   */
+  static async create(options: MemoClawOptions = {}): Promise<MemoClawClient> {
+    const client = new MemoClawClient(options);
+    if (options.validateOnInit) {
+      const result = await client.ping();
+      if (!result.ok) {
+        throw new Error(
+          `MemoClaw health check failed (latency: ${result.latencyMs.toFixed(0)}ms). `
+          + 'Check your network connection and baseUrl.',
+        );
+      }
+    }
+    return client;
   }
 
   /** Extract structured facts from a conversation via LLM. */
