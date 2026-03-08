@@ -517,6 +517,7 @@ class MemoClaw:
             timeout: Per-request timeout in seconds. Overrides the client default.
         """
         self._require_signed_auth("update")
+        _validate_non_empty(memory_id, "memory_id")
         body: dict[str, Any] = {}
         if content is not None:
             body["content"] = content
@@ -628,6 +629,8 @@ class MemoClaw:
             timeout: Per-request timeout in seconds. Overrides the client default.
         """
         self._require_signed_auth("ingest")
+        if not messages and not (text and text.strip()):
+            raise ValueError("Either messages or text must be provided")
         body: dict[str, Any] = {}
         if messages is not None:
             body["messages"] = [
@@ -664,6 +667,8 @@ class MemoClaw:
             timeout: Per-request timeout in seconds. Overrides the client default.
         """
         self._require_signed_auth("extract")
+        if not messages:
+            raise ValueError("messages must be a non-empty list")
         body: dict[str, Any] = {
             "messages": [
                 m.model_dump() if isinstance(m, Message) else m for m in messages
@@ -1555,6 +1560,7 @@ class AsyncMemoClaw:
             timeout: Per-request timeout in seconds. Overrides the client default.
         """
         self._require_signed_auth("update")
+        _validate_non_empty(memory_id, "memory_id")
         body: dict[str, Any] = {}
         if content is not None:
             body["content"] = content
@@ -1667,6 +1673,8 @@ class AsyncMemoClaw:
             timeout: Per-request timeout in seconds. Overrides the client default.
         """
         self._require_signed_auth("ingest")
+        if not messages and not (text and text.strip()):
+            raise ValueError("Either messages or text must be provided")
         body: dict[str, Any] = {}
         if messages is not None:
             body["messages"] = [
@@ -1703,6 +1711,8 @@ class AsyncMemoClaw:
             timeout: Per-request timeout in seconds. Overrides the client default.
         """
         self._require_signed_auth("extract")
+        if not messages:
+            raise ValueError("messages must be a non-empty list")
         body: dict[str, Any] = {
             "messages": [
                 m.model_dump() if isinstance(m, Message) else m for m in messages
