@@ -421,13 +421,13 @@ class TestErrorMapping:
                 json={
                     "error": {
                         "code": "VALIDATION_ERROR",
-                        "message": "Content too long",
+                        "message": "Invalid content",
                     }
                 },
             )
         )
         with pytest.raises(ValidationError) as exc_info:
-            client.store("x" * 10000)
+            client.store("some content that triggers server-side validation")
         assert exc_info.value.status_code == 422
 
 
