@@ -525,10 +525,33 @@ export interface MemoClawOptions {
   timeout?: number;
   /** Enable debug logging to console. For custom output, pass `logger` instead. */
   debug?: boolean;
-  /** Custom logger for SDK debug output. Must implement `debug(message, ...args)`. */
-  logger?: { debug(message: string, ...args: unknown[]): void };
+  /** Custom logger for SDK debug output.
+   *  Supports `debug`, `info`, `warn`, and `error` methods.
+   *  Only `debug` is required for backward compatibility. */
+  logger?: Logger;
   /** If true, call ping() on construction to validate the connection.
    *  Only works with the static async factory `MemoClawClient.create()`.
    *  Default: false. */
   validateOnInit?: boolean;
+  /** Minimum log level. Messages below this level are suppressed.
+   *  Default: `'debug'` (all messages). Set `'none'` to disable all logging. */
+  logLevel?: LogLevel;
+  /** Log output format. `'text'` (default) for human-readable, `'json'` for
+   *  structured JSON suitable for observability pipelines (Datadog, Grafana, etc). */
+  logFormat?: LogFormat;
+}
+
+/** Supported log levels (ascending severity). `'none'` disables all output. */
+export type LogLevel = 'debug' | 'info' | 'warn' | 'error' | 'none';
+
+/** Log output format. */
+export type LogFormat = 'text' | 'json';
+
+/** Logger interface accepted by the SDK.
+ *  All methods are optional except `debug` (for backward compat). */
+export interface Logger {
+  debug(message: string, ...args: unknown[]): void;
+  info?(message: string, ...args: unknown[]): void;
+  warn?(message: string, ...args: unknown[]): void;
+  error?(message: string, ...args: unknown[]): void;
 }
