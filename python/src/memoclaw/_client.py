@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import json as _json
 import logging
 import random
 import time
-from typing import Any
+from typing import Any, Literal
 
 import httpx
 from eth_account import Account
@@ -15,6 +16,69 @@ from eth_account.signers.local import LocalAccount
 from .errors import APIError, PaymentRequiredError
 
 logger = logging.getLogger("memoclaw")
+
+# Log level names accepted by the SDK
+LogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
+LogFormat = Literal["text", "json"]
+
+# Map string level names to logging constants
+_LEVEL_MAP: dict[str, int] = {
+    "DEBUG": logging.DEBUG,
+    "INFO": logging.INFO,
+    "WARNING": logging.WARNING,
+    "ERROR": logging.ERROR,
+    "CRITICAL": logging.CRITICAL,
+}
+
+
+class _StructuredJsonFormatter(logging.Formatter):
+    """Emit log records as single-line JSON objects for observability pipelines."""
+
+    def format(self, record: logging.LogRecord) -> str:
+        entry: dict[str, Any] = {
+            "timestamp": self.formatTime(record, self.datefmt),
+            "level": record.levelname,
+            "logger": record.name,
+            "message": record.getMessage(),
+        }
+        # Attach extra structured fields set by the SDK
+        for key in ("method", "path", "status", "duration_ms", "request_id"):
+            val = getattr(record, key, None)
+            if val is not None:
+                entry[key] = val
+        return _json.dumps(entry, default=str)
+
+
+def configure_sdk_logging(
+    level: LogLevel | int = "DEBUG",
+    log_format: LogFormat = "text",
+) -> None:
+    """Configure the ``memoclaw`` logger with the given level and format.
+
+    This is called automatically when ``log_level`` or ``log_format`` is passed
+    to the client constructor, but can also be called manually.
+
+    Args:
+        level: A Python logging level name or int (e.g. ``"INFO"`` or ``logging.DEBUG``).
+        log_format: ``"text"`` for human-readable output, ``"json"`` for structured JSON.
+    """
+    int_level = _LEVEL_MAP.get(level, level) if isinstance(level, str) else level
+    sdk_logger = logging.getLogger("memoclaw")
+    sdk_logger.setLevel(int_level)
+
+    # Remove existing handlers added by the SDK to avoid duplicates
+    sdk_logger.handlers = [h for h in sdk_logger.handlers if not getattr(h, "_memoclaw_sdk", False)]
+
+    handler = logging.StreamHandler()
+    handler._memoclaw_sdk = True  # type: ignore[attr-defined]
+    handler.setLevel(int_level)
+
+    if log_format == "json":
+        handler.setFormatter(_StructuredJsonFormatter())
+    else:
+        handler.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s"))
+
+    sdk_logger.addHandler(handler)
 
 DEFAULT_BASE_URL = "https://api.memoclaw.com"
 DEFAULT_TIMEOUT = 30.0
@@ -153,12 +217,19 @@ class _SyncHTTPClient:
                     continue
                 raise
 
-            duration_ms = (time.monotonic() - start) * 1000
+            duration_ms = round((time.monotonic() - start) * 1000)
             req_id = response.headers.get("x-request-id", "")
             logger.debug(
                 "%s %s → %d (%dms)%s",
                 method, path, response.status_code, duration_ms,
                 f" req={req_id}" if req_id else "",
+                extra={
+                    "method": method,
+                    "path": path,
+                    "status": response.status_code,
+                    "duration_ms": duration_ms,
+                    "request_id": req_id or None,
+                },
             )
 
             # 402 → attempt x402 payment and retry once
@@ -179,7 +250,11 @@ class _SyncHTTPClient:
                 else:
                     delay = _RETRY_BASE_DELAY * (2**attempt)
                     delay += delay * 0.25 * random.random()
-                logger.debug("Retrying %s %s in %.1fs (attempt %d/%d)", method, path, delay, attempt + 1, self._max_retries)
+                logger.info(
+                    "Retrying %s %s in %.1fs (attempt %d/%d)",
+                    method, path, delay, attempt + 1, self._max_retries,
+                    extra={"method": method, "path": path},
+                )
                 time.sleep(delay)
                 continue
 
@@ -278,12 +353,19 @@ class _AsyncHTTPClient:
                     continue
                 raise
 
-            duration_ms = (time.monotonic() - start) * 1000
+            duration_ms = round((time.monotonic() - start) * 1000)
             req_id = response.headers.get("x-request-id", "")
             logger.debug(
                 "%s %s → %d (%dms)%s",
                 method, path, response.status_code, duration_ms,
                 f" req={req_id}" if req_id else "",
+                extra={
+                    "method": method,
+                    "path": path,
+                    "status": response.status_code,
+                    "duration_ms": duration_ms,
+                    "request_id": req_id or None,
+                },
             )
 
             # 402 → attempt x402 payment and retry once
@@ -304,7 +386,11 @@ class _AsyncHTTPClient:
                 else:
                     delay = _RETRY_BASE_DELAY * (2**attempt)
                     delay += delay * 0.25 * random.random()
-                logger.debug("Retrying %s %s in %.1fs (attempt %d/%d)", method, path, delay, attempt + 1, self._max_retries)
+                logger.info(
+                    "Retrying %s %s in %.1fs (attempt %d/%d)",
+                    method, path, delay, attempt + 1, self._max_retries,
+                    extra={"method": method, "path": path},
+                )
                 await asyncio.sleep(delay)
                 continue
 

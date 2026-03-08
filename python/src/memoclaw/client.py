@@ -19,8 +19,11 @@ from ._client import (
     DEFAULT_POOL_MAX_CONNECTIONS,
     DEFAULT_POOL_MAX_KEEPALIVE_CONNECTIONS,
     DEFAULT_TIMEOUT,
+    LogFormat,
+    LogLevel,
     _AsyncHTTPClient,
     _SyncHTTPClient,
+    configure_sdk_logging,
 )
 from .builders import StoreBuilder, AsyncStoreBuilder
 from .config import load_config, resolve_base_url, resolve_private_key, resolve_wallet_address
@@ -197,6 +200,8 @@ class MemoClaw:
         pool_max_keepalive: int = DEFAULT_POOL_MAX_KEEPALIVE_CONNECTIONS,
         config_path: str | Path | None = None,
         validate_on_init: bool = False,
+        log_level: LogLevel | None = None,
+        log_format: LogFormat = "text",
     ) -> None:
         config = load_config(config_path)
         resolved_url = resolve_base_url(base_url, config)
@@ -209,6 +214,10 @@ class MemoClaw:
                 "set MEMOCLAW_PRIVATE_KEY / MEMOCLAW_WALLET, "
                 "or run `memoclaw init` to create ~/.memoclaw/config.json."
             )
+
+        # Configure SDK logging if caller requested it
+        if log_level is not None:
+            configure_sdk_logging(level=log_level, log_format=log_format)
 
         kwargs: dict[str, Any] = {
             "base_url": resolved_url,
@@ -1304,6 +1313,8 @@ class AsyncMemoClaw:
         pool_max_connections: int = DEFAULT_POOL_MAX_CONNECTIONS,
         pool_max_keepalive: int = DEFAULT_POOL_MAX_KEEPALIVE_CONNECTIONS,
         config_path: str | Path | None = None,
+        log_level: LogLevel | None = None,
+        log_format: LogFormat = "text",
     ) -> None:
         config = load_config(config_path)
         resolved_url = resolve_base_url(base_url, config)
@@ -1316,6 +1327,10 @@ class AsyncMemoClaw:
                 "set MEMOCLAW_PRIVATE_KEY / MEMOCLAW_WALLET, "
                 "or run `memoclaw init` to create ~/.memoclaw/config.json."
             )
+
+        # Configure SDK logging if caller requested it
+        if log_level is not None:
+            configure_sdk_logging(level=log_level, log_format=log_format)
 
         kwargs: dict[str, Any] = {
             "base_url": resolved_url,

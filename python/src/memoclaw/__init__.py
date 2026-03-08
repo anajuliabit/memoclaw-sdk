@@ -15,6 +15,7 @@ from .errors import (
     RateLimitError,
     ValidationError,
 )
+from ._client import LogFormat, LogLevel, configure_sdk_logging
 from .config import MemoClawConfig, load_config
 from .types import (
     ClusterInfo,
@@ -132,6 +133,9 @@ __all__ = [
     "TextSearchResponse",
     "MemoClawConfig",
     "load_config",
+    "configure_sdk_logging",
+    "LogLevel",
+    "LogFormat",
     # Builders
     "RecallQuery",
     "AsyncRecallQuery",
