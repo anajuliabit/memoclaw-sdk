@@ -80,6 +80,7 @@ def _clean_body(body: dict[str, Any]) -> dict[str, Any]:
 
 
 MAX_BATCH_SIZE = 100
+MAX_CONTENT_LENGTH = 8192
 
 
 def _normalize_store_input(m: StoreInput) -> dict[str, Any]:
@@ -97,6 +98,21 @@ def _validate_non_empty(value: str | None, name: str) -> None:
     """Raise ValueError if value is empty or whitespace-only."""
     if not value or not value.strip():
         raise ValueError(f"{name} must be a non-empty string")
+
+
+def _validate_importance(importance: float | None) -> None:
+    """Raise ValueError if importance is outside [0.0, 1.0]."""
+    if importance is not None and not (0.0 <= importance <= 1.0):
+        raise ValueError("importance must be between 0.0 and 1.0")
+
+
+def _validate_content_length(content: str, name: str = "content") -> None:
+    """Raise ValueError if content exceeds MAX_CONTENT_LENGTH."""
+    if len(content) > MAX_CONTENT_LENGTH:
+        raise ValueError(
+            f"{name} exceeds the {MAX_CONTENT_LENGTH} character limit. "
+            "Split into smaller memories or summarize."
+        )
 
 
 def _build_store_body(
@@ -316,6 +332,8 @@ class MemoClaw:
         """
         self._require_signed_auth("store")
         _validate_non_empty(content, "content")
+        _validate_content_length(content)
+        _validate_importance(importance)
         body = _build_store_body(
             content,
             importance=importance,
@@ -350,6 +368,18 @@ class MemoClaw:
             raise ValueError(
                 f"Batch size {len(memories)} exceeds maximum of {MAX_BATCH_SIZE}"
             )
+        for i, m in enumerate(memories):
+            c = m.content if isinstance(m, StoreInput) else m.get("content", "")
+            imp = m.importance if isinstance(m, StoreInput) else m.get("importance")
+            if c and len(c) > MAX_CONTENT_LENGTH:
+                raise ValueError(
+                    f"memories[{i}] content exceeds the {MAX_CONTENT_LENGTH} character limit. "
+                    "Split into smaller memories or summarize."
+                )
+            if imp is not None and not (0.0 <= imp <= 1.0):
+                raise ValueError(
+                    f"memories[{i}] importance must be between 0.0 and 1.0"
+                )
         items = [
             _normalize_store_input(m) if isinstance(m, StoreInput) else m
             for m in memories
@@ -518,6 +548,10 @@ class MemoClaw:
         """
         self._require_signed_auth("update")
         _validate_non_empty(memory_id, "memory_id")
+        if content is not None:
+            _validate_content_length(content)
+        if importance is not None:
+            _validate_importance(importance)
         body: dict[str, Any] = {}
         if content is not None:
             body["content"] = content
@@ -1356,6 +1390,8 @@ class AsyncMemoClaw:
         """
         self._require_signed_auth("store")
         _validate_non_empty(content, "content")
+        _validate_content_length(content)
+        _validate_importance(importance)
         body = _build_store_body(
             content,
             importance=importance,
@@ -1390,6 +1426,18 @@ class AsyncMemoClaw:
             raise ValueError(
                 f"Batch size {len(memories)} exceeds maximum of {MAX_BATCH_SIZE}"
             )
+        for i, m in enumerate(memories):
+            c = m.content if isinstance(m, StoreInput) else m.get("content", "")
+            imp = m.importance if isinstance(m, StoreInput) else m.get("importance")
+            if c and len(c) > MAX_CONTENT_LENGTH:
+                raise ValueError(
+                    f"memories[{i}] content exceeds the {MAX_CONTENT_LENGTH} character limit. "
+                    "Split into smaller memories or summarize."
+                )
+            if imp is not None and not (0.0 <= imp <= 1.0):
+                raise ValueError(
+                    f"memories[{i}] importance must be between 0.0 and 1.0"
+                )
         items = [
             _normalize_store_input(m) if isinstance(m, StoreInput) else m
             for m in memories
@@ -1561,6 +1609,10 @@ class AsyncMemoClaw:
         """
         self._require_signed_auth("update")
         _validate_non_empty(memory_id, "memory_id")
+        if content is not None:
+            _validate_content_length(content)
+        if importance is not None:
+            _validate_importance(importance)
         body: dict[str, Any] = {}
         if content is not None:
             body["content"] = content

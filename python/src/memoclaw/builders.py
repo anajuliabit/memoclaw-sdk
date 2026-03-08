@@ -49,6 +49,11 @@ class MemoryBuilder:
 
     def content(self, content: str) -> MemoryBuilder:
         """Set the memory content."""
+        if len(content) > 8192:
+            raise ValueError(
+                "content exceeds the 8192 character limit. "
+                "Split into smaller memories or summarize."
+            )
         self._content = content
         return self
 
@@ -726,6 +731,11 @@ class StoreBuilder:
 
     def content(self, content: str) -> StoreBuilder:
         """Set the memory content."""
+        if len(content) > 8192:
+            raise ValueError(
+                "content exceeds the 8192 character limit. "
+                "Split into smaller memories or summarize."
+            )
         self._content = content
         return self
 
@@ -825,6 +835,11 @@ class AsyncStoreBuilder:
         self._metadata: dict[str, Any] | None = None
 
     def content(self, content: str) -> AsyncStoreBuilder:
+        if len(content) > 8192:
+            raise ValueError(
+                "content exceeds the 8192 character limit. "
+                "Split into smaller memories or summarize."
+            )
         self._content = content
         return self
 
