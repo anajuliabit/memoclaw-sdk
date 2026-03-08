@@ -249,6 +249,15 @@ class FreeTierStatus(BaseModel):
     free_tier_used: int
 
 
+class PingResult(BaseModel):
+    """Result of a health check / ping."""
+
+    ok: bool
+    latency_ms: float
+    auth: str  # "signed" or "wallet-only"
+    free_tier_remaining: int
+
+
 # ── Context ──────────────────────────────────────────────────────────────────
 
 

@@ -62,6 +62,7 @@ export type {
   RelationWithMemory,
   MemoClawErrorBody,
   FreeTierStatus,
+  PingResult,
   MigrateFile,
   MigrateRequest,
   MigrateResponse,

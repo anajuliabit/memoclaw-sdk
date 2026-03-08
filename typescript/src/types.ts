@@ -335,6 +335,14 @@ export interface FreeTierStatus {
   free_tier_used: number;
 }
 
+/** Result of a health check / ping. */
+export interface PingResult {
+  ok: boolean;
+  latencyMs: number;
+  auth: 'signed' | 'wallet-only';
+  freeTierRemaining: number;
+}
+
 // ── Migrate ────────────────────────────────────────────
 
 export interface MigrateFile {
@@ -519,4 +527,8 @@ export interface MemoClawOptions {
   debug?: boolean;
   /** Custom logger for SDK debug output. Must implement `debug(message, ...args)`. */
   logger?: { debug(message: string, ...args: unknown[]): void };
+  /** If true, call ping() on construction to validate the connection.
+   *  Only works with the static async factory `MemoClawClient.create()`.
+   *  Default: false. */
+  validateOnInit?: boolean;
 }
