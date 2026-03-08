@@ -119,7 +119,9 @@ describe('Structured Logging', () => {
       expect(jsonCalls.length).toBeGreaterThan(0);
 
       // Verify structured fields
-      const firstEntry = JSON.parse(jsonCalls[0][0] as string);
+      const firstCall = jsonCalls[0];
+      expect(firstCall).toBeDefined();
+      const firstEntry = JSON.parse(firstCall![0] as string);
       expect(firstEntry).toHaveProperty('timestamp');
       expect(firstEntry).toHaveProperty('level');
       expect(firstEntry).toHaveProperty('logger', 'memoclaw');

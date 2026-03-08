@@ -103,7 +103,7 @@ function createSdkLogger(
   const minSeverity = LOG_LEVEL_SEVERITY[minLevel] ?? 0;
 
   function emit(level: 'debug' | 'info' | 'warn' | 'error', message: string, ...args: unknown[]): void {
-    if (LOG_LEVEL_SEVERITY[level] < minSeverity) return;
+    if ((LOG_LEVEL_SEVERITY[level] ?? 0) < minSeverity) return;
 
     if (format === 'json') {
       // Build structured entry — extra metadata may be passed as last arg object
