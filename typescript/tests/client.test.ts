@@ -304,7 +304,7 @@ describe('error handling', () => {
     const f = mockFetch([{ status: 422, ok: false, body: { error: { code: 'VALIDATION_ERROR', message: 'Bad input', details: { field: 'content' } } } }]);
     const client = createClient(f);
     try {
-      await client.store({ content: 'x'.repeat(10000) });
+      await client.store({ content: 'valid content' });
       expect.unreachable('should have thrown');
     } catch (e) {
       expect(e).toBeInstanceOf(ValidationError);

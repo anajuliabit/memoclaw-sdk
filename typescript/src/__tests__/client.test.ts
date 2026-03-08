@@ -275,7 +275,7 @@ describe('Error handling', () => {
     const f = mockFetch([{ status: 422, ok: false, body: { error: { code: 'VALIDATION_ERROR', message: 'Content too long', details: { max: 8192 } } } }]);
     const client = createClient(f);
     try {
-      await client.store({ content: 'x'.repeat(10000) });
+      await client.store({ content: 'valid content' });
     } catch (e) {
       expect(e).toBeInstanceOf(ValidationError);
       expect((e as ValidationError).details).toEqual({ max: 8192 });
@@ -590,5 +590,66 @@ describe('wallet-only mode', () => {
     const client = createWalletOnlyClient(f);
     const result = await client.delete('mem-1');
     expect(result.deleted).toBe(true);
+  });
+});
+
+describe('Content length validation', () => {
+  it('store() rejects content exceeding 8192 chars', async () => {
+    const f = mockFetch([]);
+    const client = createClient(f);
+    await expect(client.store({ content: 'x'.repeat(8193) })).rejects.toThrow('8192 character limit');
+  });
+
+  it('store() accepts content at exactly 8192 chars', async () => {
+    const f = mockFetch([{ status: 201, body: { id: 'mem-1', stored: true, deduplicated: false, tokens_used: 50 } }]);
+    const client = createClient(f);
+    const result = await client.store({ content: 'x'.repeat(8192) });
+    expect(result.id).toBe('mem-1');
+  });
+
+  it('storeBatch() rejects items with content exceeding 8192 chars', async () => {
+    const f = mockFetch([]);
+    const client = createClient(f);
+    await expect(client.storeBatch([{ content: 'x'.repeat(8193) }])).rejects.toThrow('8192 character limit');
+  });
+
+  it('update() rejects content exceeding 8192 chars', async () => {
+    const f = mockFetch([]);
+    const client = createClient(f);
+    await expect(client.update('mem-1', { content: 'x'.repeat(8193) })).rejects.toThrow('8192 character limit');
+  });
+
+  it('update() allows updates without content', async () => {
+    const f = mockFetch([{ status: 200, body: { id: 'mem-1', content: 'test', importance: 0.9, memory_type: 'general', namespace: 'default', created_at: '2025-01-01', metadata: {} } }]);
+    const client = createClient(f);
+    const result = await client.update('mem-1', { importance: 0.9 });
+    expect(result.id).toBe('mem-1');
+  });
+});
+
+describe('Importance validation', () => {
+  it('store() rejects importance > 1.0', async () => {
+    const f = mockFetch([]);
+    const client = createClient(f);
+    await expect(client.store({ content: 'test', importance: 1.5 })).rejects.toThrow('importance must be between');
+  });
+
+  it('store() rejects negative importance', async () => {
+    const f = mockFetch([]);
+    const client = createClient(f);
+    await expect(client.store({ content: 'test', importance: -0.1 })).rejects.toThrow('importance must be between');
+  });
+
+  it('store() accepts importance at boundaries', async () => {
+    const f = mockFetch([{ status: 201, body: { id: 'mem-1', stored: true, deduplicated: false, tokens_used: 50 } }]);
+    const client = createClient(f);
+    const result = await client.store({ content: 'test', importance: 0.0 });
+    expect(result.id).toBe('mem-1');
+  });
+
+  it('update() rejects importance > 1.0', async () => {
+    const f = mockFetch([]);
+    const client = createClient(f);
+    await expect(client.update('mem-1', { importance: 2.0 })).rejects.toThrow('importance must be between');
   });
 });

@@ -63,6 +63,7 @@ import type { Hex } from 'viem';
 
 const DEFAULT_BASE_URL = 'https://api.memoclaw.com';
 const MAX_BATCH_SIZE = 100;
+const MAX_CONTENT_LENGTH = 8192;
 
 /** Status codes that are safe to retry (transient errors). */
 const RETRYABLE_STATUS_CODES = new Set([408, 429, 500, 502, 503, 504]);
@@ -353,6 +354,12 @@ export class MemoClawClient {
     if (!request.content?.trim()) {
       throw new Error('content must be a non-empty string');
     }
+    if (request.content.length > MAX_CONTENT_LENGTH) {
+      throw new Error(`content exceeds the ${MAX_CONTENT_LENGTH} character limit. Split into smaller memories or summarize.`);
+    }
+    if (request.importance !== undefined && (request.importance < 0 || request.importance > 1)) {
+      throw new Error('importance must be between 0.0 and 1.0');
+    }
     return this.request<StoreResponse>('POST', '/v1/store', request, undefined, options);
   }
 
@@ -368,6 +375,12 @@ export class MemoClawClient {
     for (const m of memories) {
       if (!m.content?.trim()) {
         throw new Error('All memories must have non-empty content');
+      }
+      if (m.content.length > MAX_CONTENT_LENGTH) {
+        throw new Error(`content exceeds the ${MAX_CONTENT_LENGTH} character limit. Split into smaller memories or summarize.`);
+      }
+      if (m.importance !== undefined && (m.importance < 0 || m.importance > 1)) {
+        throw new Error('importance must be between 0.0 and 1.0');
       }
     }
     return this.request<StoreBatchResponse>(
@@ -431,6 +444,12 @@ export class MemoClawClient {
   async update(id: string, request: UpdateMemoryRequest, options?: RequestOptions): Promise<Memory> {
     this.requireSignedAuth('update');
     if (!id?.trim()) throw new Error('id must be a non-empty string');
+    if (request.content !== undefined && request.content.length > MAX_CONTENT_LENGTH) {
+      throw new Error(`content exceeds the ${MAX_CONTENT_LENGTH} character limit. Split into smaller memories or summarize.`);
+    }
+    if (request.importance !== undefined && (request.importance < 0 || request.importance > 1)) {
+      throw new Error('importance must be between 0.0 and 1.0');
+    }
     return this.request<Memory>('PATCH', `/v1/memories/${encodeURIComponent(id)}`, request, undefined, options);
   }
 

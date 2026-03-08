@@ -53,6 +53,9 @@ export class MemoryBuilder {
    * Set the memory content (required).
    */
   content(content: string): this {
+    if (content.length > 8192) {
+      throw new Error('content exceeds the 8192 character limit. Split into smaller memories or summarize.');
+    }
     this._content = content;
     return this;
   }
@@ -710,6 +713,9 @@ export class StoreBuilder {
 
   /** Set the memory content. */
   content(content: string): StoreBuilder {
+    if (content.length > 8192) {
+      throw new Error('content exceeds the 8192 character limit. Split into smaller memories or summarize.');
+    }
     this._content = content;
     return this;
   }
