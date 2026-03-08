@@ -62,7 +62,7 @@ def configure_sdk_logging(
         level: A Python logging level name or int (e.g. ``"INFO"`` or ``logging.DEBUG``).
         log_format: ``"text"`` for human-readable output, ``"json"`` for structured JSON.
     """
-    int_level = _LEVEL_MAP.get(level, level) if isinstance(level, str) else level  # type: ignore[arg-type]
+    int_level = _LEVEL_MAP.get(level, level) if isinstance(level, str) else level
     sdk_logger = logging.getLogger("memoclaw")
     sdk_logger.setLevel(int_level)
 
