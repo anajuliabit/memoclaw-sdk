@@ -131,15 +131,15 @@ class TestValidationEdgeCases:
                 json={
                     "error": {
                         "code": "VALIDATION_ERROR",
-                        "message": "Content too long",
-                        "details": {"max_length": 8192, "actual_length": 10000},
+                        "message": "Invalid content format",
+                        "details": {"field": "content", "reason": "invalid format"},
                     }
                 },
             )
         )
         with pytest.raises(ValidationError) as exc_info:
-            client.store("x" * 10000)
-        assert exc_info.value.details == {"max_length": 8192, "actual_length": 10000}
+            client.store("some content that triggers server-side validation")
+        assert exc_info.value.details == {"field": "content", "reason": "invalid format"}
 
 
 class TestStoreBatch:
