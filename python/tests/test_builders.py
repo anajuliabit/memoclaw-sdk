@@ -161,6 +161,7 @@ import httpx
 
 from memoclaw import MemoClaw, AsyncMemoClaw
 from memoclaw.builders import (
+    AsyncBatchStore,
     AsyncMemoryFilter,
     AsyncRecallQuery,
     AsyncStoreBuilder,
@@ -742,3 +743,173 @@ class TestAsyncRelationBuilder:
             # Second call should return empty since relations were cleared
             results = await builder.create_all()
             assert results == []
+
+
+class TestAsyncBatchStore:
+    """Test AsyncBatchStore for use with AsyncMemoClaw."""
+
+    @pytest.fixture
+    def async_client(self):
+        """Create an async client for testing."""
+        from memoclaw import AsyncMemoClaw
+        c = AsyncMemoClaw(private_key="0x4c0883a69102937d6231471b5dbb6204fe512961708279f15a8f7e20b4e3b1fb")
+        return c
+
+    async def test_add_and_execute(self, async_client):
+        import respx
+        from httpx import Response
+
+        with respx.mock:
+            respx.post(url__regex=r".*v1/store/batch").mock(
+                return_value=Response(200, json={
+                    "ids": ["mem-1", "mem-2"],
+                    "stored": True,
+                    "count": 2,
+                    "deduplicated_count": 0,
+                    "tokens_used": 10,
+                })
+            )
+
+            store = AsyncBatchStore(async_client)
+            result = await (store
+                .add("Memory one", importance=0.8, tags=["test"])
+                .add("Memory two", namespace="ns")
+                .execute())
+
+            assert result["stored"] is True
+            assert result["count"] == 2
+            assert result["ids"] == ["mem-1", "mem-2"]
+            assert result["tokens_used"] == 10
+
+    async def test_empty_batch_returns_no_op(self, async_client):
+        store = AsyncBatchStore(async_client)
+        result = await store.execute()
+        assert result["stored"] is False
+        assert result["count"] == 0
+        assert result["ids"] == []
+
+    async def test_count(self, async_client):
+        store = AsyncBatchStore(async_client)
+        assert store.count() == 0
+        store.add("One")
+        assert store.count() == 1
+        store.add("Two").add("Three")
+        assert store.count() == 3
+
+    async def test_add_many(self, async_client):
+        import respx
+        from httpx import Response
+
+        with respx.mock:
+            respx.post(url__regex=r".*v1/store/batch").mock(
+                return_value=Response(200, json={
+                    "ids": ["mem-1", "mem-2", "mem-3"],
+                    "stored": True,
+                    "count": 3,
+                    "deduplicated_count": 0,
+                    "tokens_used": 15,
+                })
+            )
+
+            store = AsyncBatchStore(async_client)
+            memories = [
+                {"content": "Memory A"},
+                {"content": "Memory B"},
+                {"content": "Memory C"},
+            ]
+            result = await store.add_many(memories).execute()
+            assert result["count"] == 3
+
+    async def test_execute_clears_batch(self, async_client):
+        import respx
+        from httpx import Response
+
+        with respx.mock:
+            respx.post(url__regex=r".*v1/store/batch").mock(
+                return_value=Response(200, json={
+                    "ids": ["mem-1"],
+                    "stored": True,
+                    "count": 1,
+                    "deduplicated_count": 0,
+                    "tokens_used": 5,
+                })
+            )
+
+            store = AsyncBatchStore(async_client)
+            store.add("Memory one")
+            await store.execute()
+            assert store.count() == 0
+
+    async def test_chunking_large_batch(self, async_client):
+        import respx
+        from httpx import Response
+
+        call_count = 0
+
+        def mock_response(request):
+            nonlocal call_count
+            call_count += 1
+            # Return 100 IDs for first chunk, 10 for second
+            count = 100 if call_count == 1 else 10
+            return Response(200, json={
+                "ids": [f"mem-{i}" for i in range(count)],
+                "stored": True,
+                "count": count,
+                "deduplicated_count": 0,
+                "tokens_used": count,
+            })
+
+        with respx.mock:
+            respx.post(url__regex=r".*v1/store/batch").mock(side_effect=mock_response)
+
+            store = AsyncBatchStore(async_client)
+            # Add 110 memories — should chunk into 100 + 10
+            for i in range(110):
+                store.add(f"Memory {i}")
+            result = await store.execute()
+
+            assert call_count == 2
+            assert result["count"] == 110
+            assert result["tokens_used"] == 110
+
+    async def test_add_with_all_options(self, async_client):
+        import respx
+        from httpx import Response
+
+        with respx.mock:
+            route = respx.post(url__regex=r".*v1/store/batch").mock(
+                return_value=Response(200, json={
+                    "ids": ["mem-1"],
+                    "stored": True,
+                    "count": 1,
+                    "deduplicated_count": 0,
+                    "tokens_used": 5,
+                })
+            )
+
+            store = AsyncBatchStore(async_client)
+            await (store
+                .add(
+                    "Full options memory",
+                    importance=0.9,
+                    tags=["tag1", "tag2"],
+                    namespace="test-ns",
+                    memory_type="preference",
+                    session_id="sess-1",
+                    agent_id="agent-1",
+                    metadata={"custom": "value"},
+                )
+                .execute())
+
+            # Verify the request body
+            import json
+            body = json.loads(route.calls[0].request.content)
+            mem = body["memories"][0]
+            assert mem["content"] == "Full options memory"
+            assert mem["importance"] == 0.9
+            assert mem["namespace"] == "test-ns"
+            assert mem["memory_type"] == "preference"
+            assert mem["session_id"] == "sess-1"
+            assert mem["agent_id"] == "agent-1"
+            assert mem["metadata"]["tags"] == ["tag1", "tag2"]
+            assert mem["metadata"]["custom"] == "value"
