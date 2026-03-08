@@ -413,3 +413,16 @@ class TestImportanceValidation:
     async def test_async_update_importance_too_high(self, async_client: AsyncMemoClaw):
         with pytest.raises(ValueError, match="importance must be between"):
             await async_client.update("mem-1", importance=2.0)
+
+
+class TestDeleteBatchValidation:
+    def test_empty_list_raises(self, client: MemoClaw):
+        with pytest.raises(ValueError, match="memory_ids list must not be empty"):
+            client.delete_batch([])
+
+
+class TestAsyncDeleteBatchValidation:
+    @pytest.mark.asyncio
+    async def test_empty_list_raises(self, async_client: AsyncMemoClaw):
+        with pytest.raises(ValueError, match="memory_ids list must not be empty"):
+            await async_client.delete_batch([])

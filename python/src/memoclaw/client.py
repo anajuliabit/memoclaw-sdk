@@ -630,7 +630,7 @@ class MemoClaw:
         Returns a list of :class:`DeleteBatchItemResult` objects.
         """
         if not memory_ids:
-            return []
+            raise ValueError("memory_ids list must not be empty")
         results: _list[DeleteBatchItemResult] = []
         for i in range(0, len(memory_ids), 50):
             chunk = memory_ids[i : i + 50]
@@ -1692,7 +1692,7 @@ class AsyncMemoClaw:
         Returns a list of :class:`DeleteBatchItemResult` objects.
         """
         if not memory_ids:
-            return []
+            raise ValueError("memory_ids list must not be empty")
         results: _list[DeleteBatchItemResult] = []
         for i in range(0, len(memory_ids), 50):
             chunk = memory_ids[i : i + 50]
