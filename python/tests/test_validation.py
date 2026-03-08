@@ -91,6 +91,43 @@ class TestSyncValidation:
             client.delete_relation("mem-id", "")
 
 
+    def test_update_empty_memory_id(self, client: MemoClaw):
+        with pytest.raises(ValueError, match="memory_id"):
+            client.update("", content="new content")
+
+    def test_update_whitespace_memory_id(self, client: MemoClaw):
+        with pytest.raises(ValueError, match="memory_id"):
+            client.update("   ", content="new content")
+
+    def test_ingest_no_messages_or_text(self, client: MemoClaw):
+        with pytest.raises(ValueError, match="Either messages or text"):
+            client.ingest()
+
+    def test_ingest_empty_text(self, client: MemoClaw):
+        with pytest.raises(ValueError, match="Either messages or text"):
+            client.ingest(text="")
+
+    def test_ingest_whitespace_text(self, client: MemoClaw):
+        with pytest.raises(ValueError, match="Either messages or text"):
+            client.ingest(text="   ")
+
+    def test_extract_empty_messages(self, client: MemoClaw):
+        with pytest.raises(ValueError, match="messages must be a non-empty"):
+            client.extract([])
+
+    def test_get_history_empty_id(self, client: MemoClaw):
+        with pytest.raises(ValueError, match="memory_id"):
+            client.get_history("")
+
+    def test_assemble_context_empty_query(self, client: MemoClaw):
+        with pytest.raises(ValueError, match="query"):
+            client.assemble_context("")
+
+    def test_text_search_empty_query(self, client: MemoClaw):
+        with pytest.raises(ValueError, match="query"):
+            client.text_search("")
+
+
 class TestAsyncValidation:
     @pytest.mark.asyncio
     async def test_store_empty_content(self, async_client: AsyncMemoClaw):
@@ -144,3 +181,43 @@ class TestAsyncValidation:
             await async_client.delete_relation("", "rel-id")
         with pytest.raises(ValueError, match="relation_id"):
             await async_client.delete_relation("mem-id", "")
+
+    @pytest.mark.asyncio
+    async def test_update_empty_memory_id(self, async_client: AsyncMemoClaw):
+        with pytest.raises(ValueError, match="memory_id"):
+            await async_client.update("", content="new content")
+
+    @pytest.mark.asyncio
+    async def test_update_whitespace_memory_id(self, async_client: AsyncMemoClaw):
+        with pytest.raises(ValueError, match="memory_id"):
+            await async_client.update("   ", content="new content")
+
+    @pytest.mark.asyncio
+    async def test_ingest_no_messages_or_text(self, async_client: AsyncMemoClaw):
+        with pytest.raises(ValueError, match="Either messages or text"):
+            await async_client.ingest()
+
+    @pytest.mark.asyncio
+    async def test_ingest_empty_text(self, async_client: AsyncMemoClaw):
+        with pytest.raises(ValueError, match="Either messages or text"):
+            await async_client.ingest(text="")
+
+    @pytest.mark.asyncio
+    async def test_extract_empty_messages(self, async_client: AsyncMemoClaw):
+        with pytest.raises(ValueError, match="messages must be a non-empty"):
+            await async_client.extract([])
+
+    @pytest.mark.asyncio
+    async def test_get_history_empty_id(self, async_client: AsyncMemoClaw):
+        with pytest.raises(ValueError, match="memory_id"):
+            await async_client.get_history("")
+
+    @pytest.mark.asyncio
+    async def test_assemble_context_empty_query(self, async_client: AsyncMemoClaw):
+        with pytest.raises(ValueError, match="query"):
+            await async_client.assemble_context("")
+
+    @pytest.mark.asyncio
+    async def test_text_search_empty_query(self, async_client: AsyncMemoClaw):
+        with pytest.raises(ValueError, match="query"):
+            await async_client.text_search("")
