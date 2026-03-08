@@ -746,6 +746,99 @@ class BatchStore:
         }
 
 
+class AsyncBatchStore:
+    """Async version of BatchStore for use with AsyncMemoClaw.
+
+    Efficient batch storage with automatic chunking for async clients.
+
+    Example::
+
+        async with AsyncMemoClaw() as client:
+            store = AsyncBatchStore(client)
+            result = await (store
+                .add("User prefers dark mode", importance=0.9, tags=["preferences"])
+                .add("Meeting scheduled for Friday", tags=["calendar"])
+                .execute())
+    """
+
+    MAX_BATCH_SIZE = 100
+
+    def __init__(self, client: "AsyncMemoClaw") -> None:
+        self._client = client
+        self._memories: list[dict[str, Any]] = []
+
+    def add(
+        self,
+        content: str,
+        *,
+        importance: float | None = None,
+        tags: list[str] | None = None,
+        namespace: str | None = None,
+        memory_type: MemoryType | None = None,
+        session_id: str | None = None,
+        agent_id: str | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> AsyncBatchStore:
+        """Add a memory to the batch."""
+        memory: dict[str, Any] = {"content": content}
+        if importance is not None:
+            memory["importance"] = importance
+        if namespace is not None:
+            memory["namespace"] = namespace
+        if memory_type is not None:
+            memory["memory_type"] = memory_type
+        if session_id is not None:
+            memory["session_id"] = session_id
+        if agent_id is not None:
+            memory["agent_id"] = agent_id
+        # Nest tags under metadata to match API's StoreRequest format
+        if tags is not None or metadata is not None:
+            md: dict[str, Any] = metadata.copy() if metadata else {}
+            if tags is not None:
+                md["tags"] = tags
+            memory["metadata"] = md
+        self._memories.append(memory)
+        return self
+
+    def add_many(self, memories: list[dict[str, Any]]) -> AsyncBatchStore:
+        """Add multiple memories at once."""
+        for mem in memories:
+            if isinstance(mem, dict):
+                self._memories.append(mem)
+        return self
+
+    def count(self) -> int:
+        """Return the number of memories in the batch."""
+        return len(self._memories)
+
+    async def execute(self) -> dict[str, Any]:
+        """Execute batch storage, handling automatic chunking."""
+        if not self._memories:
+            return {"ids": [], "count": 0, "stored": False}
+
+        all_ids: list[str] = []
+        total_tokens = 0
+        total_deduped = 0
+
+        # Process in chunks
+        for i in range(0, len(self._memories), self.MAX_BATCH_SIZE):
+            chunk = self._memories[i : i + self.MAX_BATCH_SIZE]
+            result = await self._client.store_batch(chunk)
+            all_ids.extend(result.ids)
+            total_tokens += result.tokens_used
+            total_deduped += result.deduplicated_count
+
+        self._memories.clear()
+
+        return {
+            "ids": all_ids,
+            "count": len(all_ids),
+            "stored": True,
+            "tokens_used": total_tokens,
+            "deduplicated_count": total_deduped,
+        }
+
+
 class StoreBuilder:
     """Fluent builder for creating memories before storing.
 
@@ -970,6 +1063,7 @@ __all__ = [
     "RelationBuilder",
     "AsyncRelationBuilder",
     "BatchStore",
+    "AsyncBatchStore",
     "StoreBuilder",
     "AsyncStoreBuilder",
 ]

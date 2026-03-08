@@ -58,6 +58,7 @@ from .types import (
     UpdateInput,
 )
 from .builders import (
+    AsyncBatchStore,
     AsyncMemoryFilter,
     AsyncRecallQuery,
     AsyncRelationBuilder,
@@ -137,6 +138,7 @@ __all__ = [
     "RelationBuilder",
     "AsyncRelationBuilder",
     "BatchStore",
+    "AsyncBatchStore",
     "StoreBuilder",
     "AsyncStoreBuilder",
 ]
