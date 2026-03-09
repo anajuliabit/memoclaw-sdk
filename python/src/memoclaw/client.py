@@ -390,7 +390,11 @@ class MemoClaw:
         for i, m in enumerate(memories):
             c = m.content if isinstance(m, StoreInput) else m.get("content", "")
             imp = m.importance if isinstance(m, StoreInput) else m.get("importance")
-            if c and len(c) > MAX_CONTENT_LENGTH:
+            if not c or not c.strip():
+                raise ValueError(
+                    f"memories[{i}] content must be a non-empty string"
+                )
+            if len(c) > MAX_CONTENT_LENGTH:
                 raise ValueError(
                     f"memories[{i}] content exceeds the {MAX_CONTENT_LENGTH} character limit. "
                     "Split into smaller memories or summarize."
@@ -1539,7 +1543,11 @@ class AsyncMemoClaw:
         for i, m in enumerate(memories):
             c = m.content if isinstance(m, StoreInput) else m.get("content", "")
             imp = m.importance if isinstance(m, StoreInput) else m.get("importance")
-            if c and len(c) > MAX_CONTENT_LENGTH:
+            if not c or not c.strip():
+                raise ValueError(
+                    f"memories[{i}] content must be a non-empty string"
+                )
+            if len(c) > MAX_CONTENT_LENGTH:
                 raise ValueError(
                     f"memories[{i}] content exceeds the {MAX_CONTENT_LENGTH} character limit. "
                     "Split into smaller memories or summarize."

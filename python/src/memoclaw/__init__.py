@@ -57,6 +57,7 @@ from .types import (
     CoreMemoriesResponse,
     TextSearchResponse,
     UpdateBatchResult,
+    UpdateBatchResultItem,
     UpdateInput,
 )
 from .builders import (
@@ -129,6 +130,7 @@ __all__ = [
     "HistoryResponse",
     "UpdateInput",
     "UpdateBatchResult",
+    "UpdateBatchResultItem",
     "CoreMemoriesResponse",
     "TextSearchResponse",
     "MemoClawConfig",

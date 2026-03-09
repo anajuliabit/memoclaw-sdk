@@ -283,7 +283,42 @@ class TestStoreInput:
             session_id="sess1",
             agent_id="agent1",
             expires_at="2025-12-01T00:00:00Z",
+            pinned=True,
+            immutable=False,
         )
         d = si.model_dump(exclude_none=True)
         assert "content" in d
         assert d["tags"] == ["a", "b"]
+        assert d["pinned"] is True
+        assert d["immutable"] is False
+        assert d["expires_at"] == "2025-12-01T00:00:00Z"
+
+
+class TestUpdateBatchResultItem:
+    def test_success(self):
+        from memoclaw.types import UpdateBatchResultItem
+        item = UpdateBatchResultItem(id="mem-1", updated=True)
+        assert item.id == "mem-1"
+        assert item.updated is True
+        assert item.error is None
+
+    def test_failure(self):
+        from memoclaw.types import UpdateBatchResultItem
+        item = UpdateBatchResultItem(id="mem-2", updated=False, error="Not found")
+        assert item.updated is False
+        assert item.error == "Not found"
+
+    def test_in_batch_result(self):
+        from memoclaw.types import UpdateBatchResult, UpdateBatchResultItem
+        result = UpdateBatchResult(
+            results=[
+                UpdateBatchResultItem(id="mem-1", updated=True),
+                UpdateBatchResultItem(id="mem-2", updated=False, error="Not found"),
+            ],
+            updated=1,
+            failed=1,
+            tokens_used=10,
+        )
+        assert len(result.results) == 2
+        assert result.results[0].id == "mem-1"
+        assert result.results[1].error == "Not found"
