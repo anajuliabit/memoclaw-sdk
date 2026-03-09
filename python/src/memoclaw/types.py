@@ -348,10 +348,18 @@ class UpdateInput(BaseModel):
     expires_at: str | None = None
 
 
+class UpdateBatchResultItem(BaseModel):
+    """Result of a single item in a batch update operation."""
+
+    id: str
+    updated: bool
+    error: str | None = None
+
+
 class UpdateBatchResult(BaseModel):
     """Result of a batch update operation."""
 
-    results: list[dict[str, Any]]
+    results: list[UpdateBatchResultItem]
     updated: int
     failed: int
     tokens_used: int

@@ -61,6 +61,17 @@ class TestSyncValidation:
         with pytest.raises(ValueError, match="exceeds maximum"):
             client.store_batch(memories)
 
+    def test_store_batch_empty_content_dict(self, client: MemoClaw):
+        with pytest.raises(ValueError, match="content must be a non-empty string"):
+            client.store_batch([{"content": ""}])
+
+    def test_store_batch_whitespace_content_dict(self, client: MemoClaw):
+        with pytest.raises(ValueError, match="content must be a non-empty string"):
+            client.store_batch([{"content": "   "}])
+
+    def test_store_batch_missing_content_dict(self, client: MemoClaw):
+        with pytest.raises(ValueError, match="content must be a non-empty string"):
+            client.store_batch([{}])
 
     def test_delete_empty_id(self, client: MemoClaw):
         with pytest.raises(ValueError, match="memory_id"):
@@ -248,6 +259,21 @@ class TestAsyncValidation:
         memories = [{"content": f"mem {i}"} for i in range(101)]
         with pytest.raises(ValueError, match="exceeds maximum"):
             await async_client.store_batch(memories)
+
+    @pytest.mark.asyncio
+    async def test_store_batch_empty_content_dict(self, async_client: AsyncMemoClaw):
+        with pytest.raises(ValueError, match="content must be a non-empty string"):
+            await async_client.store_batch([{"content": ""}])
+
+    @pytest.mark.asyncio
+    async def test_store_batch_whitespace_content_dict(self, async_client: AsyncMemoClaw):
+        with pytest.raises(ValueError, match="content must be a non-empty string"):
+            await async_client.store_batch([{"content": "   "}])
+
+    @pytest.mark.asyncio
+    async def test_store_batch_missing_content_dict(self, async_client: AsyncMemoClaw):
+        with pytest.raises(ValueError, match="content must be a non-empty string"):
+            await async_client.store_batch([{}])
 
     @pytest.mark.asyncio
     async def test_delete_empty_id(self, async_client: AsyncMemoClaw):
