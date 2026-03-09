@@ -120,11 +120,6 @@ def _raise_for_status(response: httpx.Response) -> None:
     raise APIError.from_response(response.status_code, body, request_id=request_id)
 
 
-def _is_retryable(exc: BaseException) -> bool:
-    """Check if an exception is retryable (network errors)."""
-    return isinstance(exc, (httpx.ConnectError, httpx.ReadTimeout, httpx.WriteTimeout))
-
-
 def _try_x402_payment(
     response: httpx.Response,
 ) -> dict[str, str] | None:
