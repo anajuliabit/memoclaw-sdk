@@ -359,7 +359,7 @@ class AsyncMemoClawChatMessageHistory(BaseChatMessageHistory):
             "Use `await history.aget_messages()` instead."
         )
 
-    async def aget_messages(self) -> list[BaseMessage]:  # type: ignore[override]
+    async def aget_messages(self) -> list[BaseMessage]:
         """Retrieve all messages for this session from MemoClaw (async)."""
         result: list[BaseMessage] = []
         offset = 0
