@@ -119,6 +119,30 @@ def _validate_content_length(content: str, name: str = "content") -> None:
         )
 
 
+def _validate_limit(limit: int | None) -> None:
+    """Raise ValueError if limit is not a positive integer."""
+    if limit is not None and limit <= 0:
+        raise ValueError("limit must be a positive integer")
+
+
+def _validate_offset(offset: int | None) -> None:
+    """Raise ValueError if offset is negative."""
+    if offset is not None and offset < 0:
+        raise ValueError("offset must be a non-negative integer")
+
+
+def _validate_min_similarity(min_similarity: float | None) -> None:
+    """Raise ValueError if min_similarity is outside [0.0, 1.0]."""
+    if min_similarity is not None and not (0.0 <= min_similarity <= 1.0):
+        raise ValueError("min_similarity must be between 0.0 and 1.0")
+
+
+def _validate_batch_size(batch_size: int) -> None:
+    """Raise ValueError if batch_size is not positive."""
+    if batch_size <= 0:
+        raise ValueError("batch_size must be a positive integer")
+
+
 def _build_store_body(
     content: str,
     *,
@@ -442,6 +466,8 @@ class MemoClaw:
         """Semantic recall of memories matching a query."""
         self._require_signed_auth("recall")
         _validate_non_empty(query, "query")
+        _validate_limit(limit)
+        _validate_min_similarity(min_similarity)
         body: dict[str, Any] = {"query": query}
         if limit is not None:
             body["limit"] = limit
@@ -486,6 +512,8 @@ class MemoClaw:
         timeout: float | None = None,
     ) -> ListResponse:
         """List memories with pagination."""
+        _validate_limit(limit)
+        _validate_offset(offset)
         params = _clean_params(
             {
                 "limit": limit,
@@ -521,6 +549,7 @@ class MemoClaw:
         Yields individual :class:`Memory` objects, fetching pages transparently.
         Supports all the same filters as :meth:`list`.
         """
+        _validate_batch_size(batch_size)
         offset = 0
         while True:
             page = self.list(
@@ -786,6 +815,7 @@ class MemoClaw:
         Args:
             timeout: Per-request timeout in seconds. Overrides the client default.
         """
+        _validate_limit(limit)
         params = _clean_params(
             {
                 "limit": limit,
@@ -1062,6 +1092,7 @@ class MemoClaw:
         Args:
             timeout: Per-request timeout in seconds. Overrides the client default.
         """
+        _validate_limit(limit)
         params = _clean_params(
             {"limit": limit, "namespace": namespace, "agent_id": agent_id}
         )
@@ -1089,6 +1120,7 @@ class MemoClaw:
             timeout: Per-request timeout in seconds. Overrides the client default.
         """
         _validate_non_empty(query, "query")
+        _validate_limit(limit)
         params = _clean_params(
             {
                 "q": query,
@@ -1174,6 +1206,7 @@ class MemoClaw:
         Yields:
             Individual :class:`Memory` objects.
         """
+        _validate_batch_size(batch_size)
         offset = 0
         while True:
             page = self.list(
@@ -1597,6 +1630,8 @@ class AsyncMemoClaw:
         """Semantic recall of memories matching a query."""
         self._require_signed_auth("recall")
         _validate_non_empty(query, "query")
+        _validate_limit(limit)
+        _validate_min_similarity(min_similarity)
         body: dict[str, Any] = {"query": query}
         if limit is not None:
             body["limit"] = limit
@@ -1641,6 +1676,8 @@ class AsyncMemoClaw:
         timeout: float | None = None,
     ) -> ListResponse:
         """List memories with pagination."""
+        _validate_limit(limit)
+        _validate_offset(offset)
         params = _clean_params(
             {
                 "limit": limit,
@@ -1676,6 +1713,7 @@ class AsyncMemoClaw:
         Yields individual :class:`Memory` objects, fetching pages transparently.
         Supports all the same filters as :meth:`list`.
         """
+        _validate_batch_size(batch_size)
         offset = 0
         while True:
             page = await self.list(
@@ -1945,6 +1983,7 @@ class AsyncMemoClaw:
         Args:
             timeout: Per-request timeout in seconds. Overrides the client default.
         """
+        _validate_limit(limit)
         params = _clean_params(
             {
                 "limit": limit,
@@ -2189,6 +2228,7 @@ class AsyncMemoClaw:
         Args:
             timeout: Per-request timeout in seconds. Overrides the client default.
         """
+        _validate_limit(limit)
         params = _clean_params(
             {"limit": limit, "namespace": namespace, "agent_id": agent_id}
         )
@@ -2216,6 +2256,7 @@ class AsyncMemoClaw:
             timeout: Per-request timeout in seconds. Overrides the client default.
         """
         _validate_non_empty(query, "query")
+        _validate_limit(limit)
         params = _clean_params(
             {
                 "q": query,
@@ -2300,6 +2341,7 @@ class AsyncMemoClaw:
         Yields:
             Individual :class:`Memory` objects.
         """
+        _validate_batch_size(batch_size)
         offset = 0
         while True:
             page = await self.list(

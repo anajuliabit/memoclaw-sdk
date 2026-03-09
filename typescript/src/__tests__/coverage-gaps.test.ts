@@ -541,3 +541,59 @@ describe('client-level timeout option', () => {
     expect(result.free_tier_remaining).toBe(10);
   });
 });
+
+// ── Parameter validation tests ──────────────────────────────────────────────
+
+describe('parameter validation', () => {
+  const client = new MemoClawClient({
+    privateKey: TEST_PRIVATE_KEY,
+    baseUrl: BASE_URL,
+    fetch: mockFetch([]),
+  });
+
+  it('recall rejects negative limit', async () => {
+    await expect(client.recall({ query: 'test', limit: -1 })).rejects.toThrow('limit must be a positive integer');
+  });
+
+  it('recall rejects zero limit', async () => {
+    await expect(client.recall({ query: 'test', limit: 0 })).rejects.toThrow('limit must be a positive integer');
+  });
+
+  it('recall rejects min_similarity > 1', async () => {
+    await expect(client.recall({ query: 'test', min_similarity: 1.5 })).rejects.toThrow('min_similarity must be between');
+  });
+
+  it('recall rejects negative min_similarity', async () => {
+    await expect(client.recall({ query: 'test', min_similarity: -0.1 })).rejects.toThrow('min_similarity must be between');
+  });
+
+  it('list rejects negative limit', async () => {
+    await expect(client.list({ limit: -1 })).rejects.toThrow('limit must be a positive integer');
+  });
+
+  it('list rejects negative offset', async () => {
+    await expect(client.list({ offset: -5 })).rejects.toThrow('offset must be a non-negative integer');
+  });
+
+  it('iterMemories rejects zero batchSize', async () => {
+    const gen = client.iterMemories({ batchSize: 0 });
+    await expect(gen.next()).rejects.toThrow('batchSize must be a positive integer');
+  });
+
+  it('suggested rejects negative limit', async () => {
+    await expect(client.suggested({ limit: -1 })).rejects.toThrow('limit must be a positive integer');
+  });
+
+  it('textSearch rejects negative limit', async () => {
+    await expect(client.textSearch({ query: 'test', limit: -1 })).rejects.toThrow('limit must be a positive integer');
+  });
+
+  it('coreMemories rejects negative limit', async () => {
+    await expect(client.coreMemories({ limit: -1 })).rejects.toThrow('limit must be a positive integer');
+  });
+
+  it('iterExport rejects zero batchSize', async () => {
+    const gen = client.iterExport({ batchSize: 0 });
+    await expect(gen.next()).rejects.toThrow('batchSize must be a positive integer');
+  });
+});

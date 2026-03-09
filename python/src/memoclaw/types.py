@@ -157,6 +157,11 @@ class DeleteBatchItemResult(BaseModel):
     error: str | None = None
 
 
+class DeleteNamespaceResult(BaseModel):
+    deleted: bool
+    deleted_count: int
+
+
 # ── Ingest ───────────────────────────────────────────────────────────────────
 
 

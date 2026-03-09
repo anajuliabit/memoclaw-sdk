@@ -452,3 +452,97 @@ class TestAsyncDeleteBatchValidation:
     async def test_empty_list_raises(self, async_client: AsyncMemoClaw):
         with pytest.raises(ValueError, match="memory_ids list must not be empty"):
             await async_client.delete_batch([])
+
+
+# ── Parameter validation (limit, offset, min_similarity, batch_size) ─────────
+
+
+class TestParameterValidation:
+    """Tests for numeric parameter validation across SDK methods."""
+
+    def test_recall_negative_limit(self, client: MemoClaw):
+        with pytest.raises(ValueError, match="limit must be a positive integer"):
+            client.recall("test", limit=-1)
+
+    def test_recall_zero_limit(self, client: MemoClaw):
+        with pytest.raises(ValueError, match="limit must be a positive integer"):
+            client.recall("test", limit=0)
+
+    def test_recall_invalid_min_similarity_high(self, client: MemoClaw):
+        with pytest.raises(ValueError, match="min_similarity must be between"):
+            client.recall("test", min_similarity=1.5)
+
+    def test_recall_invalid_min_similarity_low(self, client: MemoClaw):
+        with pytest.raises(ValueError, match="min_similarity must be between"):
+            client.recall("test", min_similarity=-0.1)
+
+    def test_list_negative_limit(self, client: MemoClaw):
+        with pytest.raises(ValueError, match="limit must be a positive integer"):
+            client.list(limit=-1)
+
+    def test_list_zero_limit(self, client: MemoClaw):
+        with pytest.raises(ValueError, match="limit must be a positive integer"):
+            client.list(limit=0)
+
+    def test_list_negative_offset(self, client: MemoClaw):
+        with pytest.raises(ValueError, match="offset must be a non-negative integer"):
+            client.list(offset=-5)
+
+    def test_iter_memories_zero_batch_size(self, client: MemoClaw):
+        with pytest.raises(ValueError, match="batch_size must be a positive integer"):
+            list(client.iter_memories(batch_size=0))
+
+    def test_suggested_negative_limit(self, client: MemoClaw):
+        with pytest.raises(ValueError, match="limit must be a positive integer"):
+            client.suggested(limit=-1)
+
+    def test_text_search_negative_limit(self, client: MemoClaw):
+        with pytest.raises(ValueError, match="limit must be a positive integer"):
+            client.text_search("test", limit=-1)
+
+    def test_core_memories_negative_limit(self, client: MemoClaw):
+        with pytest.raises(ValueError, match="limit must be a positive integer"):
+            client.core_memories(limit=-1)
+
+    def test_iter_export_zero_batch_size(self, client: MemoClaw):
+        with pytest.raises(ValueError, match="batch_size must be a positive integer"):
+            list(client.iter_export(batch_size=0))
+
+
+class TestAsyncParameterValidation:
+    """Async versions of parameter validation tests."""
+
+    @pytest.mark.asyncio
+    async def test_recall_negative_limit(self, async_client: AsyncMemoClaw):
+        with pytest.raises(ValueError, match="limit must be a positive integer"):
+            await async_client.recall("test", limit=-1)
+
+    @pytest.mark.asyncio
+    async def test_recall_invalid_min_similarity(self, async_client: AsyncMemoClaw):
+        with pytest.raises(ValueError, match="min_similarity must be between"):
+            await async_client.recall("test", min_similarity=2.0)
+
+    @pytest.mark.asyncio
+    async def test_list_negative_limit(self, async_client: AsyncMemoClaw):
+        with pytest.raises(ValueError, match="limit must be a positive integer"):
+            await async_client.list(limit=-1)
+
+    @pytest.mark.asyncio
+    async def test_list_negative_offset(self, async_client: AsyncMemoClaw):
+        with pytest.raises(ValueError, match="offset must be a non-negative integer"):
+            await async_client.list(offset=-5)
+
+    @pytest.mark.asyncio
+    async def test_suggested_negative_limit(self, async_client: AsyncMemoClaw):
+        with pytest.raises(ValueError, match="limit must be a positive integer"):
+            await async_client.suggested(limit=-1)
+
+    @pytest.mark.asyncio
+    async def test_text_search_negative_limit(self, async_client: AsyncMemoClaw):
+        with pytest.raises(ValueError, match="limit must be a positive integer"):
+            await async_client.text_search("test", limit=-1)
+
+    @pytest.mark.asyncio
+    async def test_core_memories_negative_limit(self, async_client: AsyncMemoClaw):
+        with pytest.raises(ValueError, match="limit must be a positive integer"):
+            await async_client.core_memories(limit=-1)
