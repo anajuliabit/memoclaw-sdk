@@ -826,3 +826,80 @@ class TestAsyncClient:
         )
         assert client is not None
         await client.close()
+
+
+# ── Parameter validation tests ───────────────────────────────────────────────
+
+
+class TestParameterValidation:
+    """Tests for client-side numeric parameter validation."""
+
+    def test_list_negative_limit(self, client: MemoClaw):
+        with pytest.raises(ValueError, match="limit must be a positive integer"):
+            client.list(limit=-1)
+
+    def test_list_zero_limit(self, client: MemoClaw):
+        with pytest.raises(ValueError, match="limit must be a positive integer"):
+            client.list(limit=0)
+
+    def test_list_negative_offset(self, client: MemoClaw):
+        with pytest.raises(ValueError, match="offset must be a non-negative integer"):
+            client.list(offset=-5)
+
+    @respx.mock
+    def test_recall_invalid_min_similarity(self, client: MemoClaw):
+        with pytest.raises(ValueError, match="min_similarity must be between"):
+            client.recall("test query", min_similarity=1.5)
+
+    @respx.mock
+    def test_recall_negative_min_similarity(self, client: MemoClaw):
+        with pytest.raises(ValueError, match="min_similarity must be between"):
+            client.recall("test query", min_similarity=-0.1)
+
+    @respx.mock
+    def test_recall_negative_limit(self, client: MemoClaw):
+        with pytest.raises(ValueError, match="limit must be a positive integer"):
+            client.recall("test query", limit=-1)
+
+    def test_iter_memories_zero_batch_size(self, client: MemoClaw):
+        with pytest.raises(ValueError, match="batch_size must be a positive integer"):
+            # Need to consume the generator to trigger validation
+            list(client.iter_memories(batch_size=0))
+
+    @respx.mock
+    def test_text_search_negative_limit(self, client: MemoClaw):
+        with pytest.raises(ValueError, match="limit must be a positive integer"):
+            client.text_search("test", limit=-1)
+
+    @respx.mock
+    def test_delete_namespace_empty_string(self, client: MemoClaw):
+        with pytest.raises(ValueError, match="namespace"):
+            client.delete_namespace("")
+
+    @respx.mock
+    def test_delete_namespace_zero_batch_size(self, client: MemoClaw):
+        with pytest.raises(ValueError, match="batch_size must be a positive integer"):
+            client.delete_namespace("test", batch_size=0)
+
+
+@pytest.mark.asyncio
+class TestAsyncParameterValidation:
+    """Async versions of parameter validation tests."""
+
+    async def test_list_negative_limit(self):
+        client = AsyncMemoClaw(private_key=TEST_PRIVATE_KEY, base_url=BASE_URL)
+        with pytest.raises(ValueError, match="limit must be a positive integer"):
+            await client.list(limit=-1)
+        await client.close()
+
+    async def test_list_negative_offset(self):
+        client = AsyncMemoClaw(private_key=TEST_PRIVATE_KEY, base_url=BASE_URL)
+        with pytest.raises(ValueError, match="offset must be a non-negative integer"):
+            await client.list(offset=-5)
+        await client.close()
+
+    async def test_recall_invalid_min_similarity(self):
+        client = AsyncMemoClaw(private_key=TEST_PRIVATE_KEY, base_url=BASE_URL)
+        with pytest.raises(ValueError, match="min_similarity must be between"):
+            await client.recall("test query", min_similarity=2.0)
+        await client.close()

@@ -69,6 +69,34 @@ const DEFAULT_BASE_URL = 'https://api.memoclaw.com';
 const MAX_BATCH_SIZE = 100;
 const MAX_CONTENT_LENGTH = 8192;
 
+/** @internal Validate that a limit parameter is a positive integer. */
+function validateLimit(limit: number | undefined): void {
+  if (limit !== undefined && limit <= 0) {
+    throw new Error('limit must be a positive integer');
+  }
+}
+
+/** @internal Validate that an offset parameter is non-negative. */
+function validateOffset(offset: number | undefined): void {
+  if (offset !== undefined && offset < 0) {
+    throw new Error('offset must be a non-negative integer');
+  }
+}
+
+/** @internal Validate that min_similarity is in [0, 1]. */
+function validateMinSimilarity(minSimilarity: number | undefined): void {
+  if (minSimilarity !== undefined && (minSimilarity < 0 || minSimilarity > 1)) {
+    throw new Error('min_similarity must be between 0.0 and 1.0');
+  }
+}
+
+/** @internal Validate that a batch size is positive. */
+function validateBatchSize(batchSize: number): void {
+  if (batchSize <= 0) {
+    throw new Error('batchSize must be a positive integer');
+  }
+}
+
 /** Status codes that are safe to retry (transient errors). */
 const RETRYABLE_STATUS_CODES = new Set([408, 429, 500, 502, 503, 504]);
 
@@ -484,11 +512,15 @@ export class MemoClawClient {
     if (!request.query?.trim()) {
       throw new Error('query must be a non-empty string');
     }
+    validateLimit(request.limit);
+    validateMinSimilarity(request.min_similarity);
     return this.request<RecallResponse>('POST', '/v1/recall', request, undefined, options);
   }
 
   /** List memories with pagination and optional filters. */
   async list(params: ListMemoriesParams = {}, options?: RequestOptions): Promise<ListMemoriesResponse> {
+    validateLimit(params.limit);
+    validateOffset(params.offset);
     const query: Record<string, string> = {};
     if (params.limit !== undefined) query['limit'] = String(params.limit);
     if (params.offset !== undefined) query['offset'] = String(params.offset);
@@ -506,6 +538,7 @@ export class MemoClawClient {
   /** Async iterator over all memories with automatic pagination. */
   async *iterMemories(params: Omit<ListMemoriesParams, 'offset'> & { batchSize?: number } = {}): AsyncGenerator<Memory, void, unknown> {
     const { batchSize = 50, ...rest } = params;
+    validateBatchSize(batchSize);
     let offset = 0;
     while (true) {
       const page = await this.list({ ...rest, limit: batchSize, offset });
@@ -824,6 +857,36 @@ export class MemoClawClient {
     return this.request<NamespacesResponse>('GET', '/v1/namespaces', undefined, undefined, options);
   }
 
+  /**
+   * Delete all memories in a namespace.
+   *
+   * Iterates through all memories in the given namespace and deletes
+   * them in batches. Returns a summary with the total count deleted.
+   *
+   * @example
+   * ```ts
+   * const result = await client.deleteNamespace('test-data');
+   * console.log(`Deleted ${result.deletedCount} memories`);
+   * ```
+   */
+  async deleteNamespace(
+    namespace: string,
+    options?: { batchSize?: number } & RequestOptions,
+  ): Promise<{ deleted: boolean; deletedCount: number }> {
+    if (!namespace?.trim()) throw new Error('namespace must be a non-empty string');
+    const batchSize = options?.batchSize ?? 50;
+    validateBatchSize(batchSize);
+    let totalDeleted = 0;
+    while (true) {
+      const page = await this.list({ limit: batchSize, namespace }, options);
+      if (page.memories.length === 0) break;
+      const ids = page.memories.map((m) => m.id);
+      await this.deleteBatch(ids, options);
+      totalDeleted += ids.length;
+    }
+    return { deleted: totalDeleted > 0, deletedCount: totalDeleted };
+  }
+
   // ── Stats ──────────────────────────────────────────────
 
   /** Get memory usage statistics. */
@@ -849,6 +912,7 @@ export class MemoClawClient {
     if (!params.query?.trim()) {
       throw new Error('query must be a non-empty string');
     }
+    validateLimit(params.limit);
     const query: Record<string, string> = { q: params.query };
     if (params.limit !== undefined) query['limit'] = String(params.limit);
     if (params.namespace) query['namespace'] = params.namespace;
