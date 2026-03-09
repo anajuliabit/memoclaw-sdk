@@ -996,7 +996,7 @@ describe('tags and metadata merge', () => {
       .metadata({ tags: ['meta-tag'], other: 'val' })
       .execute();
 
-    const call = storeFn.mock.calls[0];
+    const call = storeFn.mock.calls[0]!;
     const body = JSON.parse(call[1].body);
     expect(body.metadata.tags).toEqual(['builder-tag']);
     expect(body.metadata.other).toBe('val');
@@ -1021,7 +1021,7 @@ describe('tags and metadata merge', () => {
     });
     await store.execute();
 
-    const call = storeFn.mock.calls[0];
+    const call = storeFn.mock.calls[0]!;
     const body = JSON.parse(call[1].body);
     expect(body.memories[0].metadata.tags).toEqual(['batch-tag']);
     expect(body.memories[0].metadata.foo).toBe('bar');
