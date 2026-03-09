@@ -986,7 +986,7 @@ describe('tags and metadata merge', () => {
       headers: { get: () => null },
     });
     const client = new MemoClawClient({
-      wallet: '0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045',
+      privateKey: '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80',
       fetch: storeFn,
     });
 
@@ -1010,7 +1010,7 @@ describe('tags and metadata merge', () => {
       headers: { get: () => null },
     });
     const client = new MemoClawClient({
-      wallet: '0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045',
+      privateKey: '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80',
       fetch: storeFn,
     });
 
