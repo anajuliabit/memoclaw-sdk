@@ -34,12 +34,14 @@ dependencies = [
 [project.optional-dependencies]
 x402 = ["x402[httpx,evm]"]
 langchain = ["langchain-core>=0.2"]
+llamaindex = ["llama-index-core>=0.11"]
 dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.24",
     "pytest-cov>=6.0",
     "respx>=0.22",
     "langchain-core>=0.2",
+    "llama-index-core>=0.11",
 ]
 
 [project.urls]
