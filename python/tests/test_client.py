@@ -791,3 +791,38 @@ class TestAsyncClient:
         async with AsyncMemoClaw(private_key=TEST_PRIVATE_KEY, base_url=BASE_URL) as c:
             result = await c.status()
             assert result.free_tier_remaining == 1000
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_async_create_factory(self):
+        """AsyncMemoClaw.create() validates connection via ping()."""
+        respx.get(f"{BASE_URL}/v1/free-tier/status").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "wallet": "0xabc",
+                    "free_tier_remaining": 100,
+                    "free_tier_total": 100,
+                    "free_tier_used": 0,
+                },
+            )
+        )
+        client = await AsyncMemoClaw.create(
+            private_key=TEST_PRIVATE_KEY,
+            base_url=BASE_URL,
+            validate_on_init=True,
+        )
+        assert client is not None
+        await client.close()
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_async_create_factory_no_validate(self):
+        """AsyncMemoClaw.create(validate_on_init=False) skips ping."""
+        client = await AsyncMemoClaw.create(
+            private_key=TEST_PRIVATE_KEY,
+            base_url=BASE_URL,
+            validate_on_init=False,
+        )
+        assert client is not None
+        await client.close()

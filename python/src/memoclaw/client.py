@@ -1349,6 +1349,50 @@ class AsyncMemoClaw:
         self._after_response_hooks: _list[AfterResponseHook] = []
         self._on_error_hooks: _list[OnErrorHook] = []
 
+    # ── Factory ──────────────────────────────────────────────────────────
+
+    @classmethod
+    async def create(
+        cls,
+        private_key: str | None = None,
+        *,
+        wallet_address: str | None = None,
+        base_url: str | None = None,
+        timeout: float = DEFAULT_TIMEOUT,
+        max_retries: int | None = None,
+        pool_max_connections: int = DEFAULT_POOL_MAX_CONNECTIONS,
+        pool_max_keepalive: int = DEFAULT_POOL_MAX_KEEPALIVE_CONNECTIONS,
+        config_path: str | Path | None = None,
+        log_level: LogLevel | None = None,
+        log_format: LogFormat = "text",
+        validate_on_init: bool = True,
+    ) -> AsyncMemoClaw:
+        """Async factory that creates and optionally validates the client.
+
+        This mirrors the TypeScript SDK's ``MemoClawClient.create()`` pattern.
+        When *validate_on_init* is ``True`` (the default), ``ping()`` is called
+        to verify the connection before returning.
+
+        Example::
+
+            client = await AsyncMemoClaw.create(private_key="0x...")
+        """
+        client = cls(
+            private_key,
+            wallet_address=wallet_address,
+            base_url=base_url,
+            timeout=timeout,
+            max_retries=max_retries,
+            pool_max_connections=pool_max_connections,
+            pool_max_keepalive=pool_max_keepalive,
+            config_path=config_path,
+            log_level=log_level,
+            log_format=log_format,
+        )
+        if validate_on_init:
+            await client.ping()
+        return client
+
     # ── Auth helpers ────────────────────────────────────────────────────
 
     def _require_signed_auth(self, method_name: str) -> None:
