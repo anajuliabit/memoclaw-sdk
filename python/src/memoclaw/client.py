@@ -31,6 +31,8 @@ from .types import (
     ConsolidateResult,
     ContextResult,
     CoreMemoriesResponse,
+    PinCoreMemoryResult,
+    UnpinCoreMemoryResult,
     DeleteBatchItemResult,
     DeleteResult,
     ExportResponse,
@@ -1098,6 +1100,35 @@ class MemoClaw:
         )
         data = self._run_request("GET", "/v1/core-memories", params=params, timeout=timeout)
         return CoreMemoriesResponse.model_validate(data)
+
+    def pin_core_memory(self, memory_id: str, *, timeout: float | None = None) -> PinCoreMemoryResult:
+        """Pin a memory as a core memory (FREE).
+
+        Uses the dedicated ``POST /v1/memories/core`` endpoint which is free,
+        unlike ``update(memory_id, pinned=True)`` which costs $0.005.
+
+        Args:
+            memory_id: UUID of the memory to pin.
+            timeout: Per-request timeout in seconds.
+        """
+        _validate_non_empty(memory_id, "memory_id")
+        data = self._run_request("POST", "/v1/memories/core", json={"memory_id": memory_id}, timeout=timeout)
+        return PinCoreMemoryResult.model_validate(data)
+
+    def unpin_core_memory(self, memory_id: str, *, timeout: float | None = None) -> UnpinCoreMemoryResult:
+        """Unpin a core memory (FREE).
+
+        Uses the dedicated ``DELETE /v1/memories/core/:id`` endpoint which is free,
+        unlike ``update(memory_id, pinned=False)`` which costs $0.005.
+        The memory is not deleted — it simply resumes normal type-based decay.
+
+        Args:
+            memory_id: UUID of the memory to unpin.
+            timeout: Per-request timeout in seconds.
+        """
+        _validate_non_empty(memory_id, "memory_id")
+        data = self._run_request("DELETE", f"/v1/memories/core/{quote(memory_id, safe='')}", timeout=timeout)
+        return UnpinCoreMemoryResult.model_validate(data)
 
     # ── Text Search ──────────────────────────────────────────────────────
 
@@ -2270,6 +2301,35 @@ class AsyncMemoClaw:
         )
         data = await self._run_request("GET", "/v1/core-memories", params=params, timeout=timeout)
         return CoreMemoriesResponse.model_validate(data)
+
+    async def pin_core_memory(self, memory_id: str, *, timeout: float | None = None) -> PinCoreMemoryResult:
+        """Pin a memory as a core memory (FREE).
+
+        Uses the dedicated ``POST /v1/memories/core`` endpoint which is free,
+        unlike ``update(memory_id, pinned=True)`` which costs $0.005.
+
+        Args:
+            memory_id: UUID of the memory to pin.
+            timeout: Per-request timeout in seconds.
+        """
+        _validate_non_empty(memory_id, "memory_id")
+        data = await self._run_request("POST", "/v1/memories/core", json={"memory_id": memory_id}, timeout=timeout)
+        return PinCoreMemoryResult.model_validate(data)
+
+    async def unpin_core_memory(self, memory_id: str, *, timeout: float | None = None) -> UnpinCoreMemoryResult:
+        """Unpin a core memory (FREE).
+
+        Uses the dedicated ``DELETE /v1/memories/core/:id`` endpoint which is free,
+        unlike ``update(memory_id, pinned=False)`` which costs $0.005.
+        The memory is not deleted — it simply resumes normal type-based decay.
+
+        Args:
+            memory_id: UUID of the memory to unpin.
+            timeout: Per-request timeout in seconds.
+        """
+        _validate_non_empty(memory_id, "memory_id")
+        data = await self._run_request("DELETE", f"/v1/memories/core/{quote(memory_id, safe='')}", timeout=timeout)
+        return UnpinCoreMemoryResult.model_validate(data)
 
     # ── Text Search ──────────────────────────────────────────────────────
 

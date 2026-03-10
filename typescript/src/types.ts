@@ -469,6 +469,16 @@ export interface CoreMemoriesResponse {
   total: number;
 }
 
+export interface PinCoreMemoryResult {
+  pinned: boolean;
+  id: string;
+}
+
+export interface UnpinCoreMemoryResult {
+  unpinned: boolean;
+  id: string;
+}
+
 // ── Text Search ────────────────────────────────────────
 
 export interface TextSearchParams {

@@ -351,6 +351,74 @@ class TestCoreMemories:
         assert result.total == 0
 
 
+class TestPinCoreMemory:
+    @respx.mock
+    def test_sync(self, client):
+        respx.post(f"{BASE_URL}/v1/memories/core").mock(
+            return_value=httpx.Response(200, json={"pinned": True, "id": "mem-1"})
+        )
+        from memoclaw import PinCoreMemoryResult
+        result = client.pin_core_memory("mem-1")
+        assert isinstance(result, PinCoreMemoryResult)
+        assert result.pinned is True
+        assert result.id == "mem-1"
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_async(self, async_client):
+        respx.post(f"{BASE_URL}/v1/memories/core").mock(
+            return_value=httpx.Response(200, json={"pinned": True, "id": "mem-2"})
+        )
+        from memoclaw import PinCoreMemoryResult
+        result = await async_client.pin_core_memory("mem-2")
+        assert isinstance(result, PinCoreMemoryResult)
+        assert result.pinned is True
+        assert result.id == "mem-2"
+
+    def test_empty_memory_id_raises(self, client):
+        with pytest.raises(ValueError, match="memory_id"):
+            client.pin_core_memory("")
+
+    @pytest.mark.asyncio
+    async def test_empty_memory_id_raises_async(self, async_client):
+        with pytest.raises(ValueError, match="memory_id"):
+            await async_client.pin_core_memory("")
+
+
+class TestUnpinCoreMemory:
+    @respx.mock
+    def test_sync(self, client):
+        respx.delete(f"{BASE_URL}/v1/memories/core/mem-1").mock(
+            return_value=httpx.Response(200, json={"unpinned": True, "id": "mem-1"})
+        )
+        from memoclaw import UnpinCoreMemoryResult
+        result = client.unpin_core_memory("mem-1")
+        assert isinstance(result, UnpinCoreMemoryResult)
+        assert result.unpinned is True
+        assert result.id == "mem-1"
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_async(self, async_client):
+        respx.delete(f"{BASE_URL}/v1/memories/core/mem-2").mock(
+            return_value=httpx.Response(200, json={"unpinned": True, "id": "mem-2"})
+        )
+        from memoclaw import UnpinCoreMemoryResult
+        result = await async_client.unpin_core_memory("mem-2")
+        assert isinstance(result, UnpinCoreMemoryResult)
+        assert result.unpinned is True
+        assert result.id == "mem-2"
+
+    def test_empty_memory_id_raises(self, client):
+        with pytest.raises(ValueError, match="memory_id"):
+            client.unpin_core_memory("")
+
+    @pytest.mark.asyncio
+    async def test_empty_memory_id_raises_async(self, async_client):
+        with pytest.raises(ValueError, match="memory_id"):
+            await async_client.unpin_core_memory("")
+
+
 class TestTextSearch:
     @respx.mock
     def test_sync(self, client):

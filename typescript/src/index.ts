@@ -83,6 +83,8 @@ export type {
   UpdateBatchResultItem,
   CoreMemoriesParams,
   CoreMemoriesResponse,
+  PinCoreMemoryResult,
+  UnpinCoreMemoryResult,
   TextSearchParams,
   TextSearchResponse,
   Logger,
