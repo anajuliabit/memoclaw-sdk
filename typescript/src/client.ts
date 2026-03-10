@@ -45,6 +45,8 @@ import type {
   CoreMemoriesResponse,
   TextSearchParams,
   TextSearchResponse,
+  MemoryGraphParams,
+  MemoryGraphResponse,
   Logger,
   LogLevel,
   LogFormat,
@@ -1081,28 +1083,29 @@ export class MemoClawClient {
 
   // ── Graph helpers ─────────────────────────────────────
 
-  /** Traverse the memory graph from a starting node up to `depth` hops. */
-  async getMemoryGraph(memoryId: string, depth = 1, options?: RequestOptions): Promise<Map<string, ListRelationsResponse['relations']>> {
-    const visited = new Map<string, ListRelationsResponse['relations']>();
-    let frontier = [memoryId];
-
-    for (let d = 0; d < depth; d++) {
-      const nextFrontier: string[] = [];
-      for (const mid of frontier) {
-        if (visited.has(mid)) continue;
-        const { relations } = await this.listRelations(mid, options);
-        visited.set(mid, relations);
-        for (const rel of relations) {
-          if (!visited.has(rel.memory.id)) {
-            nextFrontier.push(rel.memory.id);
-          }
-        }
-      }
-      frontier = nextFrontier;
-      if (frontier.length === 0) break;
-    }
-
-    return visited;
+  /** Traverse the memory graph from a starting node using the server-side endpoint.
+   *
+   * Returns a structured graph with root, nodes, edges, and traversal depth.
+   * Uses `GET /v1/memories/{id}/graph` which is more efficient than
+   * client-side traversal (single request vs N+1 requests).
+   */
+  async getMemoryGraph(
+    memoryId: string,
+    params: MemoryGraphParams = {},
+    options?: RequestOptions,
+  ): Promise<MemoryGraphResponse> {
+    if (!memoryId?.trim()) throw new Error('memoryId must be a non-empty string');
+    const query: Record<string, string> = {};
+    if (params.depth !== undefined) query['depth'] = String(params.depth);
+    if (params.limit !== undefined) query['limit'] = String(params.limit);
+    if (params.relation_types?.length) query['relation_types'] = params.relation_types.join(',');
+    return this.request<MemoryGraphResponse>(
+      'GET',
+      `/v1/memories/${encodeURIComponent(memoryId)}/graph`,
+      undefined,
+      Object.keys(query).length ? query : undefined,
+      options,
+    );
   }
 
   /** Find relations for a memory, optionally filtered by type and/or direction. */

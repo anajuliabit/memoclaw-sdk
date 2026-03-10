@@ -31,6 +31,7 @@ from .types import (
     ConsolidateResult,
     ContextResult,
     CoreMemoriesResponse,
+    MemoryGraphResponse,
     PinCoreMemoryResult,
     UnpinCoreMemoryResult,
     DeleteBatchItemResult,
@@ -1340,43 +1341,44 @@ class MemoClaw:
         self,
         memory_id: str,
         *,
-        depth: int = 1,
+        depth: int | None = None,
+        limit: int | None = None,
+        relation_types: _list[RelationType] | None = None,
         timeout: float | None = None,
-    ) -> dict[str, _list[RelationWithMemory]]:
-        """Traverse the memory graph from a starting node.
+    ) -> MemoryGraphResponse:
+        """Traverse the memory graph from a starting node using the server-side endpoint.
 
-        Returns a dict mapping memory IDs to their relations, up to ``depth`` hops.
+        Returns a structured graph with root, nodes, edges, and traversal depth.
+        Uses ``GET /v1/memories/{id}/graph`` which is more efficient than
+        client-side traversal (single request vs N+1 requests).
 
         Args:
-            memory_id: Starting memory ID.
-            depth: Number of hops to traverse (default 1).
-            timeout: Per-request timeout in seconds. Overrides the client default.
+            memory_id: UUID of the starting memory.
+            depth: Maximum hops to traverse (default 2, max 5).
+            limit: Maximum total memories to return (default 50, max 200).
+            relation_types: Filter by relation types.
+            timeout: Per-request timeout in seconds.
 
         Example::
 
             graph = client.get_memory_graph("mem-123", depth=2)
-            for mid, rels in graph.items():
-                print(f"{mid}: {len(rels)} relations")
+            print(f"Found {len(graph.nodes)} nodes and {len(graph.edges)} edges")
         """
-        visited: dict[str, _list[RelationWithMemory]] = {}
-        frontier = [memory_id]
-
-        for _ in range(depth):
-            next_frontier: _list[str] = []
-            for mid in frontier:
-                if mid in visited:
-                    continue
-                rels = self.list_relations(mid, timeout=timeout)
-                visited[mid] = rels
-                for rel in rels:
-                    neighbor_id = rel.memory.id
-                    if neighbor_id not in visited:
-                        next_frontier.append(neighbor_id)
-            frontier = next_frontier
-            if not frontier:
-                break
-
-        return visited
+        _validate_non_empty(memory_id, "memory_id")
+        params = _clean_params(
+            {
+                "depth": depth,
+                "limit": limit,
+                "relation_types": relation_types,
+            }
+        )
+        data = self._run_request(
+            "GET",
+            f"/v1/memories/{quote(memory_id, safe='')}/graph",
+            params=params,
+            timeout=timeout,
+        )
+        return MemoryGraphResponse.model_validate(data)
 
     def find_related(
         self,
@@ -2541,37 +2543,30 @@ class AsyncMemoClaw:
         self,
         memory_id: str,
         *,
-        depth: int = 1,
+        depth: int | None = None,
+        limit: int | None = None,
+        relation_types: _list[RelationType] | None = None,
         timeout: float | None = None,
-    ) -> dict[str, _list[RelationWithMemory]]:
-        """Traverse the memory graph from a starting node.
+    ) -> MemoryGraphResponse:
+        """Traverse the memory graph from a starting node using the server-side endpoint.
 
         Async version of :meth:`MemoClaw.get_memory_graph`. See sync version for details.
-
-        Args:
-            memory_id: Starting memory ID.
-            depth: Number of hops to traverse (default 1).
-            timeout: Per-request timeout in seconds. Overrides the client default.
         """
-        visited: dict[str, _list[RelationWithMemory]] = {}
-        frontier = [memory_id]
-
-        for _ in range(depth):
-            next_frontier: _list[str] = []
-            for mid in frontier:
-                if mid in visited:
-                    continue
-                rels = await self.list_relations(mid, timeout=timeout)
-                visited[mid] = rels
-                for rel in rels:
-                    neighbor_id = rel.memory.id
-                    if neighbor_id not in visited:
-                        next_frontier.append(neighbor_id)
-            frontier = next_frontier
-            if not frontier:
-                break
-
-        return visited
+        _validate_non_empty(memory_id, "memory_id")
+        params = _clean_params(
+            {
+                "depth": depth,
+                "limit": limit,
+                "relation_types": relation_types,
+            }
+        )
+        data = await self._run_request(
+            "GET",
+            f"/v1/memories/{quote(memory_id, safe='')}/graph",
+            params=params,
+            timeout=timeout,
+        )
+        return MemoryGraphResponse.model_validate(data)
 
     async def find_related(
         self,

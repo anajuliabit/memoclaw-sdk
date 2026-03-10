@@ -737,24 +737,25 @@ class TestAsyncGraphHelpers:
     @respx.mock
     @pytest.mark.asyncio
     async def test_get_memory_graph(self, client: AsyncMemoClaw):
-        _rel_mem = {"id": "mem-2", "content": "related", "importance": 0.5, "memory_type": "general", "namespace": "default"}
-        respx.get(f"{BASE_URL}/v1/memories/mem-1/relations").mock(
-            return_value=httpx.Response(200, json={
-                "relations": [{
-                    "id": "rel-1",
-                    "relation_type": "related_to",
-                    "direction": "outgoing",
-                    "metadata": {},
-                    "memory": _rel_mem, "created_at": "2025-01-01T00:00:00Z",
-                }]
-            })
-        )
-        respx.get(f"{BASE_URL}/v1/memories/mem-2/relations").mock(
-            return_value=httpx.Response(200, json={"relations": []})
+        graph_response = {
+            "root": {"id": "mem-1", "content": "root memory", "importance": 0.8},
+            "nodes": [
+                {"id": "mem-1", "content": "root memory", "importance": 0.8},
+                {"id": "mem-2", "content": "related memory", "importance": 0.5},
+            ],
+            "edges": [
+                {"source_id": "mem-1", "target_id": "mem-2", "relation_type": "related_to"},
+            ],
+            "depth": 2,
+        }
+        respx.get(f"{BASE_URL}/v1/memories/mem-1/graph").mock(
+            return_value=httpx.Response(200, json=graph_response)
         )
         graph = await client.get_memory_graph("mem-1", depth=2)
-        assert "mem-1" in graph
-        assert "mem-2" in graph
+        assert graph.root.id == "mem-1"
+        assert len(graph.nodes) == 2
+        assert len(graph.edges) == 1
+        assert graph.depth == 2
         await client.close()
 
     @respx.mock
