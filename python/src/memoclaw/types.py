@@ -29,7 +29,7 @@ class RelatedMemorySummary(BaseModel):
     id: str
     content: str
     importance: float
-    memory_type: str
+    memory_type: MemoryType
     namespace: str
 
 
@@ -209,7 +209,7 @@ class SuggestedMemory(BaseModel):
     content: str
     metadata: dict[str, Any] = Field(default_factory=dict)
     importance: float
-    memory_type: str
+    memory_type: MemoryType
     namespace: str
     session_id: str | None = None
     agent_id: str | None = None
