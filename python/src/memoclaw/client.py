@@ -1341,10 +1341,16 @@ class MemoClaw:
         memory_id: str,
         *,
         depth: int = 1,
+        timeout: float | None = None,
     ) -> dict[str, _list[RelationWithMemory]]:
         """Traverse the memory graph from a starting node.
 
         Returns a dict mapping memory IDs to their relations, up to ``depth`` hops.
+
+        Args:
+            memory_id: Starting memory ID.
+            depth: Number of hops to traverse (default 1).
+            timeout: Per-request timeout in seconds. Overrides the client default.
 
         Example::
 
@@ -1360,7 +1366,7 @@ class MemoClaw:
             for mid in frontier:
                 if mid in visited:
                     continue
-                rels = self.list_relations(mid)
+                rels = self.list_relations(mid, timeout=timeout)
                 visited[mid] = rels
                 for rel in rels:
                     neighbor_id = rel.memory.id
@@ -1378,14 +1384,21 @@ class MemoClaw:
         *,
         relation_type: RelationType | None = None,
         direction: str | None = None,
+        timeout: float | None = None,
     ) -> _list[RelationWithMemory]:
         """Find relations for a memory, optionally filtered by type and direction.
+
+        Args:
+            memory_id: Memory ID to find relations for.
+            relation_type: Filter by relation type.
+            direction: Filter by direction (``"outgoing"`` or ``"incoming"``).
+            timeout: Per-request timeout in seconds. Overrides the client default.
 
         Example::
 
             contradictions = client.find_related("mem-123", relation_type="contradicts")
         """
-        rels = self.list_relations(memory_id)
+        rels = self.list_relations(memory_id, timeout=timeout)
         if relation_type is not None:
             rels = [r for r in rels if r.relation_type == relation_type]
         if direction is not None:
@@ -2529,8 +2542,17 @@ class AsyncMemoClaw:
         memory_id: str,
         *,
         depth: int = 1,
+        timeout: float | None = None,
     ) -> dict[str, _list[RelationWithMemory]]:
-        """Traverse the memory graph from a starting node. See sync version for details."""
+        """Traverse the memory graph from a starting node.
+
+        Async version of :meth:`MemoClaw.get_memory_graph`. See sync version for details.
+
+        Args:
+            memory_id: Starting memory ID.
+            depth: Number of hops to traverse (default 1).
+            timeout: Per-request timeout in seconds. Overrides the client default.
+        """
         visited: dict[str, _list[RelationWithMemory]] = {}
         frontier = [memory_id]
 
@@ -2539,7 +2561,7 @@ class AsyncMemoClaw:
             for mid in frontier:
                 if mid in visited:
                     continue
-                rels = await self.list_relations(mid)
+                rels = await self.list_relations(mid, timeout=timeout)
                 visited[mid] = rels
                 for rel in rels:
                     neighbor_id = rel.memory.id
@@ -2557,9 +2579,19 @@ class AsyncMemoClaw:
         *,
         relation_type: RelationType | None = None,
         direction: str | None = None,
+        timeout: float | None = None,
     ) -> _list[RelationWithMemory]:
-        """Find relations for a memory, optionally filtered. See sync version for details."""
-        rels = await self.list_relations(memory_id)
+        """Find relations for a memory, optionally filtered.
+
+        Async version of :meth:`MemoClaw.find_related`. See sync version for details.
+
+        Args:
+            memory_id: Memory ID to find relations for.
+            relation_type: Filter by relation type.
+            direction: Filter by direction (``"outgoing"`` or ``"incoming"``).
+            timeout: Per-request timeout in seconds. Overrides the client default.
+        """
+        rels = await self.list_relations(memory_id, timeout=timeout)
         if relation_type is not None:
             rels = [r for r in rels if r.relation_type == relation_type]
         if direction is not None:
