@@ -233,6 +233,46 @@ describe('coreMemories', () => {
   });
 });
 
+describe('pinCoreMemory', () => {
+  it('should POST /v1/memories/core', async () => {
+    const body = { pinned: true, id: 'mem-1' };
+    const fetchFn = mockFetch([{ status: 200, body }]);
+    const client = createClient(fetchFn);
+    const result = await client.pinCoreMemory('mem-1');
+    expect(result.pinned).toBe(true);
+    expect(result.id).toBe('mem-1');
+    expect(fetchFn).toHaveBeenCalledWith(
+      expect.stringContaining('/v1/memories/core'),
+      expect.objectContaining({ method: 'POST' }),
+    );
+  });
+
+  it('should throw on empty memoryId', async () => {
+    const client = createClient(mockFetch([]));
+    await expect(client.pinCoreMemory('')).rejects.toThrow('non-empty string');
+  });
+});
+
+describe('unpinCoreMemory', () => {
+  it('should DELETE /v1/memories/core/:id', async () => {
+    const body = { unpinned: true, id: 'mem-1' };
+    const fetchFn = mockFetch([{ status: 200, body }]);
+    const client = createClient(fetchFn);
+    const result = await client.unpinCoreMemory('mem-1');
+    expect(result.unpinned).toBe(true);
+    expect(result.id).toBe('mem-1');
+    expect(fetchFn).toHaveBeenCalledWith(
+      expect.stringContaining('/v1/memories/core/mem-1'),
+      expect.objectContaining({ method: 'DELETE' }),
+    );
+  });
+
+  it('should throw on empty memoryId', async () => {
+    const client = createClient(mockFetch([]));
+    await expect(client.unpinCoreMemory('')).rejects.toThrow('non-empty string');
+  });
+});
+
 describe('textSearch', () => {
   it('should GET /v1/memories/search with query', async () => {
     const body = { memories: [{ id: 'mem-1', content: 'hello' }], total: 1 };

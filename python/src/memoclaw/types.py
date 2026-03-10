@@ -377,6 +377,20 @@ class CoreMemoriesResponse(BaseModel):
     total: int
 
 
+class PinCoreMemoryResult(BaseModel):
+    """Response from POST /v1/memories/core."""
+
+    pinned: bool
+    id: str
+
+
+class UnpinCoreMemoryResult(BaseModel):
+    """Response from DELETE /v1/memories/core/:id."""
+
+    unpinned: bool
+    id: str
+
+
 class TextSearchResponse(BaseModel):
     """Response from GET /v1/memories/search."""
 

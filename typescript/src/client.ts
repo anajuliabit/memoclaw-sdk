@@ -907,6 +907,31 @@ export class MemoClawClient {
     return this.request<CoreMemoriesResponse>('GET', '/v1/core-memories', undefined, Object.keys(query).length ? query : undefined, options);
   }
 
+  /**
+   * Pin a memory as a core memory (FREE).
+   * Uses the dedicated POST /v1/memories/core endpoint which is free,
+   * unlike update(id, { pinned: true }) which costs $0.005.
+   */
+  async pinCoreMemory(memoryId: string, options?: RequestOptions): Promise<import('./types.js').PinCoreMemoryResult> {
+    if (!memoryId?.trim()) throw new Error('memoryId must be a non-empty string');
+    return this.request<import('./types.js').PinCoreMemoryResult>(
+      'POST', '/v1/memories/core', { memory_id: memoryId }, undefined, options,
+    );
+  }
+
+  /**
+   * Unpin a core memory (FREE).
+   * Uses the dedicated DELETE /v1/memories/core/:id endpoint which is free,
+   * unlike update(id, { pinned: false }) which costs $0.005.
+   * The memory is not deleted — it resumes normal type-based decay.
+   */
+  async unpinCoreMemory(memoryId: string, options?: RequestOptions): Promise<import('./types.js').UnpinCoreMemoryResult> {
+    if (!memoryId?.trim()) throw new Error('memoryId must be a non-empty string');
+    return this.request<import('./types.js').UnpinCoreMemoryResult>(
+      'DELETE', `/v1/memories/core/${encodeURIComponent(memoryId)}`, undefined, undefined, options,
+    );
+  }
+
   // ── Text Search ───────────────────────────────────────
 
   /** Keyword text search across memories (FREE). */
