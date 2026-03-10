@@ -815,6 +815,7 @@ class MemoClaw:
         Args:
             timeout: Per-request timeout in seconds. Overrides the client default.
         """
+        _validate_limit(limit)
         params = _clean_params(
             {
                 "limit": limit,
@@ -1091,6 +1092,7 @@ class MemoClaw:
         Args:
             timeout: Per-request timeout in seconds. Overrides the client default.
         """
+        _validate_limit(limit)
         params = _clean_params(
             {"limit": limit, "namespace": namespace, "agent_id": agent_id}
         )
@@ -1204,6 +1206,7 @@ class MemoClaw:
         Yields:
             Individual :class:`Memory` objects.
         """
+        _validate_batch_size(batch_size)
         offset = 0
         while True:
             page = self.list(
@@ -2016,6 +2019,7 @@ class AsyncMemoClaw:
         Args:
             timeout: Per-request timeout in seconds. Overrides the client default.
         """
+        _validate_limit(limit)
         params = _clean_params(
             {
                 "limit": limit,
@@ -2260,6 +2264,7 @@ class AsyncMemoClaw:
         Args:
             timeout: Per-request timeout in seconds. Overrides the client default.
         """
+        _validate_limit(limit)
         params = _clean_params(
             {"limit": limit, "namespace": namespace, "agent_id": agent_id}
         )
@@ -2372,6 +2377,7 @@ class AsyncMemoClaw:
         Yields:
             Individual :class:`Memory` objects.
         """
+        _validate_batch_size(batch_size)
         offset = 0
         while True:
             page = await self.list(

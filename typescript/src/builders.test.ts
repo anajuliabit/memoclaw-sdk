@@ -961,3 +961,69 @@ describe('AsyncStoreBuilder', () => {
     expect(result.id).toBe('mem-789');
   });
 });
+
+// ── Tags/metadata merge correctness ─────────────────────────────────────────
+
+import { MemoryBuilder } from '../src/builders.js';
+
+describe('tags and metadata merge', () => {
+  it('MemoryBuilder: explicit tags win over metadata.tags', () => {
+    const req = new MemoryBuilder()
+      .content('test')
+      .tags(['explicit-tag'])
+      .metadata({ tags: ['should-be-overridden'], extra: true })
+      .build();
+
+    expect(req.metadata?.tags).toEqual(['explicit-tag']);
+    expect((req.metadata as Record<string, unknown>)?.extra).toBe(true);
+  });
+
+  it('StoreBuilder: explicit tags take priority over metadata.tags', async () => {
+    const storeFn = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ id: 'mem-1', stored: true, deduplicated: false, tokens_used: 10 }),
+      headers: { get: () => null },
+    });
+    const client = new MemoClawClient({
+      privateKey: '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80',
+      fetch: storeFn,
+    });
+
+    await new StoreBuilder(client)
+      .content('test memory')
+      .tags(['builder-tag'])
+      .metadata({ tags: ['meta-tag'], other: 'val' })
+      .execute();
+
+    const call = storeFn.mock.calls[0]!;
+    const body = JSON.parse(call[1].body);
+    expect(body.metadata.tags).toEqual(['builder-tag']);
+    expect(body.metadata.other).toBe('val');
+  });
+
+  it('BatchStore.add: explicit tags take priority over metadata.tags', async () => {
+    const storeFn = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ ids: ['mem-1'], stored: true, count: 1, deduplicated_count: 0, tokens_used: 10 }),
+      headers: { get: () => null },
+    });
+    const client = new MemoClawClient({
+      privateKey: '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80',
+      fetch: storeFn,
+    });
+
+    const store = new BatchStore(client);
+    store.add('test memory', {
+      tags: ['batch-tag'],
+      metadata: { tags: ['meta-tag'], foo: 'bar' },
+    });
+    await store.execute();
+
+    const call = storeFn.mock.calls[0]!;
+    const body = JSON.parse(call[1].body);
+    expect(body.memories[0].metadata.tags).toEqual(['batch-tag']);
+    expect(body.memories[0].metadata.foo).toBe('bar');
+  });
+});

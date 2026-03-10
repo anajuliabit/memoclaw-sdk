@@ -599,12 +599,16 @@ export class BatchStore {
   ): BatchStore {
     const memory: StoreRequest = { content };
     if (options?.importance !== undefined) memory.importance = options.importance;
-    if (options?.tags) memory.metadata = { ...memory.metadata, tags: options.tags };
     if (options?.namespace) memory.namespace = options.namespace;
     if (options?.memoryType) memory.memory_type = options.memoryType;
     if (options?.sessionId) memory.session_id = options.sessionId;
     if (options?.agentId) memory.agent_id = options.agentId;
-    if (options?.metadata) memory.metadata = { ...memory.metadata, ...options.metadata };
+    // Merge metadata and tags: explicit tags take priority over metadata.tags
+    if (options?.metadata || options?.tags) {
+      const md: Record<string, unknown> = { ...(options?.metadata ?? {}) };
+      if (options?.tags) md.tags = options.tags;
+      memory.metadata = md;
+    }
     this._memories.push(memory);
     return this;
   }
@@ -799,7 +803,6 @@ export class StoreBuilder {
     }
     const request: StoreRequest = { content: this._content };
     if (this._importance !== undefined) request.importance = this._importance;
-    if (this._tags) request.metadata = { ...request.metadata, tags: this._tags };
     if (this._namespace) request.namespace = this._namespace;
     if (this._memoryType) request.memory_type = this._memoryType;
     if (this._sessionId) request.session_id = this._sessionId;
@@ -807,7 +810,12 @@ export class StoreBuilder {
     if (this._expiresAt) request.expires_at = this._expiresAt;
     if (this._pinned !== undefined) request.pinned = this._pinned;
     if (this._immutable !== undefined) request.immutable = this._immutable;
-    if (this._metadata) request.metadata = { ...request.metadata, ...this._metadata };
+    // Merge metadata and tags: explicit .tags() takes priority over metadata.tags
+    if (this._metadata || this._tags) {
+      const md: Record<string, unknown> = { ...(this._metadata ?? {}) };
+      if (this._tags) md.tags = this._tags;
+      request.metadata = md;
+    }
     return this.client.store(request);
   }
 }

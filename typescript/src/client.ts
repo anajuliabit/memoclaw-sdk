@@ -740,6 +740,7 @@ export class MemoClawClient {
 
   /** Get proactive memory suggestions. */
   async suggested(params: SuggestedParams = {}, options?: RequestOptions): Promise<SuggestedResponse> {
+    validateLimit(params.limit);
     const query: Record<string, string> = {};
     if (params.limit !== undefined) query['limit'] = String(params.limit);
     if (params.namespace) query['namespace'] = params.namespace;
@@ -898,6 +899,7 @@ export class MemoClawClient {
 
   /** Get high-importance, pinned, and frequently-accessed memories (FREE). */
   async coreMemories(params: CoreMemoriesParams = {}, options?: RequestOptions): Promise<CoreMemoriesResponse> {
+    validateLimit(params.limit);
     const query: Record<string, string> = {};
     if (params.limit !== undefined) query['limit'] = String(params.limit);
     if (params.namespace) query['namespace'] = params.namespace;
@@ -954,6 +956,7 @@ export class MemoClawClient {
     params: Omit<ExportParams, 'format'> & { batchSize?: number } = {},
   ): AsyncGenerator<Memory, void, unknown> {
     const { batchSize = 50, ...filters } = params;
+    validateBatchSize(batchSize);
     let offset = 0;
     while (true) {
       const page = await this.list({
