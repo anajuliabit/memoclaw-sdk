@@ -211,7 +211,7 @@ class _SyncHTTPClient:
                     method, url, headers=headers, json=json, params=params,
                     timeout=req_timeout,
                 )
-            except (httpx.ConnectError, httpx.ReadTimeout, httpx.WriteTimeout) as exc:
+            except (httpx.ConnectError, httpx.ReadTimeout, httpx.WriteTimeout, httpx.PoolTimeout) as exc:
                 last_exc = exc
                 if attempt < self._max_retries:
                     delay = _RETRY_BASE_DELAY * (2**attempt)
@@ -348,7 +348,7 @@ class _AsyncHTTPClient:
                     method, url, headers=headers, json=json, params=params,
                     timeout=req_timeout,
                 )
-            except (httpx.ConnectError, httpx.ReadTimeout, httpx.WriteTimeout) as exc:
+            except (httpx.ConnectError, httpx.ReadTimeout, httpx.WriteTimeout, httpx.PoolTimeout) as exc:
                 last_exc = exc
                 if attempt < self._max_retries:
                     delay = _RETRY_BASE_DELAY * (2**attempt)

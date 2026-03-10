@@ -314,3 +314,60 @@ class TestConsolidateEdgeCases:
         result = client.consolidate()
         assert result.clusters_found == 0
         assert len(result.clusters) == 0
+
+
+class TestPoolTimeoutRetry:
+    """Verify that httpx.PoolTimeout is caught and retried like other transient errors."""
+
+    def test_pool_timeout_retried_sync(self, client: MemoClaw):
+        """PoolTimeout should be retried and succeed if the next attempt works."""
+        call_count = 0
+
+        def mock_request(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                raise httpx.PoolTimeout("Connection pool exhausted")
+            return httpx.Response(
+                200,
+                json={"memories": [], "query_tokens": 3},
+            )
+
+        with patch.object(client._http._http, "request", side_effect=mock_request):
+            result = client.recall("test query")
+            assert call_count == 2
+            assert result.query_tokens == 3
+
+    def test_pool_timeout_exhausts_retries_sync(self, client: MemoClaw):
+        """PoolTimeout that persists through all retries should raise."""
+        with patch.object(
+            client._http._http,
+            "request",
+            side_effect=httpx.PoolTimeout("Connection pool exhausted"),
+        ):
+            with pytest.raises(httpx.PoolTimeout):
+                client.recall("test query")
+
+    @pytest.mark.asyncio
+    async def test_pool_timeout_retried_async(self):
+        """Async client: PoolTimeout should be retried."""
+        call_count = 0
+        async_client = AsyncMemoClaw(private_key=TEST_PRIVATE_KEY, base_url=BASE_URL)
+
+        async def mock_request(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                raise httpx.PoolTimeout("Connection pool exhausted")
+            return httpx.Response(
+                200,
+                json={"memories": [], "query_tokens": 5},
+            )
+
+        try:
+            with patch.object(async_client._http._http, "request", side_effect=mock_request):
+                result = await async_client.recall("test query")
+                assert call_count == 2
+                assert result.query_tokens == 5
+        finally:
+            await async_client.close()
