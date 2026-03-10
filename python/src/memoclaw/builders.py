@@ -234,7 +234,11 @@ class RecallBuilder:
         return self
 
     def build(self) -> dict[str, Any]:
-        """Build the recall parameters dict."""
+        """Build recall parameters compatible with ``client.recall(**builder.build())``.
+
+        Returns a flat dict whose keys match the :meth:`MemoClaw.recall` /
+        :meth:`AsyncMemoClaw.recall` keyword arguments.
+        """
         if not self._query:
             raise ValueError("query is required")
         
@@ -252,16 +256,12 @@ class RecallBuilder:
             params["agent_id"] = self._agent_id
         if self._include_relations is not None:
             params["include_relations"] = self._include_relations
-        
-        if self._tags is not None or self._memory_type is not None or self._after is not None:
-            filters: dict[str, Any] = {}
-            if self._tags is not None:
-                filters["tags"] = self._tags
-            if self._memory_type is not None:
-                filters["memory_type"] = self._memory_type
-            if self._after is not None:
-                filters["after"] = self._after
-            params["filters"] = filters
+        if self._tags is not None:
+            params["tags"] = self._tags
+        if self._memory_type is not None:
+            params["memory_type"] = self._memory_type
+        if self._after is not None:
+            params["after"] = self._after
         
         return params
 

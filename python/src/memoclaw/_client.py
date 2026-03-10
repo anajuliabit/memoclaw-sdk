@@ -84,6 +84,14 @@ DEFAULT_BASE_URL = "https://api.memoclaw.com"
 DEFAULT_TIMEOUT = 30.0
 DEFAULT_MAX_RETRIES = 2
 
+def _sdk_user_agent() -> str:
+    """Build User-Agent string with SDK version."""
+    try:
+        from . import __version__
+        return f"memoclaw-sdk-python/{__version__}"
+    except Exception:
+        return "memoclaw-sdk-python/unknown"
+
 # Default connection pool limits
 DEFAULT_POOL_MAX_CONNECTIONS = 10
 DEFAULT_POOL_MAX_KEEPALIVE_CONNECTIONS = 5
@@ -166,6 +174,7 @@ class _SyncHTTPClient:
         self._base_url = base_url.rstrip("/")
         self._timeout = timeout
         self._max_retries = max_retries
+        self._user_agent = _sdk_user_agent()
         
         # Configure connection pool limits for better performance
         limits = httpx.Limits(
@@ -193,9 +202,9 @@ class _SyncHTTPClient:
         for attempt in range(self._max_retries + 1):
             # Generate fresh auth header each attempt (timestamp-based)
             if self._account is not None:
-                headers = {"x-wallet-auth": _generate_wallet_auth(self._account)}
+                headers = {"x-wallet-auth": _generate_wallet_auth(self._account), "user-agent": self._user_agent}
             else:
-                headers = {"x-wallet-auth": _generate_wallet_only_auth(self._wallet_address)}
+                headers = {"x-wallet-auth": _generate_wallet_only_auth(self._wallet_address), "user-agent": self._user_agent}
 
             try:
                 response = self._http.request(
@@ -301,6 +310,7 @@ class _AsyncHTTPClient:
         self._base_url = base_url.rstrip("/")
         self._timeout = timeout
         self._max_retries = max_retries
+        self._user_agent = _sdk_user_agent()
         
         # Configure connection pool limits for better performance
         limits = httpx.Limits(
@@ -329,9 +339,9 @@ class _AsyncHTTPClient:
 
         for attempt in range(self._max_retries + 1):
             if self._account is not None:
-                headers = {"x-wallet-auth": _generate_wallet_auth(self._account)}
+                headers = {"x-wallet-auth": _generate_wallet_auth(self._account), "user-agent": self._user_agent}
             else:
-                headers = {"x-wallet-auth": _generate_wallet_only_auth(self._wallet_address)}
+                headers = {"x-wallet-auth": _generate_wallet_only_auth(self._wallet_address), "user-agent": self._user_agent}
 
             try:
                 response = await self._http.request(

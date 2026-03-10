@@ -133,7 +133,7 @@ class TestRecallBuilder:
             .build()
         )
         
-        assert params["filters"]["tags"] == ["tag1", "tag2"]
+        assert params["tags"] == ["tag1", "tag2"]
 
     def test_recall_with_memory_type(self):
         params = (
@@ -143,7 +143,7 @@ class TestRecallBuilder:
             .build()
         )
         
-        assert params["filters"]["memory_type"] == "preference"
+        assert params["memory_type"] == "preference"
 
     def test_recall_requires_query(self):
         with pytest.raises(ValueError, match="query is required"):
@@ -627,7 +627,7 @@ class TestStoreBuilder:
 class TestRecallBuilderAfter:
     """Test that RecallBuilder supports the after() filter."""
 
-    def test_after_included_in_filters(self):
+    def test_after_included_in_params(self):
         params = (
             RecallBuilder()
             .query("test query")
@@ -635,8 +635,7 @@ class TestRecallBuilderAfter:
             .build()
         )
         assert params["query"] == "test query"
-        assert "filters" in params
-        assert params["filters"]["after"] == "2026-01-01T00:00:00Z"
+        assert params["after"] == "2026-01-01T00:00:00Z"
 
     def test_after_combined_with_other_filters(self):
         params = (
@@ -647,10 +646,9 @@ class TestRecallBuilderAfter:
             .after("2026-03-01T00:00:00Z")
             .build()
         )
-        filters = params["filters"]
-        assert filters["tags"] == ["important"]
-        assert filters["memory_type"] == "preference"
-        assert filters["after"] == "2026-03-01T00:00:00Z"
+        assert params["tags"] == ["important"]
+        assert params["memory_type"] == "preference"
+        assert params["after"] == "2026-03-01T00:00:00Z"
 
     def test_after_only_filter(self):
         params = (
@@ -659,11 +657,13 @@ class TestRecallBuilderAfter:
             .after("2026-01-01T00:00:00Z")
             .build()
         )
-        assert params["filters"] == {"after": "2026-01-01T00:00:00Z"}
+        assert params["after"] == "2026-01-01T00:00:00Z"
 
-    def test_no_filters_when_none_set(self):
+    def test_no_extra_keys_when_none_set(self):
         params = RecallBuilder().query("test").build()
-        assert "filters" not in params
+        assert "tags" not in params
+        assert "memory_type" not in params
+        assert "after" not in params
 
 
 class TestAsyncRelationBuilder:
