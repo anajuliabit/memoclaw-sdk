@@ -164,7 +164,7 @@ describe('getHistory', () => {
 });
 
 describe('updateBatch', () => {
-  it('should POST /v1/memories/batch-update', async () => {
+  it('should PATCH /v1/memories/batch', async () => {
     const fetch = mockFetch([{
       status: 200,
       body: {
@@ -186,8 +186,8 @@ describe('updateBatch', () => {
     expect(result.failed).toBe(0);
     expect(result.results).toHaveLength(2);
     expect(fetch).toHaveBeenCalledWith(
-      `${BASE_URL}/v1/memories/batch-update`,
-      expect.objectContaining({ method: 'POST' }),
+      `${BASE_URL}/v1/memories/batch`,
+      expect.objectContaining({ method: 'PATCH' }),
     );
   });
 
@@ -209,14 +209,14 @@ describe('updateBatch', () => {
 });
 
 describe('coreMemories', () => {
-  it('should GET /v1/core-memories', async () => {
+  it('should GET /v1/memories/core', async () => {
     const body = { memories: [{ id: 'mem-1', content: 'core' }], total: 1 };
     const fetchFn = mockFetch([{ status: 200, body }]);
     const client = createClient(fetchFn);
     const result = await client.coreMemories();
     expect(result).toEqual(body);
     expect(fetchFn).toHaveBeenCalledWith(
-      `${BASE_URL}/v1/core-memories`,
+      `${BASE_URL}/v1/memories/core`,
       expect.objectContaining({ method: 'GET' }),
     );
   });
@@ -274,15 +274,15 @@ describe('unpinCoreMemory', () => {
 });
 
 describe('textSearch', () => {
-  it('should GET /v1/memories/search with query', async () => {
+  it('should POST /v1/search with query in body', async () => {
     const body = { memories: [{ id: 'mem-1', content: 'hello' }], total: 1 };
     const fetchFn = mockFetch([{ status: 200, body }]);
     const client = createClient(fetchFn);
     const result = await client.textSearch({ query: 'hello' });
     expect(result).toEqual(body);
     expect(fetchFn).toHaveBeenCalledWith(
-      expect.stringContaining('/v1/memories/search?q=hello'),
-      expect.objectContaining({ method: 'GET' }),
+      `${BASE_URL}/v1/search`,
+      expect.objectContaining({ method: 'POST' }),
     );
   });
 
@@ -302,12 +302,13 @@ describe('textSearch', () => {
       tags: ['a', 'b'],
       memory_type: 'correction',
     });
-    const url = (fetchFn as any).mock.calls[0][0] as string;
-    expect(url).toContain('q=test');
-    expect(url).toContain('limit=10');
-    expect(url).toContain('namespace=ns');
-    expect(url).toContain('tags=a%2Cb');
-    expect(url).toContain('memory_type=correction');
+    const callArgs = (fetchFn as any).mock.calls[0];
+    const requestBody = JSON.parse(callArgs[1].body);
+    expect(requestBody.query).toBe('test');
+    expect(requestBody.limit).toBe(10);
+    expect(requestBody.namespace).toBe('ns');
+    expect(requestBody.tags).toEqual(['a', 'b']);
+    expect(requestBody.memory_type).toBe('correction');
   });
 });
 
