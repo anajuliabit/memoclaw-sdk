@@ -34,6 +34,7 @@ from .types import (
     PinCoreMemoryResult,
     UnpinCoreMemoryResult,
     DeleteBatchItemResult,
+    DeleteNamespaceResult,
     DeleteResult,
     ExportResponse,
     ExtractResult,
@@ -877,6 +878,7 @@ class MemoClaw:
         Args:
             timeout: Per-request timeout in seconds. Overrides the client default.
         """
+        self._require_signed_auth("delete_relation")
         _validate_non_empty(memory_id, "memory_id")
         _validate_non_empty(relation_id, "relation_id")
         data = self._run_request(
@@ -1304,7 +1306,7 @@ class MemoClaw:
         *,
         batch_size: int = 50,
         timeout: float | None = None,
-    ) -> DeleteResult:
+    ) -> DeleteNamespaceResult:
         """Delete all memories in a namespace.
 
         Iterates through all memories in the given namespace and deletes
@@ -1318,7 +1320,7 @@ class MemoClaw:
         Example::
 
             result = client.delete_namespace("test-data")
-            print(f"Deleted {result.id} memories")  # id holds the count as string
+            print(f"Deleted {result.deleted_count} memories")
         """
         _validate_non_empty(namespace, "namespace")
         _validate_batch_size(batch_size)
@@ -1330,7 +1332,7 @@ class MemoClaw:
             ids = [m.id for m in page.memories]
             self.delete_batch(ids, timeout=timeout)
             total_deleted += len(ids)
-        return DeleteResult(deleted=total_deleted > 0, id=str(total_deleted))
+        return DeleteNamespaceResult(deleted=total_deleted > 0, deleted_count=total_deleted)
 
     # ── Graph helpers ────────────────────────────────────────────────────
 
@@ -2106,6 +2108,7 @@ class AsyncMemoClaw:
         self, memory_id: str, relation_id: str, *, timeout: float | None = None
     ) -> DeleteResult:
         """Delete a memory relationship."""
+        self._require_signed_auth("delete_relation")
         _validate_non_empty(memory_id, "memory_id")
         _validate_non_empty(relation_id, "relation_id")
         data = await self._run_request(
@@ -2502,7 +2505,7 @@ class AsyncMemoClaw:
         *,
         batch_size: int = 50,
         timeout: float | None = None,
-    ) -> DeleteResult:
+    ) -> DeleteNamespaceResult:
         """Delete all memories in a namespace.
 
         Async version of :meth:`MemoClaw.delete_namespace`.
@@ -2517,7 +2520,7 @@ class AsyncMemoClaw:
             ids = [m.id for m in page.memories]
             await self.delete_batch(ids, timeout=timeout)
             total_deleted += len(ids)
-        return DeleteResult(deleted=total_deleted > 0, id=str(total_deleted))
+        return DeleteNamespaceResult(deleted=total_deleted > 0, deleted_count=total_deleted)
 
     # ── Graph helpers ────────────────────────────────────────────────────
 

@@ -62,6 +62,7 @@ import {
 } from './errors.js';
 import { loadConfig } from './config.js';
 import { StoreBuilder } from './builders.js';
+import { VERSION } from './version.js';
 import { privateKeyToAccount, type PrivateKeyAccount } from 'viem/accounts';
 import type { Hex } from 'viem';
 
@@ -333,7 +334,9 @@ export class MemoClawClient {
     }
 
     // Generate auth header — signed if private key is available, plain wallet otherwise
-    const headers: Record<string, string> = {};
+    const headers: Record<string, string> = {
+      'user-agent': `memoclaw-sdk-ts/${VERSION}`,
+    };
     if (this._account) {
       const timestamp = Math.floor(Date.now() / 1000).toString();
       const authMessage = `memoclaw-auth:${timestamp}`;
@@ -730,6 +733,7 @@ export class MemoClawClient {
 
   /** Delete a relationship. */
   async deleteRelation(memoryId: string, relationId: string, options?: RequestOptions): Promise<DeleteRelationResponse> {
+    this.requireSignedAuth('deleteRelation');
     if (!memoryId?.trim()) throw new Error('memoryId must be a non-empty string');
     if (!relationId?.trim()) throw new Error('relationId must be a non-empty string');
     return this.request<DeleteRelationResponse>(
