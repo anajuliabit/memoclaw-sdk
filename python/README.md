@@ -8,10 +8,13 @@ Official Python SDK for the [MemoClaw](https://memoclaw.com) memory API — sema
 pip install memoclaw
 ```
 
-To enable automatic x402 payments (when free tier is exhausted):
+With optional extras:
 
 ```bash
-pip install "memoclaw[x402]"
+pip install "memoclaw[x402]"            # automatic x402 payments
+pip install "memoclaw[langchain]"       # LangChain integration
+pip install "memoclaw[llamaindex]"      # LlamaIndex integration
+pip install "memoclaw[x402,langchain,llamaindex]"  # all extras
 ```
 
 ## Quickstart
