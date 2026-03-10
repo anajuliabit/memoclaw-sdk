@@ -497,6 +497,35 @@ export interface TextSearchResponse {
   total: number;
 }
 
+// ── Memory Graph ───────────────────────────────────────
+
+export interface MemoryGraphParams {
+  depth?: number;
+  limit?: number;
+  relation_types?: RelationType[];
+}
+
+export interface MemoryGraphNode {
+  id: string;
+  content: string;
+  importance: number;
+  memory_type?: MemoryType;
+  namespace?: string;
+}
+
+export interface MemoryGraphEdge {
+  source_id: string;
+  target_id: string;
+  relation_type: RelationType;
+}
+
+export interface MemoryGraphResponse {
+  root: MemoryGraphNode;
+  nodes: MemoryGraphNode[];
+  edges: MemoryGraphEdge[];
+  depth: number;
+}
+
 // ── Errors ─────────────────────────────────────────────
 
 export interface MemoClawErrorBody {

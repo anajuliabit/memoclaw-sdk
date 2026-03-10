@@ -398,6 +398,33 @@ class TextSearchResponse(BaseModel):
     total: int
 
 
+class MemoryGraphNode(BaseModel):
+    """A node in the memory graph."""
+
+    id: str
+    content: str
+    importance: float
+    memory_type: MemoryType | None = None
+    namespace: str | None = None
+
+
+class MemoryGraphEdge(BaseModel):
+    """An edge in the memory graph."""
+
+    source_id: str
+    target_id: str
+    relation_type: RelationType
+
+
+class MemoryGraphResponse(BaseModel):
+    """Response from GET /v1/memories/{id}/graph."""
+
+    root: MemoryGraphNode
+    nodes: list[MemoryGraphNode]
+    edges: list[MemoryGraphEdge]
+    depth: int
+
+
 class StoreInput(BaseModel):
     """Input for a single memory in a batch store request."""
 

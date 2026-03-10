@@ -437,18 +437,45 @@ describe('listAll async iterator', () => {
 });
 
 describe('getMemoryGraph', () => {
-  it('traverses 1 hop', async () => {
-    const f = mockFetch([
-      // m1's relations
-      { status: 200, body: { relations: [{ id: 'r1', relation_type: 'related_to', direction: 'outgoing', memory: { id: 'm2', content: 'related', importance: 0.5, memory_type: 'general', namespace: 'default' }, metadata: {}, created_at: '' }] } },
-      // m2's relations (fetched in 2nd hop iteration, but depth=1 means we process frontier[m2])
-      { status: 200, body: { relations: [] } },
-    ]);
+  it('calls server-side graph endpoint', async () => {
+    const graphResponse = {
+      root: { id: 'm1', content: 'root memory', importance: 0.8 },
+      nodes: [
+        { id: 'm1', content: 'root memory', importance: 0.8 },
+        { id: 'm2', content: 'related memory', importance: 0.5 },
+      ],
+      edges: [
+        { source_id: 'm1', target_id: 'm2', relation_type: 'related_to' },
+      ],
+      depth: 2,
+    };
+    const f = mockFetch([{ status: 200, body: graphResponse }]);
     const client = createClient(f);
-    const graph = await client.getMemoryGraph('m1', 2);
-    expect(graph.size).toBe(2);
-    expect(graph.has('m1')).toBe(true);
-    expect(graph.has('m2')).toBe(true);
+    const graph = await client.getMemoryGraph('m1', { depth: 2 });
+    expect(graph.nodes).toHaveLength(2);
+    expect(graph.edges).toHaveLength(1);
+    expect(graph.root.id).toBe('m1');
+    expect(graph.depth).toBe(2);
+    expect(f).toHaveBeenCalledWith(
+      expect.stringContaining('/v1/memories/m1/graph'),
+      expect.objectContaining({ method: 'GET' }),
+    );
+  });
+
+  it('passes query params', async () => {
+    const graphResponse = { root: { id: 'm1', content: 'x', importance: 0.5 }, nodes: [], edges: [], depth: 1 };
+    const f = mockFetch([{ status: 200, body: graphResponse }]);
+    const client = createClient(f);
+    await client.getMemoryGraph('m1', { depth: 3, limit: 100, relation_types: ['supports', 'contradicts'] });
+    const url = (f as any).mock.calls[0][0] as string;
+    expect(url).toContain('depth=3');
+    expect(url).toContain('limit=100');
+    expect(url).toContain('relation_types=supports%2Ccontradicts');
+  });
+
+  it('throws on empty memoryId', async () => {
+    const client = createClient(vi.fn());
+    await expect(client.getMemoryGraph('')).rejects.toThrow('non-empty string');
   });
 });
 
