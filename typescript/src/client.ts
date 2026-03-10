@@ -205,6 +205,7 @@ export class MemoClawClient {
   private readonly maxRetries: number;
   private readonly retryDelay: number;
   private readonly timeout: number;
+  private readonly enableX402: boolean;
   private readonly _beforeRequestHooks: BeforeRequestHook[] = [];
   private readonly _afterResponseHooks: AfterResponseHook[] = [];
   private readonly _onErrorHooks: OnErrorHook[] = [];
@@ -248,6 +249,7 @@ export class MemoClawClient {
     this.maxRetries = options.maxRetries ?? 2;
     this.retryDelay = options.retryDelay ?? 500;
     this.timeout = options.timeout ?? 0;
+    this.enableX402 = options.enableX402 ?? true;
 
     // Logging: accepts a custom Logger, or `debug: true` for console output.
     // Wrap with level-gating and optional structured JSON formatting.
@@ -301,6 +303,27 @@ export class MemoClawClient {
   }
 
   // ── Internal helpers ───────────────────────────────
+
+  /**
+   * Attempt to create x402 payment headers from a 402 response.
+   * Returns payment headers on success, or null if x402 is unavailable.
+   * @internal
+   */
+  private async _tryX402Payment(response: Response): Promise<Record<string, string> | null> {
+    if (!this.enableX402) return null;
+    try {
+      // Dynamic import — only loaded if the user has installed x402
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const x402Module: any = await (Function('return import("x402")')() as Promise<any>);
+      const createPaymentHeaders = x402Module.createPaymentHeaders ?? x402Module.default?.createPaymentHeaders;
+      if (typeof createPaymentHeaders !== 'function') return null;
+      const paymentHeaders: Record<string, string> = await createPaymentHeaders(response);
+      return paymentHeaders;
+    } catch {
+      // x402 not installed or payment creation failed
+      return null;
+    }
+  }
 
   /** Throw if the client is in wallet-only mode (no private key). */
   private requireSignedAuth(method: string): void {
@@ -425,6 +448,33 @@ export class MemoClawClient {
           if (result !== undefined) data = result as T;
         }
         return data;
+      }
+
+      // 402 → attempt x402 automatic payment and retry once
+      if (res.status === 402) {
+        this._logger?.debug(`${method} ${path} → 402, attempting x402 payment`, { method, path });
+        const paymentHeaders = await this._tryX402Payment(res);
+        if (paymentHeaders) {
+          this._logger?.info(`x402 payment headers created, retrying ${method} ${path}`, { method, path });
+          // Retry the request with payment headers merged in
+          const retryHeaders = { ...headers, ...paymentHeaders };
+          const retryRes = await this._fetch(url, { method, headers: retryHeaders, body: jsonBody, signal: combinedSignal });
+          if (retryRes.ok) {
+            const duration = Date.now() - startTime;
+            const reqId = retryRes.headers?.get('x-request-id') ?? undefined;
+            this._logger?.info(`${method} ${path} → ${retryRes.status} (${duration}ms, x402 paid)`, reqId ? `req=${reqId}` : '', {
+              method, path, status: retryRes.status, duration_ms: duration, request_id: reqId,
+            });
+            let data = (await retryRes.json()) as T;
+            for (const hook of this._afterResponseHooks) {
+              const result = hook(method, path, data);
+              if (result !== undefined) data = result as T;
+            }
+            return data;
+          }
+          // x402 retry failed — fall through to normal error handling with the retry response
+          res = retryRes;
+        }
       }
 
       let errorBody: MemoClawErrorBody | undefined;

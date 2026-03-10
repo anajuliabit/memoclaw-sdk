@@ -549,6 +549,12 @@ export interface MemoClawOptions {
   /** Log output format. `'text'` (default) for human-readable, `'json'` for
    *  structured JSON suitable for observability pipelines (Datadog, Grafana, etc). */
   logFormat?: LogFormat;
+  /** Enable automatic x402 payment on 402 responses. When true (default),
+   *  the SDK will attempt to dynamically import the `x402` package and
+   *  create payment headers to retry the request. If the package is not
+   *  installed, falls through to normal PaymentRequiredError handling.
+   *  Set to false to disable automatic payment attempts. */
+  enableX402?: boolean;
 }
 
 /** Supported log levels (ascending severity). `'none'` disables all output. */
