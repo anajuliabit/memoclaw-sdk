@@ -82,6 +82,8 @@ export interface RecallMemory {
   immutable: boolean;
   relations?: RelationWithMemory[];
   _signals?: RecallSignals;
+  /** Alias for `_signals` — scoring signal breakdown (mirrors Python SDK's `signals` field). */
+  signals?: RecallSignals;
 }
 
 export interface RecallResponse {
@@ -324,6 +326,11 @@ export interface DeleteBatchResult {
   id: string;
   deleted: boolean;
   error?: string;
+}
+
+export interface DeleteNamespaceResult {
+  deleted: boolean;
+  deletedCount: number;
 }
 
 // ── Free Tier Status ───────────────────────────────────

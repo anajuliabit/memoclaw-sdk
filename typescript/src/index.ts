@@ -44,6 +44,7 @@ export type {
   UpdateMemoryRequest,
   DeleteResponse,
   DeleteBatchResult,
+  DeleteNamespaceResult,
   IngestRequest,
   IngestResponse,
   SuggestedCategory,
