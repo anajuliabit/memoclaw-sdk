@@ -637,7 +637,7 @@ export class MemoClawClient {
       }
     }
     return this.request<UpdateBatchResponse>(
-      'POST', '/v1/memories/batch-update',
+      'PATCH', '/v1/memories/batch',
       { updates } satisfies UpdateBatchRequest,
       undefined, options,
     );
@@ -958,7 +958,7 @@ export class MemoClawClient {
     if (params.limit !== undefined) query['limit'] = String(params.limit);
     if (params.namespace) query['namespace'] = params.namespace;
     if (params.agent_id) query['agent_id'] = params.agent_id;
-    return this.request<CoreMemoriesResponse>('GET', '/v1/core-memories', undefined, Object.keys(query).length ? query : undefined, options);
+    return this.request<CoreMemoriesResponse>('GET', '/v1/memories/core', undefined, Object.keys(query).length ? query : undefined, options);
   }
 
   /**
@@ -994,15 +994,15 @@ export class MemoClawClient {
       throw new Error('query must be a non-empty string');
     }
     validateLimit(params.limit);
-    const query: Record<string, string> = { q: params.query };
-    if (params.limit !== undefined) query['limit'] = String(params.limit);
-    if (params.namespace) query['namespace'] = params.namespace;
-    if (params.tags?.length) query['tags'] = params.tags.join(',');
-    if (params.memory_type) query['memory_type'] = params.memory_type;
-    if (params.session_id) query['session_id'] = params.session_id;
-    if (params.agent_id) query['agent_id'] = params.agent_id;
-    if (params.after) query['after'] = params.after;
-    return this.request<TextSearchResponse>('GET', '/v1/memories/search', undefined, query, options);
+    const body: Record<string, unknown> = { query: params.query };
+    if (params.limit !== undefined) body['limit'] = params.limit;
+    if (params.namespace) body['namespace'] = params.namespace;
+    if (params.tags?.length) body['tags'] = params.tags;
+    if (params.memory_type) body['memory_type'] = params.memory_type;
+    if (params.session_id) body['session_id'] = params.session_id;
+    if (params.agent_id) body['agent_id'] = params.agent_id;
+    if (params.after) body['after'] = params.after;
+    return this.request<TextSearchResponse>('POST', '/v1/search', body, undefined, options);
   }
 
   // ── Export ─────────────────────────────────────────────

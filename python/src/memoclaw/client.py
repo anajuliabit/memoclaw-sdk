@@ -666,7 +666,7 @@ class MemoClaw:
             if "id" not in item or not item["id"]:
                 raise ValueError("Each update must include a non-empty 'id'")
         data = self._run_request(
-            "POST", "/v1/memories/batch-update", json={"updates": items}, timeout=timeout
+            "PATCH", "/v1/memories/batch", json={"updates": items}, timeout=timeout
         )
         return UpdateBatchResult.model_validate(data)
 
@@ -1100,7 +1100,7 @@ class MemoClaw:
         params = _clean_params(
             {"limit": limit, "namespace": namespace, "agent_id": agent_id}
         )
-        data = self._run_request("GET", "/v1/core-memories", params=params, timeout=timeout)
+        data = self._run_request("GET", "/v1/memories/core", params=params, timeout=timeout)
         return CoreMemoriesResponse.model_validate(data)
 
     def pin_core_memory(self, memory_id: str, *, timeout: float | None = None) -> PinCoreMemoryResult:
@@ -1154,9 +1154,9 @@ class MemoClaw:
         """
         _validate_non_empty(query, "query")
         _validate_limit(limit)
-        params = _clean_params(
+        body = _clean_body(
             {
-                "q": query,
+                "query": query,
                 "limit": limit,
                 "namespace": namespace,
                 "tags": tags,
@@ -1166,7 +1166,7 @@ class MemoClaw:
                 "after": after,
             }
         )
-        data = self._run_request("GET", "/v1/memories/search", params=params, timeout=timeout)
+        data = self._run_request("POST", "/v1/search", json=body, timeout=timeout)
         return TextSearchResponse.model_validate(data)
 
     # ── Export ────────────────────────────────────────────────────────────
@@ -1898,7 +1898,7 @@ class AsyncMemoClaw:
             if "id" not in item or not item["id"]:
                 raise ValueError("Each update must include a non-empty 'id'")
         data = await self._run_request(
-            "POST", "/v1/memories/batch-update", json={"updates": items}, timeout=timeout
+            "PATCH", "/v1/memories/batch", json={"updates": items}, timeout=timeout
         )
         return UpdateBatchResult.model_validate(data)
 
@@ -2302,7 +2302,7 @@ class AsyncMemoClaw:
         params = _clean_params(
             {"limit": limit, "namespace": namespace, "agent_id": agent_id}
         )
-        data = await self._run_request("GET", "/v1/core-memories", params=params, timeout=timeout)
+        data = await self._run_request("GET", "/v1/memories/core", params=params, timeout=timeout)
         return CoreMemoriesResponse.model_validate(data)
 
     async def pin_core_memory(self, memory_id: str, *, timeout: float | None = None) -> PinCoreMemoryResult:
@@ -2356,9 +2356,9 @@ class AsyncMemoClaw:
         """
         _validate_non_empty(query, "query")
         _validate_limit(limit)
-        params = _clean_params(
+        body = _clean_body(
             {
-                "q": query,
+                "query": query,
                 "limit": limit,
                 "namespace": namespace,
                 "tags": tags,
@@ -2368,7 +2368,7 @@ class AsyncMemoClaw:
                 "after": after,
             }
         )
-        data = await self._run_request("GET", "/v1/memories/search", params=params, timeout=timeout)
+        data = await self._run_request("POST", "/v1/search", json=body, timeout=timeout)
         return TextSearchResponse.model_validate(data)
 
     # ── Export ────────────────────────────────────────────────────────────

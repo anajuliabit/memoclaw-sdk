@@ -497,7 +497,7 @@ class TestAsyncCoreMemories:
     @respx.mock
     @pytest.mark.asyncio
     async def test_core_memories(self, client: AsyncMemoClaw):
-        respx.get(f"{BASE_URL}/v1/core-memories").mock(
+        respx.get(f"{BASE_URL}/v1/memories/core").mock(
             return_value=httpx.Response(200, json={
                 "memories": [_MEM_JSON],
                 "total": 1,
@@ -512,7 +512,7 @@ class TestAsyncTextSearch:
     @respx.mock
     @pytest.mark.asyncio
     async def test_text_search(self, client: AsyncMemoClaw):
-        respx.get(f"{BASE_URL}/v1/memories/search").mock(
+        respx.post(f"{BASE_URL}/v1/search").mock(
             return_value=httpx.Response(200, json={
                 "memories": [_MEM_JSON],
                 "total": 1,
@@ -566,7 +566,7 @@ class TestAsyncUpdateBatch:
     @respx.mock
     @pytest.mark.asyncio
     async def test_update_batch(self, client: AsyncMemoClaw):
-        respx.post(f"{BASE_URL}/v1/memories/batch-update").mock(
+        respx.patch(f"{BASE_URL}/v1/memories/batch").mock(
             return_value=httpx.Response(200, json={
                 "updated": 2,
                 "failed": 0,

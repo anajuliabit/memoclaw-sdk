@@ -250,7 +250,7 @@ class TestGetHistory:
 class TestUpdateBatch:
     @respx.mock
     def test_basic(self, client):
-        respx.post(f"{BASE_URL}/v1/memories/batch-update").mock(
+        respx.patch(f"{BASE_URL}/v1/memories/batch").mock(
             return_value=httpx.Response(200, json={
                 "results": [
                     {"id": "mem-1", "updated": True},
@@ -272,7 +272,7 @@ class TestUpdateBatch:
 
     @respx.mock
     def test_with_update_input(self, client):
-        respx.post(f"{BASE_URL}/v1/memories/batch-update").mock(
+        respx.patch(f"{BASE_URL}/v1/memories/batch").mock(
             return_value=httpx.Response(200, json={
                 "results": [{"id": "mem-1", "updated": True}],
                 "updated": 1,
@@ -301,7 +301,7 @@ class TestUpdateBatch:
     @respx.mock
     @pytest.mark.asyncio
     async def test_async(self, async_client):
-        respx.post(f"{BASE_URL}/v1/memories/batch-update").mock(
+        respx.patch(f"{BASE_URL}/v1/memories/batch").mock(
             return_value=httpx.Response(200, json={
                 "results": [{"id": "mem-1", "updated": True}],
                 "updated": 1,
@@ -319,7 +319,7 @@ class TestUpdateBatch:
 class TestCoreMemories:
     @respx.mock
     def test_sync(self, client):
-        respx.get(f"{BASE_URL}/v1/core-memories").mock(
+        respx.get(f"{BASE_URL}/v1/memories/core").mock(
             return_value=httpx.Response(200, json={
                 "memories": [{"id": "mem-1", "content": "core", "user_id": "u", "namespace": "default",
                     "embedding_model": "text-embedding-3-small", "metadata": {}, "importance": 0.9,
@@ -339,7 +339,7 @@ class TestCoreMemories:
     @respx.mock
     @pytest.mark.asyncio
     async def test_async(self, async_client):
-        respx.get(f"{BASE_URL}/v1/core-memories").mock(
+        respx.get(f"{BASE_URL}/v1/memories/core").mock(
             return_value=httpx.Response(200, json={
                 "memories": [],
                 "total": 0,
@@ -422,7 +422,7 @@ class TestUnpinCoreMemory:
 class TestTextSearch:
     @respx.mock
     def test_sync(self, client):
-        respx.get(f"{BASE_URL}/v1/memories/search").mock(
+        respx.post(f"{BASE_URL}/v1/search").mock(
             return_value=httpx.Response(200, json={
                 "memories": [{"id": "mem-1", "content": "hello world", "user_id": "u", "namespace": "default",
                     "embedding_model": "text-embedding-3-small", "metadata": {}, "importance": 0.5,
@@ -445,7 +445,7 @@ class TestTextSearch:
     @respx.mock
     @pytest.mark.asyncio
     async def test_async(self, async_client):
-        respx.get(f"{BASE_URL}/v1/memories/search").mock(
+        respx.post(f"{BASE_URL}/v1/search").mock(
             return_value=httpx.Response(200, json={
                 "memories": [],
                 "total": 0,
