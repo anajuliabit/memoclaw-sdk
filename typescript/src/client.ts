@@ -1082,7 +1082,7 @@ export class MemoClawClient {
   // ── Graph helpers ─────────────────────────────────────
 
   /** Traverse the memory graph from a starting node up to `depth` hops. */
-  async getMemoryGraph(memoryId: string, depth = 1): Promise<Map<string, ListRelationsResponse['relations']>> {
+  async getMemoryGraph(memoryId: string, depth = 1, options?: RequestOptions): Promise<Map<string, ListRelationsResponse['relations']>> {
     const visited = new Map<string, ListRelationsResponse['relations']>();
     let frontier = [memoryId];
 
@@ -1090,7 +1090,7 @@ export class MemoClawClient {
       const nextFrontier: string[] = [];
       for (const mid of frontier) {
         if (visited.has(mid)) continue;
-        const { relations } = await this.listRelations(mid);
+        const { relations } = await this.listRelations(mid, options);
         visited.set(mid, relations);
         for (const rel of relations) {
           if (!visited.has(rel.memory.id)) {
@@ -1108,12 +1108,13 @@ export class MemoClawClient {
   /** Find relations for a memory, optionally filtered by type and/or direction. */
   async findRelated(
     memoryId: string,
-    options: { relationType?: RelationType; direction?: 'outgoing' | 'incoming' } = {},
+    options: { relationType?: RelationType; direction?: 'outgoing' | 'incoming' } & RequestOptions = {},
   ): Promise<ListRelationsResponse['relations']> {
-    const { relations } = await this.listRelations(memoryId);
+    const { relationType, direction, ...requestOptions } = options;
+    const { relations } = await this.listRelations(memoryId, requestOptions);
     return relations.filter((r) => {
-      if (options.relationType && r.relation_type !== options.relationType) return false;
-      if (options.direction && r.direction !== options.direction) return false;
+      if (relationType && r.relation_type !== relationType) return false;
+      if (direction && r.direction !== direction) return false;
       return true;
     });
   }

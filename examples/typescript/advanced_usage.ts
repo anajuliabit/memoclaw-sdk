@@ -149,7 +149,7 @@ async function main() {
   const memoryId = result.id;
   
   // Get memory graph (relations up to N hops)
-  const graph = await client.getMemoryGraph(memoryId, depth=2);
+  const graph = await client.getMemoryGraph(memoryId, 2);
   console.log(`Graph has ${graph.size} nodes`);
   
   // Find related memories

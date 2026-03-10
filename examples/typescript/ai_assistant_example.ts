@@ -103,7 +103,7 @@ async function main() {
 
   // 6. Graph traversal
   console.log('\n6. Memory graph traversal...');
-  const graph = await client.getMemoryGraph(pref1.id, depth=2);
+  const graph = await client.getMemoryGraph(pref1.id, 2);
   console.log(`   Graph from "${pref1.id}":`);
   for (const [mid, relations] of graph) {
     console.log(`   - ${mid}: ${relations.length} relations`);

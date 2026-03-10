@@ -78,7 +78,7 @@ async function main() {
   // Traverse the graph to depth 2
   console.log('\n4. Traversing graph to depth 2...\n');
 
-  const graph = await client.getMemoryGraph(mem1.id, depth=2);
+  const graph = await client.getMemoryGraph(mem1.id, 2);
   console.log(`Visited ${graph.size} nodes in the graph:`);
   
   for (const [memoryId, relations] of graph.entries()) {
