@@ -8,7 +8,7 @@ from urllib.parse import quote
 
 from collections.abc import AsyncIterator, Callable, Iterator, Sequence
 
-from typing import Any
+from typing import Any, Literal
 
 # Preserve built-in ``list`` reference — the ``list()`` method on client
 # classes shadows the built-in within their class scope, confusing mypy.
@@ -918,7 +918,7 @@ class MemoClaw:
         """
         import time
 
-        auth_mode = "signed" if self._http._account is not None else "wallet-only"
+        auth_mode: Literal["signed", "wallet-only"] = "signed" if self._http._account is not None else "wallet-only"
         start = time.monotonic()
         try:
             data = self._run_request("GET", "/v1/free-tier/status", timeout=timeout)
@@ -2151,7 +2151,7 @@ class AsyncMemoClaw:
         """
         import time
 
-        auth_mode = "signed" if self._http._account is not None else "wallet-only"
+        auth_mode: Literal["signed", "wallet-only"] = "signed" if self._http._account is not None else "wallet-only"
         start = time.monotonic()
         try:
             data = await self._run_request("GET", "/v1/free-tier/status", timeout=timeout)
