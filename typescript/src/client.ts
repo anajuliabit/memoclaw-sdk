@@ -569,7 +569,14 @@ export class MemoClawClient {
     }
     validateLimit(request.limit);
     validateMinSimilarity(request.min_similarity);
-    return this.request<RecallResponse>('POST', '/v1/recall', request, undefined, options);
+    const data = await this.request<RecallResponse>('POST', '/v1/recall', request, undefined, options);
+    // Populate `signals` alias from `_signals` for cleaner API (mirrors Python SDK)
+    for (const mem of data.memories) {
+      if (mem._signals && !mem.signals) {
+        mem.signals = mem._signals;
+      }
+    }
+    return data;
   }
 
   /** List memories with pagination and optional filters. */
@@ -929,7 +936,7 @@ export class MemoClawClient {
   async deleteNamespace(
     namespace: string,
     options?: { batchSize?: number } & RequestOptions,
-  ): Promise<{ deleted: boolean; deletedCount: number }> {
+  ): Promise<import('./types.js').DeleteNamespaceResult> {
     if (!namespace?.trim()) throw new Error('namespace must be a non-empty string');
     const batchSize = options?.batchSize ?? 50;
     validateBatchSize(batchSize);

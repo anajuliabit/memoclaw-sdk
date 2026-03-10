@@ -259,7 +259,7 @@ class PingResult(BaseModel):
 
     ok: bool
     latency_ms: float
-    auth: str  # "signed" or "wallet-only"
+    auth: Literal["signed", "wallet-only"]
     free_tier_remaining: int
 
 
