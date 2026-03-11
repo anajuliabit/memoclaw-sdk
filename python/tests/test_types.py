@@ -144,9 +144,11 @@ class TestDeleteResult:
         assert r.deleted is True
         assert r.id == "d1"
 
-    def test_without_id(self):
-        r = DeleteResult(deleted=True)
-        assert r.id is None
+    def test_requires_id(self):
+        """DeleteResult.id is required — the API always returns the memory id."""
+        import pytest
+        with pytest.raises(Exception):  # pydantic ValidationError
+            DeleteResult(deleted=True)
 
 
 class TestIngestResult:

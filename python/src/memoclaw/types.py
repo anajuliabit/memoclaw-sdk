@@ -148,7 +148,7 @@ class ListResponse(BaseModel):
 
 class DeleteResult(BaseModel):
     deleted: bool
-    id: str | None = None
+    id: str
 
 
 class DeleteBatchItemResult(BaseModel):

@@ -170,10 +170,11 @@ class TestAsyncDelete:
     @pytest.mark.asyncio
     async def test_delete(self, client: AsyncMemoClaw):
         respx.delete(f"{BASE_URL}/v1/memories/mem-1").mock(
-            return_value=httpx.Response(200, json={"deleted": True})
+            return_value=httpx.Response(200, json={"deleted": True, "id": "mem-1"})
         )
         result = await client.delete("mem-1")
         assert result.deleted is True
+        assert result.id == "mem-1"
         await client.close()
 
     @respx.mock
@@ -374,10 +375,11 @@ class TestAsyncRelations:
     @pytest.mark.asyncio
     async def test_delete_relation(self, client: AsyncMemoClaw):
         respx.delete(f"{BASE_URL}/v1/memories/mem-1/relations/rel-1").mock(
-            return_value=httpx.Response(200, json={"deleted": True})
+            return_value=httpx.Response(200, json={"deleted": True, "id": "rel-1"})
         )
         result = await client.delete_relation("mem-1", "rel-1")
         assert result.deleted is True
+        assert result.id == "rel-1"
         await client.close()
 
 
