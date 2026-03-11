@@ -535,6 +535,35 @@ class MemoClaw:
         data = self._run_request("GET", "/v1/memories", params=params, timeout=timeout)
         return ListResponse.model_validate(data)
 
+    def count(
+        self,
+        *,
+        namespace: str | None = None,
+        tags: _list[str] | None = None,
+        session_id: str | None = None,
+        agent_id: str | None = None,
+        memory_type: MemoryType | None = None,
+        timeout: float | None = None,
+    ) -> int:
+        """Count memories matching the given filters without fetching all data.
+
+        Example::
+
+            total = client.count()
+            project_count = client.count(namespace="project-x")
+        """
+        page = self.list(
+            limit=1,
+            offset=0,
+            namespace=namespace,
+            tags=tags,
+            session_id=session_id,
+            agent_id=agent_id,
+            memory_type=memory_type,
+            timeout=timeout,
+        )
+        return page.total
+
     def iter_memories(
         self,
         *,
@@ -1778,6 +1807,35 @@ class AsyncMemoClaw:
         )
         data = await self._run_request("GET", "/v1/memories", params=params, timeout=timeout)
         return ListResponse.model_validate(data)
+
+    async def count(
+        self,
+        *,
+        namespace: str | None = None,
+        tags: _list[str] | None = None,
+        session_id: str | None = None,
+        agent_id: str | None = None,
+        memory_type: MemoryType | None = None,
+        timeout: float | None = None,
+    ) -> int:
+        """Count memories matching the given filters without fetching all data.
+
+        Example::
+
+            total = await client.count()
+            project_count = await client.count(namespace="project-x")
+        """
+        page = await self.list(
+            limit=1,
+            offset=0,
+            namespace=namespace,
+            tags=tags,
+            session_id=session_id,
+            agent_id=agent_id,
+            memory_type=memory_type,
+            timeout=timeout,
+        )
+        return page.total
 
     async def iter_memories(
         self,

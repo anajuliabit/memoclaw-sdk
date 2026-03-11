@@ -597,6 +597,19 @@ export class MemoClawClient {
     return this.request<ListMemoriesResponse>('GET', '/v1/memories', undefined, query, options);
   }
 
+  /** Count memories matching the given filters without fetching all data.
+   *
+   * @example
+   * ```ts
+   * const total = await client.count();
+   * const projectCount = await client.count({ namespace: 'project-x' });
+   * ```
+   */
+  async count(params: Omit<ListMemoriesParams, 'limit' | 'offset'> = {}, options?: RequestOptions): Promise<number> {
+    const page = await this.list({ ...params, limit: 1, offset: 0 }, options);
+    return page.total;
+  }
+
   /** Async iterator over all memories with automatic pagination. */
   async *iterMemories(params: Omit<ListMemoriesParams, 'offset'> & { batchSize?: number } = {}): AsyncGenerator<Memory, void, unknown> {
     const { batchSize = 50, ...rest } = params;

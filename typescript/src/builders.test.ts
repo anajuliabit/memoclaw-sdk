@@ -547,6 +547,54 @@ describe('StoreBuilder', () => {
   });
 });
 
+describe('MemoClawClient.count', () => {
+  let client: MemoClawClient;
+
+  beforeEach(() => {
+    client = new MemoClawClient({ privateKey: '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80' });
+    mockFetch.mockReset();
+  });
+
+  it('should return total count of all memories', async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({
+        memories: [{ id: 'm1' }],
+        total: 42,
+        limit: 1,
+        offset: 0,
+      }),
+    } as unknown as Response);
+
+    const total = await client.count();
+    expect(total).toBe(42);
+
+    const callArgs = mockFetch.mock.calls[0] as [string, RequestInit];
+    const url = new URL(callArgs[0]);
+    expect(url.searchParams.get('limit')).toBe('1');
+    expect(url.searchParams.get('offset')).toBe('0');
+  });
+
+  it('should pass namespace filter to count', async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({
+        memories: [],
+        total: 7,
+        limit: 1,
+        offset: 0,
+      }),
+    } as unknown as Response);
+
+    const total = await client.count({ namespace: 'project-x' });
+    expect(total).toBe(7);
+
+    const callArgs = mockFetch.mock.calls[0] as [string, RequestInit];
+    const url = new URL(callArgs[0]);
+    expect(url.searchParams.get('namespace')).toBe('project-x');
+  });
+});
+
 describe('MemoClawClient Extensions', () => {
   const TEST_WALLET = '0x2c7536E3605D9C16a7a3D7b1898e529396a65c23';
 
