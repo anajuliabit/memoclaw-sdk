@@ -29,6 +29,9 @@
     "sdk",
     "semantic-search"
   ],
+  "engines": {
+    "node": ">=18"
+  },
   "license": "MIT",
   "author": "MemoClaw",
   "repository": {
