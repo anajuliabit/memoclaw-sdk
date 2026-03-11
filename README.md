@@ -3,8 +3,8 @@
 [![CI](https://github.com/anajuliabit/memoclaw-sdk/actions/workflows/ci.yml/badge.svg)](https://github.com/anajuliabit/memoclaw-sdk/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/memoclaw)](https://pypi.org/project/memoclaw/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Python Coverage](https://img.shields.io/badge/python_coverage-76%25-green)](https://github.com/anajuliabit/memoclaw-sdk/actions/workflows/ci.yml)
-[![TypeScript Coverage](https://img.shields.io/badge/ts_coverage-89%25-brightgreen)](https://github.com/anajuliabit/memoclaw-sdk/actions/workflows/ci.yml)
+[![Python Coverage](https://img.shields.io/badge/python_coverage-90%25-brightgreen)](https://github.com/anajuliabit/memoclaw-sdk/actions/workflows/ci.yml)
+[![TypeScript Coverage](https://img.shields.io/badge/ts_coverage-91%25-brightgreen)](https://github.com/anajuliabit/memoclaw-sdk/actions/workflows/ci.yml)
 
 Official SDKs for the [MemoClaw](https://memoclaw.com) memory API.
 
