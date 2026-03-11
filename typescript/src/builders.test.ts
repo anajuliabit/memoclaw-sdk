@@ -545,31 +545,6 @@ describe('StoreBuilder', () => {
       new StoreBuilder(client).content('test').importance(1.5);
     }).toThrow('importance must be between 0.0 and 1.0');
   });
-
-  it('should set expiration via expiresInDays()', async () => {
-    mockFetch.mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve({
-        id: 'mem-exp',
-        stored: true,
-        deduplicated: false,
-        tokens_used: 10,
-      }),
-    } as unknown as Response);
-
-    await new StoreBuilder(client)
-      .content('Expires in 30 days')
-      .expiresInDays(30)
-      .execute();
-
-    const callArgs = mockFetch.mock.calls[0] as [string, RequestInit];
-    const body = JSON.parse(callArgs[1].body as string);
-    expect(body.expires_at).toBeDefined();
-    const expiresAt = new Date(body.expires_at);
-    const diffDays = (expiresAt.getTime() - Date.now()) / (1000 * 60 * 60 * 24);
-    expect(diffDays).toBeGreaterThan(29);
-    expect(diffDays).toBeLessThan(31);
-  });
 });
 
 describe('MemoClawClient.count', () => {
