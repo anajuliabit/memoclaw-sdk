@@ -778,6 +778,14 @@ export class StoreBuilder {
     return this;
   }
 
+  /** Set expiration relative to now (in days). */
+  expiresInDays(days: number): StoreBuilder {
+    const date = new Date();
+    date.setDate(date.getDate() + days);
+    this._expiresAt = date.toISOString();
+    return this;
+  }
+
   /** Pin the memory. */
   pinned(pinned = true): StoreBuilder {
     this._pinned = pinned;
