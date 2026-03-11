@@ -1,4 +1,18 @@
 export { MemoClawClient } from './client.js';
+export {
+  getMemoclawTools,
+  getMemoclawTool,
+  getMemoclawToolNames,
+  executeMemoclawTool,
+} from './tools.js';
+export type {
+  ToolDefinition,
+  ToolCall,
+  ToolResult,
+  FunctionDefinition,
+  FunctionParameters,
+  GetToolsOptions,
+} from './tools.js';
 export { VERSION } from './version.js';
 export { MemoryBuilder, RecallBuilder } from './builders.js';
 export { loadConfig, type MemoClawConfig } from './config.js';
