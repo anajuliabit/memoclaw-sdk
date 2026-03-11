@@ -177,3 +177,70 @@ class TestListAllAlias:
         memories = list(client.list_all())
         assert len(memories) == 1
         assert memories[0].id == "m1"
+
+
+class TestCount:
+    """Tests for the count() convenience method."""
+
+    @respx.mock
+    def test_count_all(self):
+        respx.get(f"{BASE_URL}/v1/memories").mock(
+            return_value=httpx.Response(200, json={
+                "memories": [], "total": 42, "limit": 1, "offset": 0
+            })
+        )
+        client = MemoClaw(wallet_address="0x2c7536E3605D9C16a7a3D7b1898e529396a65c23", base_url=BASE_URL)
+        total = client.count()
+        assert total == 42
+
+    @respx.mock
+    def test_count_with_namespace(self):
+        respx.get(f"{BASE_URL}/v1/memories").mock(
+            return_value=httpx.Response(200, json={
+                "memories": [], "total": 7, "limit": 1, "offset": 0
+            })
+        )
+        client = MemoClaw(wallet_address="0x2c7536E3605D9C16a7a3D7b1898e529396a65c23", base_url=BASE_URL)
+        total = client.count(namespace="project-x")
+        assert total == 7
+
+    @respx.mock
+    def test_count_with_tags(self):
+        respx.get(f"{BASE_URL}/v1/memories").mock(
+            return_value=httpx.Response(200, json={
+                "memories": [], "total": 3, "limit": 1, "offset": 0
+            })
+        )
+        client = MemoClaw(wallet_address="0x2c7536E3605D9C16a7a3D7b1898e529396a65c23", base_url=BASE_URL)
+        total = client.count(tags=["important"])
+        assert total == 3
+
+
+class TestAsyncCount:
+    """Tests for the async count() convenience method."""
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_async_count_all(self):
+        respx.get(f"{BASE_URL}/v1/memories").mock(
+            return_value=httpx.Response(200, json={
+                "memories": [], "total": 100, "limit": 1, "offset": 0
+            })
+        )
+        client = AsyncMemoClaw(wallet_address="0x2c7536E3605D9C16a7a3D7b1898e529396a65c23", base_url=BASE_URL)
+        total = await client.count()
+        assert total == 100
+        await client.close()
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_async_count_with_namespace(self):
+        respx.get(f"{BASE_URL}/v1/memories").mock(
+            return_value=httpx.Response(200, json={
+                "memories": [], "total": 5, "limit": 1, "offset": 0
+            })
+        )
+        client = AsyncMemoClaw(wallet_address="0x2c7536E3605D9C16a7a3D7b1898e529396a65c23", base_url=BASE_URL)
+        total = await client.count(namespace="test-ns")
+        assert total == 5
+        await client.close()
