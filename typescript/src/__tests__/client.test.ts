@@ -154,6 +154,35 @@ describe('MemoClawClient', () => {
     });
   });
 
+  describe('exists', () => {
+    it('returns true when memory exists (200)', async () => {
+      const mem = { id: 'mem-1', user_id: 'u1', namespace: 'default', content: 'hello', embedding_model: 'e', metadata: {}, importance: 0.5, memory_type: 'general', session_id: null, agent_id: null, created_at: '', updated_at: '', accessed_at: '', access_count: 0, deleted_at: null, expires_at: null, pinned: false, immutable: false };
+      const f = mockFetch([{ status: 200, body: mem }]);
+      const client = createClient(f);
+      const result = await client.exists('mem-1');
+      expect(result).toBe(true);
+    });
+
+    it('returns false when memory does not exist (404)', async () => {
+      const f = mockFetch([{ status: 404, ok: false, body: { error: { code: 'NOT_FOUND', message: 'Memory not found' } } }]);
+      const client = createClient(f);
+      const result = await client.exists('nonexistent');
+      expect(result).toBe(false);
+    });
+
+    it('throws on other errors (e.g. 500)', async () => {
+      const f = mockFetch([{ status: 500, ok: false, body: { error: { code: 'INTERNAL', message: 'Server error' } } }]);
+      const client = createClient(f);
+      await expect(client.exists('mem-1')).rejects.toThrow();
+    });
+
+    it('throws on empty id', async () => {
+      const f = mockFetch([]);
+      const client = createClient(f);
+      await expect(client.exists('')).rejects.toThrow('id must be a non-empty string');
+    });
+  });
+
   describe('update', () => {
     it('sends PATCH /v1/memories/:id', async () => {
       const mem = { id: 'mem-1', user_id: 'u1', namespace: 'default', content: 'updated', embedding_model: 'e', metadata: {}, importance: 0.9, memory_type: 'general', session_id: null, agent_id: null, created_at: '', updated_at: '', accessed_at: '', access_count: 0, deleted_at: null, expires_at: null, pinned: false, immutable: false };

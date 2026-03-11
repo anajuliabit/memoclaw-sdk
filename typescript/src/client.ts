@@ -429,6 +429,7 @@ export class MemoClawClient {
         const details = errorBody?.error?.details;
         lastError = createError(res.status, code, message, details);
         lastError.requestId = res.headers?.get('x-request-id') ?? undefined;
+        lastError.retryAttempts = attempt;
 
         this._logger?.warn(`${method} ${path} → ${res.status} [${code}], retrying in ${delay}ms (attempt ${attempt + 1}/${this.maxRetries})`, {
           method, path, status: res.status, request_id: lastError?.requestId,
@@ -492,6 +493,7 @@ export class MemoClawClient {
 
       lastError = createError(res.status, code, message, details);
       lastError.requestId = res.headers?.get('x-request-id') ?? undefined;
+      lastError.retryAttempts = attempt;
 
       const duration = Date.now() - startTime;
       this._logger?.error(`${method} ${path} → ${res.status} [${code}] (${duration}ms)`, lastError.requestId ? `req=${lastError.requestId}` : '', {
@@ -629,6 +631,34 @@ export class MemoClawClient {
   async get(id: string, options?: RequestOptions): Promise<Memory> {
     if (!id?.trim()) throw new Error('id must be a non-empty string');
     return this.request<Memory>('GET', `/v1/memories/${encodeURIComponent(id)}`, undefined, undefined, options);
+  }
+
+  /**
+   * Check whether a memory exists by ID.
+   *
+   * Returns `true` if the memory exists, `false` if it was deleted or never
+   * existed (404). Other errors (auth, network) are raised normally.
+   *
+   * Uses the free `GET /v1/memories/{id}` endpoint — works in wallet-only mode.
+   *
+   * @example
+   * ```ts
+   * if (await client.exists('mem-123')) {
+   *   await client.update('mem-123', { content: 'Updated' });
+   * }
+   * ```
+   */
+  async exists(id: string, options?: RequestOptions): Promise<boolean> {
+    if (!id?.trim()) throw new Error('id must be a non-empty string');
+    try {
+      await this.request<Memory>('GET', `/v1/memories/${encodeURIComponent(id)}`, undefined, undefined, options);
+      return true;
+    } catch (err) {
+      if (err instanceof NotFoundError) {
+        return false;
+      }
+      throw err;
+    }
   }
 
   /** Update a memory by ID. */
