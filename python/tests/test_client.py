@@ -375,10 +375,11 @@ class TestRelations:
     @respx.mock
     def test_delete_relation(self, client: MemoClaw):
         respx.delete(f"{BASE_URL}/v1/memories/m1/relations/rel1").mock(
-            return_value=httpx.Response(200, json={"deleted": True})
+            return_value=httpx.Response(200, json={"deleted": True, "id": "rel1"})
         )
         result = client.delete_relation("m1", "rel1")
         assert result.deleted is True
+        assert result.id == "rel1"
 
 
 class TestStatus:

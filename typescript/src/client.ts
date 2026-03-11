@@ -1078,6 +1078,9 @@ export class MemoClawClient {
    * @deprecated Use {@link iterMemories} instead. Will be removed in a future major version.
    */
   listAll(params: Omit<ListMemoriesParams, 'offset'> & { batchSize?: number } = {}): AsyncGenerator<Memory> {
+    if (typeof console !== 'undefined' && console.warn) {
+      console.warn('[memoclaw] listAll() is deprecated, use iterMemories() instead');
+    }
     return this.iterMemories(params);
   }
 

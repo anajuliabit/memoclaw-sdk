@@ -78,15 +78,11 @@ def resolve_private_key(
     if config and config.private_key:
         return config.private_key
 
-    # No key found — acceptable only in wallet-only mode
-    if wallet_address is not None:
-        return None
-
-    raise ValueError(
-        "No private key provided. Pass private_key=, set MEMOCLAW_PRIVATE_KEY, "
-        "or run `memoclaw init` to create ~/.memoclaw/config.json. "
-        "Alternatively, pass wallet_address= for read-only access to free endpoints."
-    )
+    # No key found — return None and let the caller decide whether to raise.
+    # When wallet_address is provided the caller operates in wallet-only mode;
+    # when neither key nor wallet is available the caller should raise with a
+    # comprehensive error message covering all authentication options.
+    return None
 
 
 def resolve_wallet_address(
