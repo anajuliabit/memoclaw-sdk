@@ -81,7 +81,7 @@ describe('freeTierInfo()', () => {
     delete process.env.MEMOCLAW_PRIVATE_KEY;
     try {
       const client = new MemoClawClient({
-        walletAddress: TEST_WALLET,
+        wallet: TEST_WALLET,
         baseUrl: BASE_URL,
         fetch: fetchFn,
       });
@@ -140,7 +140,7 @@ describe('createSession()', () => {
     delete process.env.MEMOCLAW_PRIVATE_KEY;
     try {
       const client = new MemoClawClient({
-        walletAddress: TEST_WALLET,
+        wallet: TEST_WALLET,
         baseUrl: BASE_URL,
         fetch: fetchFn,
       });
