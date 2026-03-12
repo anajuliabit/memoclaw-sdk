@@ -123,6 +123,42 @@ class TestAsyncGet:
         await client.close()
 
 
+class TestAsyncExists:
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_exists_returns_true(self, client: AsyncMemoClaw):
+        respx.get(f"{BASE_URL}/v1/memories/mem-1").mock(
+            return_value=httpx.Response(200, json=_MEM_JSON)
+        )
+        assert await client.exists("mem-1") is True
+        await client.close()
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_exists_returns_false_on_404(self, client: AsyncMemoClaw):
+        respx.get(f"{BASE_URL}/v1/memories/nonexistent").mock(
+            return_value=httpx.Response(
+                404,
+                json={"error": {"code": "NOT_FOUND", "message": "Memory not found"}},
+            )
+        )
+        assert await client.exists("nonexistent") is False
+        await client.close()
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_exists_raises_on_server_error(self, client: AsyncMemoClaw):
+        respx.get(f"{BASE_URL}/v1/memories/mem-1").mock(
+            return_value=httpx.Response(
+                500,
+                json={"error": {"code": "INTERNAL", "message": "Server error"}},
+            )
+        )
+        with pytest.raises(Exception):
+            await client.exists("mem-1")
+        await client.close()
+
+
 class TestAsyncUpdate:
     @respx.mock
     @pytest.mark.asyncio

@@ -177,6 +177,61 @@ class TestGet:
         assert result.content == "Test content"
 
 
+class TestExists:
+    @respx.mock
+    def test_exists_returns_true(self, client: MemoClaw):
+        respx.get(f"{BASE_URL}/v1/memories/mem-123").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "id": "mem-123",
+                    "user_id": "u1",
+                    "namespace": "default",
+                    "content": "Test content",
+                    "embedding_model": "text-embedding-3-small",
+                    "metadata": {},
+                    "importance": 0.8,
+                    "memory_type": "general",
+                    "session_id": None,
+                    "agent_id": None,
+                    "created_at": "2025-01-01T00:00:00Z",
+                    "updated_at": "2025-01-01T00:00:00Z",
+                    "accessed_at": "2025-01-01T00:00:00Z",
+                    "access_count": 1,
+                    "deleted_at": None,
+                    "expires_at": None,
+                    "pinned": False,
+                },
+            )
+        )
+        assert client.exists("mem-123") is True
+
+    @respx.mock
+    def test_exists_returns_false_on_404(self, client: MemoClaw):
+        respx.get(f"{BASE_URL}/v1/memories/nonexistent").mock(
+            return_value=httpx.Response(
+                404,
+                json={"error": {"code": "NOT_FOUND", "message": "Memory not found"}},
+            )
+        )
+        assert client.exists("nonexistent") is False
+
+    @respx.mock
+    def test_exists_raises_on_other_errors(self, client: MemoClaw):
+        respx.get(f"{BASE_URL}/v1/memories/mem-123").mock(
+            return_value=httpx.Response(
+                500,
+                json={"error": {"code": "INTERNAL", "message": "Server error"}},
+            )
+        )
+        with pytest.raises(Exception):
+            client.exists("mem-123")
+
+    def test_exists_raises_on_empty_id(self, client: MemoClaw):
+        with pytest.raises((ValueError, ValidationError)):
+            client.exists("")
+
+
 class TestUpdate:
     @respx.mock
     def test_update_content(self, client: MemoClaw):

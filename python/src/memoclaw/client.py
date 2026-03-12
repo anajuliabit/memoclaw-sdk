@@ -26,6 +26,7 @@ from ._client import (
     configure_sdk_logging,
 )
 from .builders import StoreBuilder, AsyncStoreBuilder
+from .errors import APIError
 from .config import load_config, resolve_base_url, resolve_private_key, resolve_wallet_address
 from .types import (
     ConsolidateResult,
@@ -609,6 +610,31 @@ class MemoClaw:
         _validate_non_empty(memory_id, "memory_id")
         data = self._run_request("GET", f"/v1/memories/{quote(memory_id, safe='')}", timeout=timeout)
         return Memory.model_validate(data)
+
+    def exists(self, memory_id: str, *, timeout: float | None = None) -> bool:
+        """Check whether a memory exists by ID.
+
+        Returns ``True`` if the memory exists, ``False`` if it has been deleted
+        or never existed (404). Other errors (auth, network) are raised normally.
+
+        This uses the free ``GET /v1/memories/{id}`` endpoint, so it works in
+        wallet-only mode.
+
+        Example::
+
+            if client.exists("mem-123"):
+                client.update("mem-123", content="Updated")
+            else:
+                client.store("New memory")
+        """
+        _validate_non_empty(memory_id, "memory_id")
+        try:
+            self._run_request("GET", f"/v1/memories/{quote(memory_id, safe='')}", timeout=timeout)
+            return True
+        except APIError as exc:
+            if exc.status_code == 404:
+                return False
+            raise
 
     # ── Update ───────────────────────────────────────────────────────────
 
@@ -1883,6 +1909,31 @@ class AsyncMemoClaw:
         _validate_non_empty(memory_id, "memory_id")
         data = await self._run_request("GET", f"/v1/memories/{quote(memory_id, safe='')}", timeout=timeout)
         return Memory.model_validate(data)
+
+    async def exists(self, memory_id: str, *, timeout: float | None = None) -> bool:
+        """Check whether a memory exists by ID.
+
+        Returns ``True`` if the memory exists, ``False`` if it has been deleted
+        or never existed (404). Other errors (auth, network) are raised normally.
+
+        This uses the free ``GET /v1/memories/{id}`` endpoint, so it works in
+        wallet-only mode.
+
+        Example::
+
+            if await client.exists("mem-123"):
+                await client.update("mem-123", content="Updated")
+            else:
+                await client.store("New memory")
+        """
+        _validate_non_empty(memory_id, "memory_id")
+        try:
+            await self._run_request("GET", f"/v1/memories/{quote(memory_id, safe='')}", timeout=timeout)
+            return True
+        except APIError as exc:
+            if exc.status_code == 404:
+                return False
+            raise
 
     # ── Update ───────────────────────────────────────────────────────────
 

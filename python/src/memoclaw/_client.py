@@ -116,7 +116,7 @@ def _generate_wallet_only_auth(wallet_address: str) -> str:
     return wallet_address
 
 
-def _raise_for_status(response: httpx.Response) -> None:
+def _raise_for_status(response: httpx.Response, *, retry_attempts: int = 0) -> None:
     """Raise a typed :class:`APIError` for non-2xx responses."""
     if response.is_success:
         return
@@ -125,7 +125,9 @@ def _raise_for_status(response: httpx.Response) -> None:
     except Exception:
         body = {"error": {"code": "UNKNOWN", "message": response.text}}
     request_id = response.headers.get("x-request-id")
-    raise APIError.from_response(response.status_code, body, request_id=request_id)
+    raise APIError.from_response(
+        response.status_code, body, request_id=request_id, retry_attempts=retry_attempts
+    )
 
 
 def _try_x402_payment(
@@ -240,10 +242,25 @@ class _SyncHTTPClient:
             if response.status_code == 402:
                 payment_headers = _try_x402_payment(response)
                 if payment_headers:
+                    logger.info("x402 payment headers created, retrying %s %s", method, path)
                     headers.update(payment_headers)
                     response = self._http.request(
                         method, url, headers=headers, json=json, params=params,
                         timeout=req_timeout,
+                    )
+                    x402_duration_ms = round((time.monotonic() - start) * 1000)
+                    x402_req_id = response.headers.get("x-request-id", "")
+                    logger.debug(
+                        "%s %s → %d (%dms, x402 paid)%s",
+                        method, path, response.status_code, x402_duration_ms,
+                        f" req={x402_req_id}" if x402_req_id else "",
+                        extra={
+                            "method": method,
+                            "path": path,
+                            "status": response.status_code,
+                            "duration_ms": x402_duration_ms,
+                            "request_id": x402_req_id or None,
+                        },
                     )
 
             # Retry on transient server errors (429, 500, 502, 503, 504)
@@ -262,7 +279,7 @@ class _SyncHTTPClient:
                 time.sleep(delay)
                 continue
 
-            _raise_for_status(response)
+            _raise_for_status(response, retry_attempts=attempt)
 
             if response.status_code == 204:
                 return {}
@@ -271,7 +288,7 @@ class _SyncHTTPClient:
         # Should not reach here, but raise last error if we do
         if last_exc is not None:
             raise last_exc
-        _raise_for_status(response)
+        _raise_for_status(response, retry_attempts=attempt)
 
     def close(self) -> None:
         self._http.close()
@@ -377,10 +394,25 @@ class _AsyncHTTPClient:
             if response.status_code == 402:
                 payment_headers = _try_x402_payment(response)
                 if payment_headers:
+                    logger.info("x402 payment headers created, retrying %s %s", method, path)
                     headers.update(payment_headers)
                     response = await self._http.request(
                         method, url, headers=headers, json=json, params=params,
                         timeout=req_timeout,
+                    )
+                    x402_duration_ms = round((time.monotonic() - start) * 1000)
+                    x402_req_id = response.headers.get("x-request-id", "")
+                    logger.debug(
+                        "%s %s → %d (%dms, x402 paid)%s",
+                        method, path, response.status_code, x402_duration_ms,
+                        f" req={x402_req_id}" if x402_req_id else "",
+                        extra={
+                            "method": method,
+                            "path": path,
+                            "status": response.status_code,
+                            "duration_ms": x402_duration_ms,
+                            "request_id": x402_req_id or None,
+                        },
                     )
 
             # Retry on transient server errors (429, 500, 502, 503, 504)
@@ -399,7 +431,7 @@ class _AsyncHTTPClient:
                 await asyncio.sleep(delay)
                 continue
 
-            _raise_for_status(response)
+            _raise_for_status(response, retry_attempts=attempt)
 
             if response.status_code == 204:
                 return {}
@@ -407,7 +439,7 @@ class _AsyncHTTPClient:
 
         if last_exc is not None:
             raise last_exc
-        _raise_for_status(response)
+        _raise_for_status(response, retry_attempts=attempt)
 
     async def close(self) -> None:
         await self._http.aclose()
