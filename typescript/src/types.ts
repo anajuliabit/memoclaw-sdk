@@ -333,13 +333,39 @@ export interface DeleteNamespaceResult {
   deletedCount: number;
 }
 
-// ── Free Tier Status ───────────────────────────────────
+// ── Free Tier ──────────────────────────────────────────
 
 export interface FreeTierStatus {
   wallet: string;
   free_tier_remaining: number;
   free_tier_total: number;
   free_tier_used: number;
+}
+
+/** Public free tier policy info (no auth required). */
+export interface FreeTierInfo {
+  free_tier: {
+    enabled: boolean;
+    calls_per_wallet: number;
+    description: string;
+  };
+  auth: {
+    header: string;
+    format: string;
+    message_to_sign: string;
+    expiry_seconds: number;
+  };
+  after_free_tier: {
+    payment: string;
+    note: string;
+  };
+}
+
+/** JWT session token response. */
+export interface SessionAuthResponse {
+  token: string;
+  wallet: string;
+  expires_at: string;
 }
 
 /** Result of a health check / ping. */

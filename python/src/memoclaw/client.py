@@ -40,6 +40,7 @@ from .types import (
     DeleteResult,
     ExportResponse,
     ExtractResult,
+    FreeTierInfo,
     FreeTierStatus,
     HistoryEntry,
     HistoryResponse,
@@ -61,6 +62,7 @@ from .types import (
     StoreInput,
     StoreResult,
     SuggestedCategory,
+    SessionAuthResponse,
     SuggestedResponse,
     TextSearchResponse,
     UpdateBatchResult,
@@ -952,6 +954,62 @@ class MemoClaw:
         """
         data = self._run_request("GET", "/v1/free-tier/status", timeout=timeout)
         return FreeTierStatus.model_validate(data)
+
+    def free_tier_info(self, *, timeout: float | None = None) -> FreeTierInfo:
+        """Get public free tier policy info. No authentication required.
+
+        Returns the free tier policy including calls per wallet, auth format,
+        and payment info after free tier is exhausted.
+
+        Args:
+            timeout: Per-request timeout in seconds. Overrides the client default.
+
+        Example::
+
+            info = client.free_tier_info()
+            print(info.free_tier.calls_per_wallet)  # 100
+        """
+        data = self._run_request("GET", "/v1/free-tier/info", timeout=timeout)
+        return FreeTierInfo.model_validate(data)
+
+    def create_session(self, *, timeout: float | None = None) -> SessionAuthResponse:
+        """Exchange wallet signature for a JWT session token.
+
+        The returned token can be used as ``Authorization: Bearer {token}`` for
+        subsequent requests, avoiding per-request signing. Tokens are valid for 7 days.
+
+        Requires signed auth (private key). Wallet-only clients cannot create sessions.
+
+        Args:
+            timeout: Per-request timeout in seconds. Overrides the client default.
+
+        Returns:
+            :class:`SessionAuthResponse` with ``token``, ``wallet``, and ``expires_at``.
+
+        Example::
+
+            session = client.create_session()
+            print(session.token)  # "eyJ..."
+        """
+        self._require_signed_auth("create_session")
+        import time
+        from eth_account.messages import encode_defunct
+
+        account = self._http._account
+        timestamp = int(time.time())
+        message = f"memoclaw-auth:{timestamp}"
+        signed = account.sign_message(encode_defunct(text=message))
+        data = self._run_request(
+            "POST",
+            "/auth/session",
+            json={
+                "address": account.address,
+                "timestamp": timestamp,
+                "signature": signed.signature.hex(),
+            },
+            timeout=timeout,
+        )
+        return SessionAuthResponse.model_validate(data)
 
     # ── Ping / Health Check ──────────────────────────────────────────────
 
@@ -2250,6 +2308,45 @@ class AsyncMemoClaw:
         """
         data = await self._run_request("GET", "/v1/free-tier/status", timeout=timeout)
         return FreeTierStatus.model_validate(data)
+
+    async def free_tier_info(self, *, timeout: float | None = None) -> FreeTierInfo:
+        """Get public free tier policy info. No authentication required.
+
+        Async version of :meth:`MemoClaw.free_tier_info`. See sync version for details.
+
+        Args:
+            timeout: Per-request timeout in seconds. Overrides the client default.
+        """
+        data = await self._run_request("GET", "/v1/free-tier/info", timeout=timeout)
+        return FreeTierInfo.model_validate(data)
+
+    async def create_session(self, *, timeout: float | None = None) -> SessionAuthResponse:
+        """Exchange wallet signature for a JWT session token.
+
+        Async version of :meth:`MemoClaw.create_session`. See sync version for details.
+
+        Args:
+            timeout: Per-request timeout in seconds. Overrides the client default.
+        """
+        self._require_signed_auth("create_session")
+        import time
+        from eth_account.messages import encode_defunct
+
+        account = self._http._account
+        timestamp = int(time.time())
+        message = f"memoclaw-auth:{timestamp}"
+        signed = account.sign_message(encode_defunct(text=message))
+        data = await self._run_request(
+            "POST",
+            "/auth/session",
+            json={
+                "address": account.address,
+                "timestamp": timestamp,
+                "signature": signed.signature.hex(),
+            },
+            timeout=timeout,
+        )
+        return SessionAuthResponse.model_validate(data)
 
     # ── Ping / Health Check ──────────────────────────────────────────────
 
