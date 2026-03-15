@@ -996,6 +996,7 @@ class MemoClaw:
         from eth_account.messages import encode_defunct
 
         account = self._http._account
+        assert account is not None  # guaranteed by _require_signed_auth
         timestamp = int(time.time())
         message = f"memoclaw-auth:{timestamp}"
         signed = account.sign_message(encode_defunct(text=message))
@@ -2333,6 +2334,7 @@ class AsyncMemoClaw:
         from eth_account.messages import encode_defunct
 
         account = self._http._account
+        assert account is not None  # guaranteed by _require_signed_auth
         timestamp = int(time.time())
         message = f"memoclaw-auth:{timestamp}"
         signed = account.sign_message(encode_defunct(text=message))
