@@ -14,6 +14,14 @@
     "./tools": {
       "import": "./dist/tools.js",
       "types": "./dist/tools.d.ts"
+    },
+    "./langchain": {
+      "import": "./dist/integrations/langchain.js",
+      "types": "./dist/integrations/langchain.d.ts"
+    },
+    "./vercel-ai": {
+      "import": "./dist/integrations/vercel-ai.js",
+      "types": "./dist/integrations/vercel-ai.d.ts"
     }
   },
   "files": [
