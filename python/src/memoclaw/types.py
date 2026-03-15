@@ -254,6 +254,46 @@ class FreeTierStatus(BaseModel):
     free_tier_used: int
 
 
+class FreeTierPolicy(BaseModel):
+    """Free tier policy details."""
+
+    enabled: bool
+    calls_per_wallet: int
+    description: str
+
+
+class FreeTierAuthInfo(BaseModel):
+    """Authentication info from free tier policy."""
+
+    header: str
+    format: str
+    message_to_sign: str
+    expiry_seconds: int
+
+
+class FreeTierAfterInfo(BaseModel):
+    """Info about what happens after free tier."""
+
+    payment: str
+    note: str
+
+
+class FreeTierInfo(BaseModel):
+    """Public free tier policy info (no auth required)."""
+
+    free_tier: FreeTierPolicy
+    auth: FreeTierAuthInfo
+    after_free_tier: FreeTierAfterInfo
+
+
+class SessionAuthResponse(BaseModel):
+    """JWT session token response."""
+
+    token: str
+    wallet: str
+    expires_at: str
+
+
 class PingResult(BaseModel):
     """Result of a health check / ping."""
 

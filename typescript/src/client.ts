@@ -741,6 +741,46 @@ export class MemoClawClient {
   }
 
   /**
+   * Get public free tier policy info. No authentication required.
+   *
+   * @example
+   * ```ts
+   * const info = await client.freeTierInfo();
+   * console.log(info.free_tier.calls_per_wallet); // 100
+   * ```
+   */
+  async freeTierInfo(options?: RequestOptions): Promise<import('./types.js').FreeTierInfo> {
+    return this.request<import('./types.js').FreeTierInfo>('GET', '/v1/free-tier/info', undefined, undefined, options);
+  }
+
+  /**
+   * Exchange wallet signature for a JWT session token.
+   *
+   * The returned token can be used as `Authorization: Bearer {token}` for
+   * subsequent requests, avoiding per-request signing. Tokens are valid for 7 days.
+   *
+   * @example
+   * ```ts
+   * const session = await client.createSession();
+   * console.log(session.token); // "eyJ..."
+   * console.log(session.expires_at); // "2026-03-19T14:00:00Z"
+   * ```
+   */
+  async createSession(options?: RequestOptions): Promise<import('./types.js').SessionAuthResponse> {
+    if (!this._account) {
+      throw new Error('createSession requires a private key (signed auth). Wallet-only clients cannot create sessions.');
+    }
+    const timestamp = Math.floor(Date.now() / 1000);
+    const message = `memoclaw-auth:${timestamp}`;
+    const signature = await this._account.signMessage({ message });
+    return this.request<import('./types.js').SessionAuthResponse>('POST', '/auth/session', {
+      address: this._account.address,
+      timestamp,
+      signature,
+    }, undefined, options);
+  }
+
+  /**
    * Validate SDK configuration with a lightweight health check.
    *
    * Calls the free-tier status endpoint to verify connectivity and auth,
