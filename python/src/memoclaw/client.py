@@ -723,6 +723,10 @@ class MemoClaw:
         for item in items:
             if "id" not in item or not item["id"]:
                 raise ValueError("Each update must include a non-empty 'id'")
+            if "content" in item and item["content"] is not None:
+                _validate_content_length(item["content"])
+            if "importance" in item and item["importance"] is not None:
+                _validate_importance(item["importance"])
         data = self._run_request(
             "PATCH", "/v1/memories/batch", json={"updates": items}, timeout=timeout
         )
@@ -2080,6 +2084,10 @@ class AsyncMemoClaw:
         for item in items:
             if "id" not in item or not item["id"]:
                 raise ValueError("Each update must include a non-empty 'id'")
+            if "content" in item and item["content"] is not None:
+                _validate_content_length(item["content"])
+            if "importance" in item and item["importance"] is not None:
+                _validate_importance(item["importance"])
         data = await self._run_request(
             "PATCH", "/v1/memories/batch", json={"updates": items}, timeout=timeout
         )

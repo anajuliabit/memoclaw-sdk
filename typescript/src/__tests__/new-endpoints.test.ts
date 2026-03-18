@@ -206,6 +206,27 @@ describe('updateBatch', () => {
     const client = createClient(vi.fn());
     await expect(client.updateBatch([{ id: '', importance: 0.5 }])).rejects.toThrow('non-empty id');
   });
+
+  it('should throw on importance > 1 per item', async () => {
+    const client = createClient(vi.fn());
+    await expect(
+      client.updateBatch([{ id: 'mem-1', importance: 1.5 }]),
+    ).rejects.toThrow('importance must be between 0.0 and 1.0');
+  });
+
+  it('should throw on importance < 0 per item', async () => {
+    const client = createClient(vi.fn());
+    await expect(
+      client.updateBatch([{ id: 'mem-1', importance: -0.1 }]),
+    ).rejects.toThrow('importance must be between 0.0 and 1.0');
+  });
+
+  it('should throw when content exceeds 8192 chars per item', async () => {
+    const client = createClient(vi.fn());
+    await expect(
+      client.updateBatch([{ id: 'mem-1', content: 'x'.repeat(8193) }]),
+    ).rejects.toThrow('content exceeds the 8192 character limit');
+  });
 });
 
 describe('coreMemories', () => {

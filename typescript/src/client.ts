@@ -687,6 +687,12 @@ export class MemoClawClient {
       if (!u.id?.trim()) {
         throw new Error('All updates must have a non-empty id');
       }
+      if (u.content !== undefined && u.content.length > MAX_CONTENT_LENGTH) {
+        throw new Error(`content exceeds the ${MAX_CONTENT_LENGTH} character limit. Split into smaller memories or summarize.`);
+      }
+      if (u.importance !== undefined && (u.importance < 0 || u.importance > 1)) {
+        throw new Error('importance must be between 0.0 and 1.0');
+      }
     }
     return this.request<UpdateBatchResponse>(
       'PATCH', '/v1/memories/batch',
