@@ -298,6 +298,28 @@ class TestUpdateBatch:
         with pytest.raises(ValueError, match="non-empty 'id'"):
             client.update_batch([{"importance": 0.5}])
 
+    def test_importance_too_high_raises(self, client):
+        with pytest.raises(ValueError, match="importance must be between"):
+            client.update_batch([{"id": "mem-1", "importance": 1.5}])
+
+    def test_importance_negative_raises(self, client):
+        with pytest.raises(ValueError, match="importance must be between"):
+            client.update_batch([{"id": "mem-1", "importance": -0.1}])
+
+    def test_content_too_long_raises(self, client):
+        with pytest.raises(ValueError, match="exceeds the 8192 character limit"):
+            client.update_batch([{"id": "mem-1", "content": "x" * 8193}])
+
+    @pytest.mark.asyncio
+    async def test_async_importance_too_high_raises(self, async_client):
+        with pytest.raises(ValueError, match="importance must be between"):
+            await async_client.update_batch([{"id": "mem-1", "importance": 1.5}])
+
+    @pytest.mark.asyncio
+    async def test_async_content_too_long_raises(self, async_client):
+        with pytest.raises(ValueError, match="exceeds the 8192 character limit"):
+            await async_client.update_batch([{"id": "mem-1", "content": "x" * 8193}])
+
     @respx.mock
     @pytest.mark.asyncio
     async def test_async(self, async_client):
