@@ -186,6 +186,7 @@ export type BeforeRequestHook = (method: string, path: string, body?: unknown) =
 /** Hook called after each successful response. */
 export type AfterResponseHook = (method: string, path: string, data: unknown) => unknown | void;
 /** Hook called on error. */
+export type OnErrorHook = (method: string, path: string, error: MemoClawError) => void | Promise<void>;
 export type StoreCallback = (result: StoreResponse | StoreBatchResponse) => void | Promise<void>;
 export type RecallCallback = (query: string, response: RecallResponse) => void | Promise<void>;
 export type DeleteCallback = (id: string, result: DeleteResponse | DeleteBatchResult) => void | Promise<void>;
@@ -289,6 +290,12 @@ export class MemoClawClient {
     return this;
   }
 
+  /** Register a hook fired when a request ultimately fails. */
+  onError(hook: OnErrorHook): this {
+    this._onErrorHooks.push(hook);
+    return this;
+  }
+
   /** Register a lifecycle callback fired after successful store/storeBatch calls. */
   onStore(callback: StoreCallback): this {
     this._storeCallbacks.push(callback);
@@ -322,6 +329,12 @@ export class MemoClawClient {
   private async emitDeleteCallbacks(id: string, payload: DeleteResponse | DeleteBatchResult): Promise<void> {
     for (const cb of this._deleteCallbacks) {
       await cb(id, payload);
+    }
+  }
+
+  private async emitErrorHooks(method: string, path: string, error: MemoClawError): Promise<void> {
+    for (const hook of this._onErrorHooks) {
+      await hook(method, path, error);
     }
   }
 
@@ -537,7 +550,7 @@ export class MemoClawClient {
       });
 
       if (!RETRYABLE_STATUS_CODES.has(res.status)) {
-        for (const hook of this._onErrorHooks) hook(method, path, lastError);
+        await this.emitErrorHooks(method, path, lastError);
         throw lastError;
       }
 
@@ -545,7 +558,7 @@ export class MemoClawClient {
     }
 
     if (lastError) {
-      for (const hook of this._onErrorHooks) hook(method, path, lastError);
+      await this.emitErrorHooks(method, path, lastError);
     }
     throw lastError!;
   }

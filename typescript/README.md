@@ -63,6 +63,7 @@ const client = new MemoClawClient({ privateKey: process.env.MEMOCLAW_PRIVATE_KEY
 client.onStore((result) => console.log(`stored ${result.id}`));
 client.onRecall((query, response) => console.log(`recall ${query} -> ${response.memories.length} hits`));
 client.onDelete((id, outcome) => console.log(`delete ${id}: ${outcome.deleted}`));
+client.onError((method, path, err) => console.error(`failed ${method} ${path}`, err));
 ```
 
 Callbacks run after successful operations, and you can register multiple handlers per event.

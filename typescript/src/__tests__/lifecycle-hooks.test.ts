@@ -14,7 +14,7 @@ function mockFetch(responses: Array<{ status: number; body?: unknown; ok?: boole
       status: resp.status,
       json: async () => resp.body,
       headers: { get: () => null },
-    } as Response;
+    } as unknown as Response;
   });
 }
 

@@ -13,6 +13,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **Docs/tests** — README describes the new knobs and regression tests guard warm-up + health reporting behaviors (#215)
 - Add memory lifecycle callbacks (on_store/on_recall/on_delete) to Python + TypeScript SDKs (#214)
 
+### Fixes
+- Export the onError lifecycle hook for the TypeScript SDK and ensure hooks are awaited before throwing (#214)
+
 ### Documentation
 - Document lifecycle callback usage in both SDK READMEs (#214)
 
