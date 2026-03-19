@@ -54,6 +54,19 @@ const ingested = await client.ingest({
 const suggestions = await client.suggested({ category: 'stale' });
 ```
 
+## Lifecycle Callbacks
+
+High-level lifecycle hooks sit above the raw before/after request middleware:
+
+```ts
+const client = new MemoClawClient({ privateKey: process.env.MEMOCLAW_PRIVATE_KEY! });
+client.onStore((result) => console.log(`stored ${result.id}`));
+client.onRecall((query, response) => console.log(`recall ${query} -> ${response.memories.length} hits`));
+client.onDelete((id, outcome) => console.log(`delete ${id}: ${outcome.deleted}`));
+```
+
+Callbacks run after successful operations, and you can register multiple handlers per event.
+
 ## Authentication
 
 MemoClaw uses Ethereum wallet signatures for authentication. You need a private key (any Ethereum key works — no ETH balance needed for the free tier).

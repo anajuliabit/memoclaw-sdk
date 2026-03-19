@@ -73,6 +73,22 @@ async def main():
         memories = await client.recall("async")
 ```
 
+## Lifecycle Callbacks
+
+Both clients support high-level memory lifecycle callbacks that fire after specific operations.
+Use these to tag memories, send analytics, or trigger side effects without reimplementing SDK logic.
+
+```python
+from memoclaw import MemoClaw
+
+client = MemoClaw(private_key="0x...")
+client.on_store(lambda result: print(f"Stored {result.id}"))
+client.on_recall(lambda query, resp: print(f"recall {query} -> {len(resp.memories)} results"))
+client.on_delete(lambda memory_id, _: print(f"Deleted {memory_id}"))
+```
+
+`AsyncMemoClaw` supports `async def` callbacks — awaited automatically after each operation.
+
 ## All Methods
 
 | Method | Description |

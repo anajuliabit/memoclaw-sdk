@@ -11,6 +11,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **Warm-up toggle** — new `warm_pool` flag (sync constructor + async factory) plus `warm_pool()` helpers to pre-establish TCP/TLS connections (#215)
 - **Connection recycling control** — `pool_recycle_seconds` forwards to httpx keepalive expiry so stale sockets are churned proactively (#215)
 - **Docs/tests** — README describes the new knobs and regression tests guard warm-up + health reporting behaviors (#215)
+- Add memory lifecycle callbacks (on_store/on_recall/on_delete) to Python + TypeScript SDKs (#214)
+
+### Documentation
+- Document lifecycle callback usage in both SDK READMEs (#214)
 
 ## [1.0.0] - 2026-03-11
 
