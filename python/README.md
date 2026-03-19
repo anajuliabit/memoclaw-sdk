@@ -14,7 +14,8 @@ With optional extras:
 pip install "memoclaw[x402]"            # automatic x402 payments
 pip install "memoclaw[langchain]"       # LangChain integration
 pip install "memoclaw[llamaindex]"      # LlamaIndex integration
-pip install "memoclaw[x402,langchain,llamaindex]"  # all extras
+pip install "memoclaw[pydantic-ai]"      # Pydantic AI integration
+pip install "memoclaw[x402,langchain,llamaindex,pydantic-ai]"  # all extras
 ```
 
 ## Quickstart
@@ -88,6 +89,35 @@ client.on_delete(lambda memory_id, _: print(f"Deleted {memory_id}"))
 ```
 
 `AsyncMemoClaw` supports `async def` callbacks — awaited automatically after each operation.
+
+## Pydantic AI Integration
+
+Install the extra dependencies and register MemoClaw tools directly on a Pydantic AI agent.
+
+```python
+from pydantic_ai import Agent
+from memoclaw import MemoClaw
+from memoclaw.integrations.pydantic_ai import (
+    MemoClawDeps,
+    memoclaw_store_tool,
+    memoclaw_recall_tool,
+)
+
+agent = Agent(
+    "gpt-4o-mini",
+    deps=MemoClawDeps(
+        client=MemoClaw(),
+        namespace="support",
+    ),
+    tools=[
+        memoclaw_store_tool(),
+        memoclaw_recall_tool(),
+    ],
+)
+
+response = agent.run_sync("Remember that Carla prefers morning stand-ups.")
+print(response.output)
+```
 
 ## All Methods
 
