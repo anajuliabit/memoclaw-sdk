@@ -21,6 +21,7 @@ from ._client import (
     DEFAULT_TIMEOUT,
     LogFormat,
     LogLevel,
+    PoolHealth,
     _AsyncHTTPClient,
     _SyncHTTPClient,
     configure_sdk_logging,
@@ -217,6 +218,9 @@ class MemoClaw:
         max_retries: Maximum retry attempts for transient errors. Defaults to 2.
         pool_max_connections: Maximum number of connections in the pool. Defaults to 10.
         pool_max_keepalive: Maximum number of keep-alive connections. Defaults to 5.
+        pool_recycle_seconds: Seconds before idle sockets are discarded. Defaults to httpx's keepalive expiry.
+        pool_recycle_seconds: Seconds before idle sockets are discarded. Defaults to httpx's keepalive expiry.
+        warm_pool: If True, performs a lightweight warm-up request during initialization.
     """
 
     def __init__(
@@ -229,8 +233,10 @@ class MemoClaw:
         max_retries: int | None = None,
         pool_max_connections: int = DEFAULT_POOL_MAX_CONNECTIONS,
         pool_max_keepalive: int = DEFAULT_POOL_MAX_KEEPALIVE_CONNECTIONS,
+        pool_recycle_seconds: float | None = None,
         config_path: str | Path | None = None,
         validate_on_init: bool = False,
+        warm_pool: bool = False,
         log_level: LogLevel | None = None,
         log_format: LogFormat = "text",
     ) -> None:
@@ -262,6 +268,8 @@ class MemoClaw:
             kwargs["wallet_address"] = resolved_wallet
         if max_retries is not None:
             kwargs["max_retries"] = max_retries
+        if pool_recycle_seconds is not None:
+            kwargs["pool_recycle_seconds"] = pool_recycle_seconds
         self._http = _SyncHTTPClient(**kwargs)
         self._before_request_hooks: _list[BeforeRequestHook] = []
         self._after_response_hooks: _list[AfterResponseHook] = []
@@ -274,6 +282,13 @@ class MemoClaw:
                     f"MemoClaw health check failed (latency: {result.latency_ms:.0f}ms). "
                     "Check your network connection and base_url."
                 )
+
+        if warm_pool:
+            try:
+                self._http.warm_up()
+            except Exception:
+                self.close()
+                raise
 
     # ── Auth helpers ────────────────────────────────────────────────────
 
@@ -356,6 +371,14 @@ class MemoClaw:
 
     def __exit__(self, *args: Any) -> None:
         self.close()
+
+    def pool_health(self) -> PoolHealth:
+        """Return the current connection pool stats."""
+        return self._http.pool_health()
+
+    def warm_pool(self, *, timeout: float | None = None) -> None:
+        """Warm the pool on demand (same as setting warm_pool=True on init)."""
+        self._http.warm_up(timeout=timeout)
 
     # ── Store ────────────────────────────────────────────────────────────
 
@@ -1547,6 +1570,7 @@ class AsyncMemoClaw:
         max_retries: int | None = None,
         pool_max_connections: int = DEFAULT_POOL_MAX_CONNECTIONS,
         pool_max_keepalive: int = DEFAULT_POOL_MAX_KEEPALIVE_CONNECTIONS,
+        pool_recycle_seconds: float | None = None,
         config_path: str | Path | None = None,
         log_level: LogLevel | None = None,
         log_format: LogFormat = "text",
@@ -1579,6 +1603,8 @@ class AsyncMemoClaw:
             kwargs["wallet_address"] = resolved_wallet
         if max_retries is not None:
             kwargs["max_retries"] = max_retries
+        if pool_recycle_seconds is not None:
+            kwargs["pool_recycle_seconds"] = pool_recycle_seconds
         self._http = _AsyncHTTPClient(**kwargs)
         self._before_request_hooks: _list[BeforeRequestHook] = []
         self._after_response_hooks: _list[AfterResponseHook] = []
@@ -1597,10 +1623,12 @@ class AsyncMemoClaw:
         max_retries: int | None = None,
         pool_max_connections: int = DEFAULT_POOL_MAX_CONNECTIONS,
         pool_max_keepalive: int = DEFAULT_POOL_MAX_KEEPALIVE_CONNECTIONS,
+        pool_recycle_seconds: float | None = None,
         config_path: str | Path | None = None,
         log_level: LogLevel | None = None,
         log_format: LogFormat = "text",
         validate_on_init: bool = True,
+        warm_pool: bool = False,
     ) -> AsyncMemoClaw:
         """Async factory that creates and optionally validates the client.
 
@@ -1620,12 +1648,15 @@ class AsyncMemoClaw:
             max_retries=max_retries,
             pool_max_connections=pool_max_connections,
             pool_max_keepalive=pool_max_keepalive,
+            pool_recycle_seconds=pool_recycle_seconds,
             config_path=config_path,
             log_level=log_level,
             log_format=log_format,
         )
         if validate_on_init:
             await client.ping()
+        if warm_pool:
+            await client.warm_pool()
         return client
 
     # ── Auth helpers ────────────────────────────────────────────────────
@@ -1709,6 +1740,14 @@ class AsyncMemoClaw:
 
     async def __aexit__(self, *args: Any) -> None:
         await self.close()
+
+    def pool_health(self) -> PoolHealth:
+        """Return async connection pool stats (no await needed)."""
+        return self._http.pool_health()
+
+    async def warm_pool(self, *, timeout: float | None = None) -> None:
+        """Warm the async pool on demand."""
+        await self._http.warm_up(timeout=timeout)
 
     # ── Store ────────────────────────────────────────────────────────────
 

@@ -39,6 +39,53 @@ class TestConnectionPool:
         assert isinstance(client._http._http, httpx.Client)
         client.close()
 
+    def test_pool_health_snapshot(self, monkeypatch):
+        """pool_health should surface idle/active/max counts."""
+        class FakeConn:
+            def __init__(self, idle: bool, closed: bool = False) -> None:
+                self._idle = idle
+                self._closed = closed
+
+            def is_idle(self) -> bool:
+                return self._idle
+
+            def is_closed(self) -> bool:
+                return self._closed
+
+        client = MemoClaw(private_key=TEST_PRIVATE_KEY, base_url=BASE_URL)
+        fake_pool = MagicMock()
+        fake_pool._connections = [FakeConn(True), FakeConn(False), FakeConn(False, closed=True)]
+        fake_pool._max_connections = 12
+        fake_pool._max_keepalive_connections = 6
+
+        class FakeTransport:
+            def __init__(self) -> None:
+                self._pool = fake_pool
+
+            def close(self) -> None:
+                pass
+
+        client._http._http._transport = FakeTransport()
+        health = client.pool_health()
+        assert health["idle_connections"] == 1
+        assert health["active_connections"] == 1
+        assert health["max_connections"] == 12
+        assert health["max_keepalive_connections"] == 6
+        client.close()
+
+    def test_warm_pool_option_triggers_helper(self, monkeypatch):
+        """warm_pool=True should call the underlying warm_up helper once."""
+        calls = {"count": 0}
+
+        def fake_warm_up(self, *, path="/v1/free-tier/info", timeout=None):  # type: ignore[override]
+            calls["count"] += 1
+
+        monkeypatch.setattr("memoclaw.client._SyncHTTPClient.warm_up", fake_warm_up, raising=False)
+        client = MemoClaw(private_key=TEST_PRIVATE_KEY, base_url=BASE_URL, warm_pool=True)
+        assert calls["count"] == 1
+        client.close()
+
+
 
 class TestAsyncConnectionPool:
     """Test async client connection pool configuration."""
@@ -68,6 +115,24 @@ class TestAsyncConnectionPool:
         assert client._http._http is not None
         assert isinstance(client._http._http, httpx.AsyncClient)
         await client.close()
+    @pytest.mark.asyncio
+    async def test_async_create_warm_pool_option(self, monkeypatch):
+        """Async factory should warm the pool when requested."""
+        calls = {"count": 0}
+
+        async def fake_warm_up(self, *, path="/v1/free-tier/info", timeout=None):  # type: ignore[override]
+            calls["count"] += 1
+
+        monkeypatch.setattr("memoclaw.client._AsyncHTTPClient.warm_up", fake_warm_up, raising=False)
+        client = await AsyncMemoClaw.create(
+            private_key=TEST_PRIVATE_KEY,
+            base_url=BASE_URL,
+            validate_on_init=False,
+            warm_pool=True,
+        )
+        assert calls["count"] == 1
+        await client.close()
+
 
 
 class TestRetryConfiguration:

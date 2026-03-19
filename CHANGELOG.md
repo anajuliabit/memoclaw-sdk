@@ -4,6 +4,14 @@ All notable changes to memoclaw-sdk will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.1.0] - 2026-03-19
+
+### Features
+- **Pool health telemetry** — `MemoClaw.pool_health()` / `AsyncMemoClaw.pool_health()` expose active/idle/max connection stats for debugging latency-sensitive workloads (#215)
+- **Warm-up toggle** — new `warm_pool` flag (sync constructor + async factory) plus `warm_pool()` helpers to pre-establish TCP/TLS connections (#215)
+- **Connection recycling control** — `pool_recycle_seconds` forwards to httpx keepalive expiry so stale sockets are churned proactively (#215)
+- **Docs/tests** — README describes the new knobs and regression tests guard warm-up + health reporting behaviors (#215)
+
 ## [1.0.0] - 2026-03-11
 
 ### Breaking Changes

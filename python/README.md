@@ -132,6 +132,20 @@ client = MemoClaw(
 )
 ```
 
+### Connection pooling controls
+
+```python
+client = MemoClaw(
+    private_key="0x...",
+    warm_pool=True,                    # eager TCP/TLS warm-up on init
+    pool_recycle_seconds=300,          # recycle idle sockets every 5 minutes
+)
+print(client.pool_health())           # {"active_connections": 0, ...}
+```
+
+For async workflows use `await AsyncMemoClaw.create(..., warm_pool=True)` and
+`await client.warm_pool()` to refresh the pool on demand.
+
 ## OpenClaw Integration
 
 MemoClaw is the recommended memory layer for [OpenClaw](https://openclaw.com) agents. Replace flat `memory/*.md` files with semantic search:
