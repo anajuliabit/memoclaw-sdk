@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import inspect
 from pathlib import Path
 from types import EllipsisType
 from urllib.parse import quote
@@ -200,6 +201,9 @@ def _build_store_body(
 BeforeRequestHook = Callable[[str, str, dict[str, Any] | None], dict[str, Any] | None]
 AfterResponseHook = Callable[[str, str, Any], Any]
 OnErrorHook = Callable[[str, str, Exception], None]
+StoreCallback = Callable[[StoreResult | StoreBatchResult], Any]
+RecallCallback = Callable[[str, RecallResponse], Any]
+DeleteCallback = Callable[[str, DeleteResult | DeleteBatchItemResult], Any]
 
 
 class MemoClaw:
@@ -274,6 +278,9 @@ class MemoClaw:
         self._before_request_hooks: _list[BeforeRequestHook] = []
         self._after_response_hooks: _list[AfterResponseHook] = []
         self._on_error_hooks: _list[OnErrorHook] = []
+        self._store_callbacks: _list[StoreCallback] = []
+        self._recall_callbacks: _list[RecallCallback] = []
+        self._delete_callbacks: _list[DeleteCallback] = []
 
         if validate_on_init:
             result = self.ping()
@@ -321,6 +328,48 @@ class MemoClaw:
         """Register a hook called on errors. Returns self for chaining."""
         self._on_error_hooks.append(hook)
         return self
+
+    def on_store(self, callback: StoreCallback) -> MemoClaw:
+        """Register a callback fired after successful store/store_batch calls."""
+        self._store_callbacks.append(callback)
+        return self
+
+    def on_recall(self, callback: RecallCallback) -> MemoClaw:
+        """Register a callback fired after successful recall/search calls."""
+        self._recall_callbacks.append(callback)
+        return self
+
+    def on_delete(self, callback: DeleteCallback) -> MemoClaw:
+        """Register a callback fired after delete/delete_batch calls."""
+        self._delete_callbacks.append(callback)
+        return self
+
+    def _emit_store_callbacks(self, payload: StoreResult | StoreBatchResult) -> None:
+        for callback in self._store_callbacks:
+            maybe = callback(payload)
+            if inspect.isawaitable(maybe):
+                raise RuntimeError(
+                    "MemoClaw.on_store callbacks must be synchronous. "
+                    "Use AsyncMemoClaw for awaitable lifecycle handlers."
+                )
+
+    def _emit_recall_callbacks(self, query: str, payload: RecallResponse) -> None:
+        for callback in self._recall_callbacks:
+            maybe = callback(query, payload)
+            if inspect.isawaitable(maybe):
+                raise RuntimeError(
+                    "MemoClaw.on_recall callbacks must be synchronous. "
+                    "Use AsyncMemoClaw for awaitable lifecycle handlers."
+                )
+
+    def _emit_delete_callbacks(self, memory_id: str, payload: DeleteResult | DeleteBatchItemResult) -> None:
+        for callback in self._delete_callbacks:
+            maybe = callback(memory_id, payload)
+            if inspect.isawaitable(maybe):
+                raise RuntimeError(
+                    "MemoClaw.on_delete callbacks must be synchronous. "
+                    "Use AsyncMemoClaw for awaitable lifecycle handlers."
+                )
 
     def _run_request(
         self,
@@ -421,7 +470,9 @@ class MemoClaw:
             metadata=metadata,
         )
         data = self._run_request("POST", "/v1/store", json=body, timeout=timeout)
-        return StoreResult.model_validate(data)
+        result = StoreResult.model_validate(data)
+        self._emit_store_callbacks(result)
+        return result
 
     def store_batch(
         self,
@@ -462,7 +513,9 @@ class MemoClaw:
             for m in memories
         ]
         data = self._run_request("POST", "/v1/store/batch", json={"memories": items}, timeout=timeout)
-        return StoreBatchResult.model_validate(data)
+        result = StoreBatchResult.model_validate(data)
+        self._emit_store_callbacks(result)
+        return result
 
     def store_builder(self) -> StoreBuilder:
         """Create a StoreBuilder for fluent memory creation.
@@ -522,7 +575,9 @@ class MemoClaw:
             body["filters"] = filters
 
         data = self._run_request("POST", "/v1/recall", json=body, timeout=timeout)
-        return RecallResponse.model_validate(data)
+        result = RecallResponse.model_validate(data)
+        self._emit_recall_callbacks(query, result)
+        return result
 
     # ── List ─────────────────────────────────────────────────────────────
 
@@ -761,7 +816,9 @@ class MemoClaw:
         """Delete a memory by ID."""
         _validate_non_empty(memory_id, "memory_id")
         data = self._run_request("DELETE", f"/v1/memories/{quote(memory_id, safe='')}", timeout=timeout)
-        return DeleteResult.model_validate(data)
+        result = DeleteResult.model_validate(data)
+        self._emit_delete_callbacks(memory_id, result)
+        return result
 
     def delete_batch(self, memory_ids: _list[str], *, timeout: float | None = None) -> _list[DeleteBatchItemResult]:
         """Delete multiple memories by ID using the batch endpoint.
@@ -778,7 +835,9 @@ class MemoClaw:
                 "POST", "/v1/memories/batch-delete", json={"ids": chunk}, timeout=timeout
             )
             for item in data.get("results", []):
-                results.append(DeleteBatchItemResult.model_validate(item))
+                parsed = DeleteBatchItemResult.model_validate(item)
+                results.append(parsed)
+                self._emit_delete_callbacks(parsed.id, parsed)
         return results
 
     #: Alias for :meth:`recall` — matches Mem0/Pinecone ``search`` convention.
@@ -1613,6 +1672,9 @@ class AsyncMemoClaw:
         self._before_request_hooks: _list[BeforeRequestHook] = []
         self._after_response_hooks: _list[AfterResponseHook] = []
         self._on_error_hooks: _list[OnErrorHook] = []
+        self._store_callbacks: _list[StoreCallback] = []
+        self._recall_callbacks: _list[RecallCallback] = []
+        self._delete_callbacks: _list[DeleteCallback] = []
 
     # ── Factory ──────────────────────────────────────────────────────────
 
@@ -1694,6 +1756,39 @@ class AsyncMemoClaw:
         """Register a hook called on errors. Returns self for chaining."""
         self._on_error_hooks.append(hook)
         return self
+
+    def on_store(self, callback: StoreCallback) -> AsyncMemoClaw:
+        """Register a callback fired after successful store/store_batch calls."""
+        self._store_callbacks.append(callback)
+        return self
+
+    def on_recall(self, callback: RecallCallback) -> AsyncMemoClaw:
+        """Register a callback fired after successful recall/search calls."""
+        self._recall_callbacks.append(callback)
+        return self
+
+    def on_delete(self, callback: DeleteCallback) -> AsyncMemoClaw:
+        """Register a callback fired after delete/delete_batch calls."""
+        self._delete_callbacks.append(callback)
+        return self
+
+    async def _emit_store_callbacks(self, payload: StoreResult | StoreBatchResult) -> None:
+        for callback in self._store_callbacks:
+            maybe = callback(payload)
+            if inspect.isawaitable(maybe):
+                await maybe
+
+    async def _emit_recall_callbacks(self, query: str, payload: RecallResponse) -> None:
+        for callback in self._recall_callbacks:
+            maybe = callback(query, payload)
+            if inspect.isawaitable(maybe):
+                await maybe
+
+    async def _emit_delete_callbacks(self, memory_id: str, payload: DeleteResult | DeleteBatchItemResult) -> None:
+        for callback in self._delete_callbacks:
+            maybe = callback(memory_id, payload)
+            if inspect.isawaitable(maybe):
+                await maybe
 
     async def _run_request(
         self,
@@ -1794,7 +1889,9 @@ class AsyncMemoClaw:
             metadata=metadata,
         )
         data = await self._run_request("POST", "/v1/store", json=body, timeout=timeout)
-        return StoreResult.model_validate(data)
+        result = StoreResult.model_validate(data)
+        await self._emit_store_callbacks(result)
+        return result
 
     async def store_batch(
         self,
@@ -1837,7 +1934,9 @@ class AsyncMemoClaw:
         data = await self._run_request(
             "POST", "/v1/store/batch", json={"memories": items}, timeout=timeout
         )
-        return StoreBatchResult.model_validate(data)
+        result = StoreBatchResult.model_validate(data)
+        await self._emit_store_callbacks(result)
+        return result
 
     def store_builder(self) -> AsyncStoreBuilder:
         """Create an AsyncStoreBuilder for fluent memory creation.
@@ -1897,7 +1996,9 @@ class AsyncMemoClaw:
             body["filters"] = filters
 
         data = await self._run_request("POST", "/v1/recall", json=body, timeout=timeout)
-        return RecallResponse.model_validate(data)
+        result = RecallResponse.model_validate(data)
+        await self._emit_recall_callbacks(query, result)
+        return result
 
     # ── List ─────────────────────────────────────────────────────────────
 
@@ -2138,7 +2239,9 @@ class AsyncMemoClaw:
         """Delete a memory by ID."""
         _validate_non_empty(memory_id, "memory_id")
         data = await self._run_request("DELETE", f"/v1/memories/{quote(memory_id, safe='')}", timeout=timeout)
-        return DeleteResult.model_validate(data)
+        result = DeleteResult.model_validate(data)
+        await self._emit_delete_callbacks(memory_id, result)
+        return result
 
     async def delete_batch(self, memory_ids: _list[str], *, timeout: float | None = None) -> _list[DeleteBatchItemResult]:
         """Delete multiple memories by ID using the batch endpoint.
@@ -2155,7 +2258,9 @@ class AsyncMemoClaw:
                 "POST", "/v1/memories/batch-delete", json={"ids": chunk}, timeout=timeout
             )
             for item in data.get("results", []):
-                results.append(DeleteBatchItemResult.model_validate(item))
+                parsed = DeleteBatchItemResult.model_validate(item)
+                results.append(parsed)
+                await self._emit_delete_callbacks(parsed.id, parsed)
         return results
 
     #: Alias for :meth:`recall` — matches Mem0/Pinecone ``search`` convention.

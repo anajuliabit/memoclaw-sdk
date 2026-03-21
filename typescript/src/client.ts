@@ -13,6 +13,7 @@ import type {
   ListMemoriesParams,
   UpdateMemoryRequest,
   DeleteResponse,
+  DeleteBatchResult,
   IngestRequest,
   IngestResponse,
   SuggestedParams,
@@ -185,7 +186,10 @@ export type BeforeRequestHook = (method: string, path: string, body?: unknown) =
 /** Hook called after each successful response. */
 export type AfterResponseHook = (method: string, path: string, data: unknown) => unknown | void;
 /** Hook called on error. */
-export type OnErrorHook = (method: string, path: string, error: MemoClawError) => void;
+export type OnErrorHook = (method: string, path: string, error: MemoClawError) => void | Promise<void>;
+export type StoreCallback = (result: StoreResponse | StoreBatchResponse) => void | Promise<void>;
+export type RecallCallback = (query: string, response: RecallResponse) => void | Promise<void>;
+export type DeleteCallback = (id: string, result: DeleteResponse | DeleteBatchResult) => void | Promise<void>;
 
 /**
  * Official TypeScript client for the MemoClaw memory API.
@@ -211,6 +215,9 @@ export class MemoClawClient {
   private readonly _beforeRequestHooks: BeforeRequestHook[] = [];
   private readonly _afterResponseHooks: AfterResponseHook[] = [];
   private readonly _onErrorHooks: OnErrorHook[] = [];
+  private readonly _storeCallbacks: StoreCallback[] = [];
+  private readonly _recallCallbacks: RecallCallback[] = [];
+  private readonly _deleteCallbacks: DeleteCallback[] = [];
   private readonly _logger?: Required<Logger>;
 
   constructor(options: MemoClawOptions = {}) {
@@ -283,10 +290,52 @@ export class MemoClawClient {
     return this;
   }
 
-  /** Register a hook called on errors. Returns this for chaining. */
+  /** Register a hook fired when a request ultimately fails. */
   onError(hook: OnErrorHook): this {
     this._onErrorHooks.push(hook);
     return this;
+  }
+
+  /** Register a lifecycle callback fired after successful store/storeBatch calls. */
+  onStore(callback: StoreCallback): this {
+    this._storeCallbacks.push(callback);
+    return this;
+  }
+
+  /** Register a lifecycle callback fired after successful recall/search calls. */
+  onRecall(callback: RecallCallback): this {
+    this._recallCallbacks.push(callback);
+    return this;
+  }
+
+  /** Register a lifecycle callback fired after delete/deleteBatch calls. */
+  onDelete(callback: DeleteCallback): this {
+    this._deleteCallbacks.push(callback);
+    return this;
+  }
+
+  private async emitStoreCallbacks(payload: StoreResponse | StoreBatchResponse): Promise<void> {
+    for (const cb of this._storeCallbacks) {
+      await cb(payload);
+    }
+  }
+
+  private async emitRecallCallbacks(query: string, payload: RecallResponse): Promise<void> {
+    for (const cb of this._recallCallbacks) {
+      await cb(query, payload);
+    }
+  }
+
+  private async emitDeleteCallbacks(id: string, payload: DeleteResponse | DeleteBatchResult): Promise<void> {
+    for (const cb of this._deleteCallbacks) {
+      await cb(id, payload);
+    }
+  }
+
+  private async emitErrorHooks(method: string, path: string, error: MemoClawError): Promise<void> {
+    for (const hook of this._onErrorHooks) {
+      await hook(method, path, error);
+    }
   }
 
   // ── Representation ──────────────────────────────────
@@ -501,7 +550,7 @@ export class MemoClawClient {
       });
 
       if (!RETRYABLE_STATUS_CODES.has(res.status)) {
-        for (const hook of this._onErrorHooks) hook(method, path, lastError);
+        await this.emitErrorHooks(method, path, lastError);
         throw lastError;
       }
 
@@ -509,7 +558,7 @@ export class MemoClawClient {
     }
 
     if (lastError) {
-      for (const hook of this._onErrorHooks) hook(method, path, lastError);
+      await this.emitErrorHooks(method, path, lastError);
     }
     throw lastError!;
   }
@@ -528,7 +577,9 @@ export class MemoClawClient {
     if (request.importance !== undefined && (request.importance < 0 || request.importance > 1)) {
       throw new Error('importance must be between 0.0 and 1.0');
     }
-    return this.request<StoreResponse>('POST', '/v1/store', request, undefined, options);
+    const result = await this.request<StoreResponse>('POST', '/v1/store', request, undefined, options);
+    await this.emitStoreCallbacks(result);
+    return result;
   }
 
   /** Store multiple memories in a single request (up to 100). */
@@ -551,11 +602,13 @@ export class MemoClawClient {
         throw new Error('importance must be between 0.0 and 1.0');
       }
     }
-    return this.request<StoreBatchResponse>(
+    const result = await this.request<StoreBatchResponse>(
       'POST', '/v1/store/batch',
       { memories } satisfies StoreBatchRequest,
       undefined, options,
     );
+    await this.emitStoreCallbacks(result);
+    return result;
   }
 
   /** Create a StoreBuilder for fluent memory creation. */
@@ -578,6 +631,7 @@ export class MemoClawClient {
         mem.signals = mem._signals;
       }
     }
+    await this.emitRecallCallbacks(request.query, data);
     return data;
   }
 
@@ -704,25 +758,30 @@ export class MemoClawClient {
   /** Delete a memory by ID (soft delete). */
   async delete(id: string, options?: RequestOptions): Promise<DeleteResponse> {
     if (!id?.trim()) throw new Error('id must be a non-empty string');
-    return this.request<DeleteResponse>('DELETE', `/v1/memories/${encodeURIComponent(id)}`, undefined, undefined, options);
+    const result = await this.request<DeleteResponse>('DELETE', `/v1/memories/${encodeURIComponent(id)}`, undefined, undefined, options);
+    await this.emitDeleteCallbacks(id, result);
+    return result;
   }
 
   /** Delete multiple memories by ID in batch. */
-  async deleteBatch(ids: string[], options?: RequestOptions): Promise<import('./types.js').DeleteBatchResult[]> {
+  async deleteBatch(ids: string[], options?: RequestOptions): Promise<DeleteBatchResult[]> {
     if (!ids.length) {
       throw new Error('ids array must not be empty');
     }
-    const results: import('./types.js').DeleteBatchResult[] = [];
+    const results: DeleteBatchResult[] = [];
     // Process in chunks of 50
     for (let i = 0; i < ids.length; i += 50) {
       const chunk = ids.slice(i, i + 50);
-      const response = await this.request<{ results: import('./types.js').DeleteBatchResult[] }>(
+      const response = await this.request<{ results: DeleteBatchResult[] }>(
         'POST',
         '/v1/memories/batch-delete',
         { ids: chunk },
         undefined, options,
-    );
-      results.push(...response.results);
+      );
+      for (const entry of response.results) {
+        results.push(entry);
+        await this.emitDeleteCallbacks(entry.id, entry);
+      }
     }
     return results;
   }
