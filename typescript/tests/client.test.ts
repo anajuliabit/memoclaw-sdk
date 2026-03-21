@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { MemoClawClient } from '../src/client.js';
 import {
   MemoClawError,
@@ -8,6 +8,8 @@ import {
   RateLimitError,
   InternalServerError,
 } from '../src/errors.js';
+import { trace } from '@opentelemetry/api';
+import { BasicTracerProvider, InMemorySpanExporter, SimpleSpanProcessor } from '@opentelemetry/sdk-trace-base';
 
 const WALLET = '0x1234567890abcdef1234567890abcdef12345678';
 // Well-known Hardhat test private key (DO NOT use in production)
@@ -631,3 +633,33 @@ describe('migrateDirectory', () => {
     }
   });
 });
+describe('tracing', () => {
+  let provider: BasicTracerProvider;
+  let exporter: InMemorySpanExporter;
+
+  beforeEach(() => {
+    provider = new BasicTracerProvider();
+    exporter = new InMemorySpanExporter();
+    provider.addSpanProcessor(new SimpleSpanProcessor(exporter));
+    provider.register();
+  });
+
+  afterEach(async () => {
+    exporter.reset();
+    await provider.shutdown();
+    trace.disable();
+  });
+
+  it('injects traceparent header and records spans', async () => {
+    const f = mockFetch([{ status: 200, body: { wallet: WALLET, free_tier_remaining: 100, free_tier_total: 100, free_tier_used: 0 } }]);
+    const client = new MemoClawClient({ privateKey: DEFAULT_TEST_KEY, fetch: f, enableTracing: true });
+    await client.status();
+    const [, init] = f.mock.calls[0]!;
+    const traceparent = init.headers['traceparent'] as string;
+    expect(traceparent).toMatch(/^00-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$/);
+    const spans = exporter.getFinishedSpans();
+    expect(spans.length).toBeGreaterThan(0);
+    expect(spans[0]!.attributes['memoclaw.method']).toBe('GET');
+  });
+});
+
