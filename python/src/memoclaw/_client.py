@@ -6,7 +6,7 @@ import json as _json
 import logging
 import random
 import time
-from typing import Any, Literal
+from typing import Any, Literal, TypedDict
 
 import httpx
 from eth_account import Account
@@ -83,6 +83,17 @@ def configure_sdk_logging(
 DEFAULT_BASE_URL = "https://api.memoclaw.com"
 DEFAULT_TIMEOUT = 30.0
 DEFAULT_MAX_RETRIES = 2
+
+
+class PoolHealth(TypedDict):
+    """Lightweight snapshot of the underlying httpx connection pool."""
+
+    active_connections: int
+    idle_connections: int
+    max_connections: int
+    max_keepalive_connections: int
+    recycle_seconds: float | None
+
 
 def _sdk_user_agent() -> str:
     """Build User-Agent string with SDK version."""
@@ -161,6 +172,7 @@ class _SyncHTTPClient:
         max_retries: int = DEFAULT_MAX_RETRIES,
         pool_max_connections: int = DEFAULT_POOL_MAX_CONNECTIONS,
         pool_max_keepalive: int = DEFAULT_POOL_MAX_KEEPALIVE_CONNECTIONS,
+        pool_recycle_seconds: float | None = None,
         wallet_address: str | None = None,
     ) -> None:
         if private_key is not None:
@@ -177,13 +189,71 @@ class _SyncHTTPClient:
         self._timeout = timeout
         self._max_retries = max_retries
         self._user_agent = _sdk_user_agent()
+        self._pool_max_connections = pool_max_connections
+        self._pool_max_keepalive = pool_max_keepalive
+        self._pool_recycle_seconds = pool_recycle_seconds
         
         # Configure connection pool limits for better performance
-        limits = httpx.Limits(
-            max_connections=pool_max_connections,
-            max_keepalive_connections=pool_max_keepalive,
-        )
+        limits_kwargs: dict[str, Any] = {
+            "max_connections": pool_max_connections,
+            "max_keepalive_connections": pool_max_keepalive,
+        }
+        if pool_recycle_seconds is not None:
+            limits_kwargs["keepalive_expiry"] = pool_recycle_seconds
+        limits = httpx.Limits(**limits_kwargs)
         self._http = httpx.Client(timeout=timeout, limits=limits)
+
+    def pool_health(self) -> PoolHealth:
+        """Inspect the current httpx pool stats (best-effort)."""
+        transport = getattr(self._http, "_transport", None)
+        pool = getattr(transport, "_pool", None) if transport is not None else None
+        active = 0
+        idle = 0
+        if pool is not None:
+            connections = list(getattr(pool, "_connections", []))
+            for conn in connections:
+                try:
+                    is_closed = getattr(conn, "is_closed")
+                except AttributeError:
+                    is_closed = None
+                if callable(is_closed):
+                    try:
+                        if is_closed():
+                            continue
+                    except Exception:
+                        pass
+                try:
+                    is_idle = getattr(conn, "is_idle")
+                except AttributeError:
+                    is_idle = None
+                if callable(is_idle):
+                    try:
+                        if is_idle():
+                            idle += 1
+                            continue
+                    except Exception:
+                        pass
+                active += 1
+            max_connections = getattr(pool, "_max_connections", self._pool_max_connections)
+            max_keepalive = getattr(pool, "_max_keepalive_connections", self._pool_max_keepalive)
+        else:
+            max_connections = self._pool_max_connections
+            max_keepalive = self._pool_max_keepalive
+        return {
+            "active_connections": active,
+            "idle_connections": idle,
+            "max_connections": max_connections,
+            "max_keepalive_connections": max_keepalive,
+            "recycle_seconds": self._pool_recycle_seconds,
+        }
+
+    def warm_up(self, *, path: str = "/v1/free-tier/info", timeout: float | None = None) -> None:
+        """Open a connection eagerly so latency spikes don't hit the first user request."""
+        effective_timeout = timeout if timeout is not None else min(self._timeout, 5.0)
+        try:
+            self.request("GET", path, timeout=effective_timeout)
+        except Exception as exc:
+            raise ConnectionError("MemoClaw connection pool warm-up failed") from exc
 
     def request(
         self,
@@ -312,6 +382,7 @@ class _AsyncHTTPClient:
         max_retries: int = DEFAULT_MAX_RETRIES,
         pool_max_connections: int = DEFAULT_POOL_MAX_CONNECTIONS,
         pool_max_keepalive: int = DEFAULT_POOL_MAX_KEEPALIVE_CONNECTIONS,
+        pool_recycle_seconds: float | None = None,
         wallet_address: str | None = None,
     ) -> None:
         if private_key is not None:
@@ -328,13 +399,71 @@ class _AsyncHTTPClient:
         self._timeout = timeout
         self._max_retries = max_retries
         self._user_agent = _sdk_user_agent()
+        self._pool_max_connections = pool_max_connections
+        self._pool_max_keepalive = pool_max_keepalive
+        self._pool_recycle_seconds = pool_recycle_seconds
         
         # Configure connection pool limits for better performance
-        limits = httpx.Limits(
-            max_connections=pool_max_connections,
-            max_keepalive_connections=pool_max_keepalive,
-        )
+        limits_kwargs: dict[str, Any] = {
+            "max_connections": pool_max_connections,
+            "max_keepalive_connections": pool_max_keepalive,
+        }
+        if pool_recycle_seconds is not None:
+            limits_kwargs["keepalive_expiry"] = pool_recycle_seconds
+        limits = httpx.Limits(**limits_kwargs)
         self._http = httpx.AsyncClient(timeout=timeout, limits=limits)
+
+    def pool_health(self) -> PoolHealth:
+        """Inspect async httpx pool stats without awaiting."""
+        transport = getattr(self._http, "_transport", None)
+        pool = getattr(transport, "_pool", None) if transport is not None else None
+        active = 0
+        idle = 0
+        if pool is not None:
+            connections = list(getattr(pool, "_connections", []))
+            for conn in connections:
+                try:
+                    is_closed = getattr(conn, "is_closed")
+                except AttributeError:
+                    is_closed = None
+                if callable(is_closed):
+                    try:
+                        if is_closed():
+                            continue
+                    except Exception:
+                        pass
+                try:
+                    is_idle = getattr(conn, "is_idle")
+                except AttributeError:
+                    is_idle = None
+                if callable(is_idle):
+                    try:
+                        if is_idle():
+                            idle += 1
+                            continue
+                    except Exception:
+                        pass
+                active += 1
+            max_connections = getattr(pool, "_max_connections", self._pool_max_connections)
+            max_keepalive = getattr(pool, "_max_keepalive_connections", self._pool_max_keepalive)
+        else:
+            max_connections = self._pool_max_connections
+            max_keepalive = self._pool_max_keepalive
+        return {
+            "active_connections": active,
+            "idle_connections": idle,
+            "max_connections": max_connections,
+            "max_keepalive_connections": max_keepalive,
+            "recycle_seconds": self._pool_recycle_seconds,
+        }
+
+    async def warm_up(self, *, path: str = "/v1/free-tier/info", timeout: float | None = None) -> None:
+        """Async variant of the eager warm-up helper."""
+        effective_timeout = timeout if timeout is not None else min(self._timeout, 5.0)
+        try:
+            await self.request("GET", path, timeout=effective_timeout)
+        except Exception as exc:
+            raise ConnectionError("MemoClaw connection pool warm-up failed") from exc
 
     async def request(
         self,

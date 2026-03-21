@@ -1,6 +1,6 @@
 """MemoClaw Python SDK — semantic memory for AI agents."""
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 
 from .builders import MemoryBuilder, RecallBuilder
 from .client import AsyncMemoClaw, MemoClaw
