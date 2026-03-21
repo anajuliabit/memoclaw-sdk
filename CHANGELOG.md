@@ -19,6 +19,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Documentation
 - Document lifecycle callback usage in both SDK READMEs (#214)
 
+### Added
+- Pydantic AI integration with MemoClaw store/recall tools plus optional dependency extras (#213)
+
 ## [1.0.0] - 2026-03-11
 
 ### Breaking Changes
