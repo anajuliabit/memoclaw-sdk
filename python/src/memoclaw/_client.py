@@ -202,7 +202,7 @@ class _TracingHelper:
                 return
         elif hasattr(span, "setAttribute"):
             try:
-                span.setAttribute(key, value)  # type: ignore[attr-defined]
+                span.setAttribute(key, value)
             except Exception:
                 return
 
