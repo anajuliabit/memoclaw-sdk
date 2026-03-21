@@ -92,7 +92,7 @@ class _RecallMemoryInput(BaseModel):
     )
 
 
-class MemoClawStoreTool(BaseTool):
+class MemoClawStoreTool(BaseTool):  # type: ignore[misc]
     """CrewAI tool that stores memories in MemoClaw.
 
     Args:
@@ -140,7 +140,7 @@ class MemoClawStoreTool(BaseTool):
         return json.dumps(result.model_dump(), default=str)
 
 
-class MemoClawRecallTool(BaseTool):
+class MemoClawRecallTool(BaseTool):  # type: ignore[misc]
     """CrewAI tool that recalls memories from MemoClaw.
 
     Args:
