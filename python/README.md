@@ -119,6 +119,41 @@ response = agent.run_sync("Remember that Carla prefers morning stand-ups.")
 print(response.output)
 ```
 
+## CrewAI Integration
+
+Install the extra dependencies and add MemoClaw tools to your CrewAI agents.
+
+```bash
+pip install memoclaw[crewai]
+```
+
+```python
+from crewai import Agent, Task, Crew
+from memoclaw import MemoClaw
+from memoclaw.integrations.crewai import MemoClawStoreTool, MemoClawRecallTool
+
+client = MemoClaw(private_key="0x...")
+
+store_tool = MemoClawStoreTool(client=client, namespace="support")
+recall_tool = MemoClawRecallTool(client=client, namespace="support")
+
+agent = Agent(
+    role="Support Agent",
+    goal="Help users and remember their preferences",
+    backstory="You are a helpful support agent with long-term memory.",
+    tools=[store_tool, recall_tool],
+)
+
+task = Task(
+    description="Remember that the user prefers dark mode.",
+    agent=agent,
+    expected_output="Confirmation that the preference was stored.",
+)
+
+crew = Crew(agents=[agent], tasks=[task])
+result = crew.kickoff()
+```
+
 ## All Methods
 
 | Method | Description |

@@ -4,6 +4,11 @@ All notable changes to memoclaw-sdk will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Added
+- CrewAI integration with `MemoClawStoreTool` and `MemoClawRecallTool` for Python SDK (#211)
+
 ## [1.1.0] - 2026-03-19
 
 ### Features
