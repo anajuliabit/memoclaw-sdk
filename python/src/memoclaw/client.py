@@ -25,6 +25,7 @@ from ._client import (
     PoolHealth,
     _AsyncHTTPClient,
     _SyncHTTPClient,
+    _is_opentelemetry_available,
     configure_sdk_logging,
 )
 from .builders import StoreBuilder, AsyncStoreBuilder
@@ -94,6 +95,15 @@ def _clean_body(body: dict[str, Any]) -> dict[str, Any]:
 
 MAX_BATCH_SIZE = 100
 MAX_CONTENT_LENGTH = 8192
+
+
+EnableTracingOption = Literal["auto"] | bool
+
+
+def _resolve_tracing_option(value: EnableTracingOption) -> bool:
+    if value == "auto":
+        return _is_opentelemetry_available()
+    return bool(value)
 
 
 def _normalize_store_input(m: StoreInput) -> dict[str, Any]:
@@ -243,6 +253,7 @@ class MemoClaw:
         warm_pool: bool = False,
         log_level: LogLevel | None = None,
         log_format: LogFormat = "text",
+        enable_tracing: EnableTracingOption = "auto",
     ) -> None:
         config = load_config(config_path)
         resolved_url = resolve_base_url(base_url, config)
@@ -260,11 +271,14 @@ class MemoClaw:
         if log_level is not None:
             configure_sdk_logging(level=log_level, log_format=log_format)
 
+        tracing_enabled = _resolve_tracing_option(enable_tracing)
+
         kwargs: dict[str, Any] = {
             "base_url": resolved_url,
             "timeout": timeout,
             "pool_max_connections": pool_max_connections,
             "pool_max_keepalive": pool_max_keepalive,
+            "enable_tracing": tracing_enabled,
         }
         if resolved_key is not None:
             kwargs["private_key"] = resolved_key
@@ -1637,6 +1651,7 @@ class AsyncMemoClaw:
         config_path: str | Path | None = None,
         log_level: LogLevel | None = None,
         log_format: LogFormat = "text",
+        enable_tracing: EnableTracingOption = "auto",
     ) -> None:
         config = load_config(config_path)
         resolved_url = resolve_base_url(base_url, config)
@@ -1654,11 +1669,14 @@ class AsyncMemoClaw:
         if log_level is not None:
             configure_sdk_logging(level=log_level, log_format=log_format)
 
+        tracing_enabled = _resolve_tracing_option(enable_tracing)
+
         kwargs: dict[str, Any] = {
             "base_url": resolved_url,
             "timeout": timeout,
             "pool_max_connections": pool_max_connections,
             "pool_max_keepalive": pool_max_keepalive,
+            "enable_tracing": tracing_enabled,
         }
         if resolved_key is not None:
             kwargs["private_key"] = resolved_key
@@ -1693,6 +1711,7 @@ class AsyncMemoClaw:
         config_path: str | Path | None = None,
         log_level: LogLevel | None = None,
         log_format: LogFormat = "text",
+        enable_tracing: EnableTracingOption = "auto",
         validate_on_init: bool = True,
         warm_pool: bool = False,
     ) -> AsyncMemoClaw:
@@ -1718,6 +1737,7 @@ class AsyncMemoClaw:
             config_path=config_path,
             log_level=log_level,
             log_format=log_format,
+            enable_tracing=enable_tracing,
         )
         if validate_on_init:
             await client.ping()

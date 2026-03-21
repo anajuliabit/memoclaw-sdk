@@ -87,6 +87,20 @@ const client = new MemoClawClient({ privateKey: '0x...' });
 
 Every wallet gets **100 free API calls**. After that, x402 micropayments are used automatically.
 
+## Observability & Tracing
+
+Pass `enableTracing: true` (or rely on the default `"auto"` and install
+`@opentelemetry/api`) to emit OpenTelemetry spans for each request. Install the
+optional peer dependency:
+
+```bash
+npm install @opentelemetry/api
+```
+
+The client automatically injects `traceparent` / `tracestate` headers and
+annotates spans with `memoclaw.method`, `memoclaw.path`, `memoclaw.status`,
+`memoclaw.duration_ms`, and `memoclaw.request_id`.
+
 ## API Reference
 
 ### `MemoClawClient`

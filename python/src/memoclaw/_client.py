@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import importlib.util
 import json as _json
 import logging
 import random
 import time
+from contextlib import contextmanager
 from typing import Any, Literal, TypedDict
 
 import httpx
@@ -95,6 +97,116 @@ class PoolHealth(TypedDict):
     recycle_seconds: float | None
 
 
+def _is_opentelemetry_available() -> bool:
+    """Return True if ``opentelemetry`` can be imported."""
+    try:
+        return importlib.util.find_spec("opentelemetry") is not None
+    except (ImportError, ValueError):
+        return False
+
+
+class _TracingHelper:
+    """Lazy OpenTelemetry integration used by HTTP clients."""
+
+    def __init__(self, enabled: bool) -> None:
+        self._enabled = enabled
+        self._trace_api: Any | None = None
+        self._propagator: Any | None = None
+        self._span_kind: Any | None = None
+        if not enabled:
+            return
+        try:
+            import importlib
+
+            trace_module = importlib.import_module("opentelemetry.trace")
+            propagate_module = importlib.import_module("opentelemetry.propagate")
+        except Exception:
+            self._enabled = False
+            return
+
+        tracer = getattr(trace_module, "get_tracer", None)
+        propagator_cls = getattr(propagate_module, "TraceContextTextMapPropagator", None)
+        span_kind = getattr(trace_module, "SpanKind", None)
+        if tracer is None or propagator_cls is None:
+            self._enabled = False
+            return
+
+        try:
+            self._tracer = tracer("memoclaw.sdk")
+            self._propagator = propagator_cls()
+        except Exception:
+            self._enabled = False
+            return
+
+        self._trace_api = trace_module
+        self._span_kind = getattr(span_kind, "CLIENT", None)
+
+    @contextmanager
+    def span(self, name: str, attributes: dict[str, Any]) -> Any:
+        if not self._enabled or self._trace_api is None:
+            yield None
+            return
+        start_kwargs: dict[str, Any] = {}
+        if self._span_kind is not None:
+            start_kwargs["kind"] = self._span_kind
+        try:
+            manager = self._tracer.start_as_current_span(name, **start_kwargs)
+        except Exception:
+            yield None
+            return
+        with manager as span:
+            for key, value in attributes.items():
+                if value is not None:
+                    self._set_attr(span, key, value)
+            yield span
+
+    def inject(self, headers: dict[str, str]) -> None:
+        if not self._enabled or self._propagator is None:
+            return
+        try:
+            self._propagator.inject(carrier=headers)
+        except Exception:
+            return
+
+    def record_response(
+        self,
+        span: Any,
+        *,
+        status: int,
+        duration_ms: int,
+        request_id: str | None,
+    ) -> None:
+        if span is None:
+            return
+        self._set_attr(span, "memoclaw.status", status)
+        self._set_attr(span, "memoclaw.duration_ms", duration_ms)
+        if request_id:
+            self._set_attr(span, "memoclaw.request_id", request_id)
+
+    def record_exception(self, span: Any, exc: BaseException) -> None:
+        if span is None:
+            return
+        if hasattr(span, "record_exception"):
+            try:
+                span.record_exception(exc)
+            except Exception:
+                pass
+        self._set_attr(span, "memoclaw.error", exc.__class__.__name__)
+
+    @staticmethod
+    def _set_attr(span: Any, key: str, value: Any) -> None:
+        if hasattr(span, "set_attribute"):
+            try:
+                span.set_attribute(key, value)
+            except Exception:
+                return
+        elif hasattr(span, "setAttribute"):
+            try:
+                span.setAttribute(key, value)
+            except Exception:
+                return
+
+
 def _sdk_user_agent() -> str:
     """Build User-Agent string with SDK version."""
     try:
@@ -174,6 +286,7 @@ class _SyncHTTPClient:
         pool_max_keepalive: int = DEFAULT_POOL_MAX_KEEPALIVE_CONNECTIONS,
         pool_recycle_seconds: float | None = None,
         wallet_address: str | None = None,
+        enable_tracing: bool = False,
     ) -> None:
         if private_key is not None:
             self._account: LocalAccount | None = Account.from_key(private_key)
@@ -202,6 +315,7 @@ class _SyncHTTPClient:
             limits_kwargs["keepalive_expiry"] = pool_recycle_seconds
         limits = httpx.Limits(**limits_kwargs)
         self._http = httpx.Client(timeout=timeout, limits=limits)
+        self._tracing = _TracingHelper(enable_tracing)
 
     def pool_health(self) -> PoolHealth:
         """Inspect the current httpx pool stats (best-effort)."""
@@ -271,91 +385,116 @@ class _SyncHTTPClient:
         logger.debug("%s %s", method, path)
         start = time.monotonic()
 
-        for attempt in range(self._max_retries + 1):
-            # Generate fresh auth header each attempt (timestamp-based)
-            if self._account is not None:
-                headers = {"x-wallet-auth": _generate_wallet_auth(self._account), "user-agent": self._user_agent}
-            else:
-                headers = {"x-wallet-auth": _generate_wallet_only_auth(self._wallet_address), "user-agent": self._user_agent}
-
+        with self._tracing.span(
+            f"{method} {path}", {"memoclaw.method": method, "memoclaw.path": path}
+        ) as span:
             try:
-                response = self._http.request(
-                    method, url, headers=headers, json=json, params=params,
-                    timeout=req_timeout,
-                )
-            except (httpx.ConnectError, httpx.ReadTimeout, httpx.WriteTimeout, httpx.PoolTimeout) as exc:
-                last_exc = exc
-                if attempt < self._max_retries:
-                    delay = _RETRY_BASE_DELAY * (2**attempt)
-                    jitter = delay * 0.25 * random.random()
-                    logger.debug("Network error on %s %s, retrying (attempt %d/%d)", method, path, attempt + 1, self._max_retries)
-                    time.sleep(delay + jitter)
-                    continue
-                raise
+                for attempt in range(self._max_retries + 1):
+                    if self._account is not None:
+                        headers = {"x-wallet-auth": _generate_wallet_auth(self._account), "user-agent": self._user_agent}
+                    else:
+                        headers = {"x-wallet-auth": _generate_wallet_only_auth(self._wallet_address), "user-agent": self._user_agent}
 
-            duration_ms = round((time.monotonic() - start) * 1000)
-            req_id = response.headers.get("x-request-id", "")
-            logger.debug(
-                "%s %s → %d (%dms)%s",
-                method, path, response.status_code, duration_ms,
-                f" req={req_id}" if req_id else "",
-                extra={
-                    "method": method,
-                    "path": path,
-                    "status": response.status_code,
-                    "duration_ms": duration_ms,
-                    "request_id": req_id or None,
-                },
-            )
+                    self._tracing.inject(headers)
 
-            # 402 → attempt x402 payment and retry once
-            if response.status_code == 402:
-                payment_headers = _try_x402_payment(response)
-                if payment_headers:
-                    logger.info("x402 payment headers created, retrying %s %s", method, path)
-                    headers.update(payment_headers)
-                    response = self._http.request(
-                        method, url, headers=headers, json=json, params=params,
-                        timeout=req_timeout,
-                    )
-                    x402_duration_ms = round((time.monotonic() - start) * 1000)
-                    x402_req_id = response.headers.get("x-request-id", "")
+                    try:
+                        response = self._http.request(
+                            method, url, headers=headers, json=json, params=params,
+                            timeout=req_timeout,
+                        )
+                    except (httpx.ConnectError, httpx.ReadTimeout, httpx.WriteTimeout, httpx.PoolTimeout) as exc:
+                        last_exc = exc
+                        if attempt < self._max_retries:
+                            delay = _RETRY_BASE_DELAY * (2**attempt)
+                            jitter = delay * 0.25 * random.random()
+                            logger.debug(
+                                "Network error on %s %s, retrying (attempt %d/%d)",
+                                method, path, attempt + 1, self._max_retries,
+                            )
+                            time.sleep(delay + jitter)
+                            continue
+                        raise
+
+                    duration_ms = round((time.monotonic() - start) * 1000)
+                    req_id = response.headers.get("x-request-id", "")
                     logger.debug(
-                        "%s %s → %d (%dms, x402 paid)%s",
-                        method, path, response.status_code, x402_duration_ms,
-                        f" req={x402_req_id}" if x402_req_id else "",
+                        "%s %s → %d (%dms)%s",
+                        method, path, response.status_code, duration_ms,
+                        f" req={req_id}" if req_id else "",
                         extra={
                             "method": method,
                             "path": path,
                             "status": response.status_code,
-                            "duration_ms": x402_duration_ms,
-                            "request_id": x402_req_id or None,
+                            "duration_ms": duration_ms,
+                            "request_id": req_id or None,
                         },
                     )
 
-            # Retry on transient server errors (429, 500, 502, 503, 504)
-            if response.status_code in _RETRYABLE_STATUS_CODES and attempt < self._max_retries:
-                retry_after = response.headers.get("retry-after")
-                if retry_after and retry_after.isdigit():
-                    delay = float(retry_after)
-                else:
-                    delay = _RETRY_BASE_DELAY * (2**attempt)
-                    delay += delay * 0.25 * random.random()
-                logger.info(
-                    "Retrying %s %s in %.1fs (attempt %d/%d)",
-                    method, path, delay, attempt + 1, self._max_retries,
-                    extra={"method": method, "path": path},
-                )
-                time.sleep(delay)
-                continue
+                    if response.status_code == 402:
+                        payment_headers = _try_x402_payment(response)
+                        if payment_headers:
+                            logger.info("x402 payment headers created, retrying %s %s", method, path)
+                            headers.update(payment_headers)
+                            self._tracing.inject(headers)
+                            response = self._http.request(
+                                method, url, headers=headers, json=json, params=params,
+                                timeout=req_timeout,
+                            )
+                            x402_duration_ms = round((time.monotonic() - start) * 1000)
+                            x402_req_id = response.headers.get("x-request-id", "")
+                            logger.debug(
+                                "%s %s → %d (%dms, x402 paid)%s",
+                                method, path, response.status_code, x402_duration_ms,
+                                f" req={x402_req_id}" if x402_req_id else "",
+                                extra={
+                                    "method": method,
+                                    "path": path,
+                                    "status": response.status_code,
+                                    "duration_ms": x402_duration_ms,
+                                    "request_id": x402_req_id or None,
+                                },
+                            )
+                            if response.is_success:
+                                self._tracing.record_response(
+                                    span,
+                                    status=response.status_code,
+                                    duration_ms=x402_duration_ms,
+                                    request_id=x402_req_id or None,
+                                )
+                                if response.status_code == 204:
+                                    return {}
+                                return response.json()
 
-            _raise_for_status(response, retry_attempts=attempt)
+                    if response.status_code in _RETRYABLE_STATUS_CODES and attempt < self._max_retries:
+                        retry_after = response.headers.get("retry-after")
+                        if retry_after and retry_after.isdigit():
+                            delay = float(retry_after)
+                        else:
+                            delay = _RETRY_BASE_DELAY * (2**attempt)
+                            delay += delay * 0.25 * random.random()
+                        logger.info(
+                            "Retrying %s %s in %.1fs (attempt %d/%d)",
+                            method, path, delay, attempt + 1, self._max_retries,
+                            extra={"method": method, "path": path},
+                        )
+                        time.sleep(delay)
+                        continue
 
-            if response.status_code == 204:
-                return {}
-            return response.json()
+                    _raise_for_status(response, retry_attempts=attempt)
+                    self._tracing.record_response(
+                        span,
+                        status=response.status_code,
+                        duration_ms=duration_ms,
+                        request_id=req_id or None,
+                    )
 
-        # Should not reach here, but raise last error if we do
+                    if response.status_code == 204:
+                        return {}
+                    return response.json()
+            except Exception as exc:
+                self._tracing.record_exception(span, exc)
+                raise
+
         if last_exc is not None:
             raise last_exc
         _raise_for_status(response, retry_attempts=attempt)
@@ -384,6 +523,7 @@ class _AsyncHTTPClient:
         pool_max_keepalive: int = DEFAULT_POOL_MAX_KEEPALIVE_CONNECTIONS,
         pool_recycle_seconds: float | None = None,
         wallet_address: str | None = None,
+        enable_tracing: bool = False,
     ) -> None:
         if private_key is not None:
             self._account: LocalAccount | None = Account.from_key(private_key)
@@ -412,6 +552,7 @@ class _AsyncHTTPClient:
             limits_kwargs["keepalive_expiry"] = pool_recycle_seconds
         limits = httpx.Limits(**limits_kwargs)
         self._http = httpx.AsyncClient(timeout=timeout, limits=limits)
+        self._tracing = _TracingHelper(enable_tracing)
 
     def pool_health(self) -> PoolHealth:
         """Inspect async httpx pool stats without awaiting."""
@@ -483,88 +624,115 @@ class _AsyncHTTPClient:
         logger.debug("%s %s", method, path)
         start = time.monotonic()
 
-        for attempt in range(self._max_retries + 1):
-            if self._account is not None:
-                headers = {"x-wallet-auth": _generate_wallet_auth(self._account), "user-agent": self._user_agent}
-            else:
-                headers = {"x-wallet-auth": _generate_wallet_only_auth(self._wallet_address), "user-agent": self._user_agent}
-
+        with self._tracing.span(
+            f"{method} {path}", {"memoclaw.method": method, "memoclaw.path": path}
+        ) as span:
             try:
-                response = await self._http.request(
-                    method, url, headers=headers, json=json, params=params,
-                    timeout=req_timeout,
-                )
-            except (httpx.ConnectError, httpx.ReadTimeout, httpx.WriteTimeout, httpx.PoolTimeout) as exc:
-                last_exc = exc
-                if attempt < self._max_retries:
-                    delay = _RETRY_BASE_DELAY * (2**attempt)
-                    jitter = delay * 0.25 * random.random()
-                    logger.debug("Network error on %s %s, retrying (attempt %d/%d)", method, path, attempt + 1, self._max_retries)
-                    await asyncio.sleep(delay + jitter)
-                    continue
-                raise
+                for attempt in range(self._max_retries + 1):
+                    if self._account is not None:
+                        headers = {"x-wallet-auth": _generate_wallet_auth(self._account), "user-agent": self._user_agent}
+                    else:
+                        headers = {"x-wallet-auth": _generate_wallet_only_auth(self._wallet_address), "user-agent": self._user_agent}
 
-            duration_ms = round((time.monotonic() - start) * 1000)
-            req_id = response.headers.get("x-request-id", "")
-            logger.debug(
-                "%s %s → %d (%dms)%s",
-                method, path, response.status_code, duration_ms,
-                f" req={req_id}" if req_id else "",
-                extra={
-                    "method": method,
-                    "path": path,
-                    "status": response.status_code,
-                    "duration_ms": duration_ms,
-                    "request_id": req_id or None,
-                },
-            )
+                    self._tracing.inject(headers)
 
-            # 402 → attempt x402 payment and retry once
-            if response.status_code == 402:
-                payment_headers = _try_x402_payment(response)
-                if payment_headers:
-                    logger.info("x402 payment headers created, retrying %s %s", method, path)
-                    headers.update(payment_headers)
-                    response = await self._http.request(
-                        method, url, headers=headers, json=json, params=params,
-                        timeout=req_timeout,
-                    )
-                    x402_duration_ms = round((time.monotonic() - start) * 1000)
-                    x402_req_id = response.headers.get("x-request-id", "")
+                    try:
+                        response = await self._http.request(
+                            method, url, headers=headers, json=json, params=params,
+                            timeout=req_timeout,
+                        )
+                    except (httpx.ConnectError, httpx.ReadTimeout, httpx.WriteTimeout, httpx.PoolTimeout) as exc:
+                        last_exc = exc
+                        if attempt < self._max_retries:
+                            delay = _RETRY_BASE_DELAY * (2**attempt)
+                            jitter = delay * 0.25 * random.random()
+                            logger.debug(
+                                "Network error on %s %s, retrying (attempt %d/%d)",
+                                method, path, attempt + 1, self._max_retries,
+                            )
+                            await asyncio.sleep(delay + jitter)
+                            continue
+                        raise
+
+                    duration_ms = round((time.monotonic() - start) * 1000)
+                    req_id = response.headers.get("x-request-id", "")
                     logger.debug(
-                        "%s %s → %d (%dms, x402 paid)%s",
-                        method, path, response.status_code, x402_duration_ms,
-                        f" req={x402_req_id}" if x402_req_id else "",
+                        "%s %s → %d (%dms)%s",
+                        method, path, response.status_code, duration_ms,
+                        f" req={req_id}" if req_id else "",
                         extra={
                             "method": method,
                             "path": path,
                             "status": response.status_code,
-                            "duration_ms": x402_duration_ms,
-                            "request_id": x402_req_id or None,
+                            "duration_ms": duration_ms,
+                            "request_id": req_id or None,
                         },
                     )
 
-            # Retry on transient server errors (429, 500, 502, 503, 504)
-            if response.status_code in _RETRYABLE_STATUS_CODES and attempt < self._max_retries:
-                retry_after = response.headers.get("retry-after")
-                if retry_after and retry_after.isdigit():
-                    delay = float(retry_after)
-                else:
-                    delay = _RETRY_BASE_DELAY * (2**attempt)
-                    delay += delay * 0.25 * random.random()
-                logger.info(
-                    "Retrying %s %s in %.1fs (attempt %d/%d)",
-                    method, path, delay, attempt + 1, self._max_retries,
-                    extra={"method": method, "path": path},
-                )
-                await asyncio.sleep(delay)
-                continue
+                    if response.status_code == 402:
+                        payment_headers = _try_x402_payment(response)
+                        if payment_headers:
+                            logger.info("x402 payment headers created, retrying %s %s", method, path)
+                            headers.update(payment_headers)
+                            self._tracing.inject(headers)
+                            response = await self._http.request(
+                                method, url, headers=headers, json=json, params=params,
+                                timeout=req_timeout,
+                            )
+                            x402_duration_ms = round((time.monotonic() - start) * 1000)
+                            x402_req_id = response.headers.get("x-request-id", "")
+                            logger.debug(
+                                "%s %s → %d (%dms, x402 paid)%s",
+                                method, path, response.status_code, x402_duration_ms,
+                                f" req={x402_req_id}" if x402_req_id else "",
+                                extra={
+                                    "method": method,
+                                    "path": path,
+                                    "status": response.status_code,
+                                    "duration_ms": x402_duration_ms,
+                                    "request_id": x402_req_id or None,
+                                },
+                            )
+                            if response.is_success:
+                                self._tracing.record_response(
+                                    span,
+                                    status=response.status_code,
+                                    duration_ms=x402_duration_ms,
+                                    request_id=x402_req_id or None,
+                                )
+                                if response.status_code == 204:
+                                    return {}
+                                return response.json()
 
-            _raise_for_status(response, retry_attempts=attempt)
+                    if response.status_code in _RETRYABLE_STATUS_CODES and attempt < self._max_retries:
+                        retry_after = response.headers.get("retry-after")
+                        if retry_after and retry_after.isdigit():
+                            delay = float(retry_after)
+                        else:
+                            delay = _RETRY_BASE_DELAY * (2**attempt)
+                            delay += delay * 0.25 * random.random()
+                        logger.info(
+                            "Retrying %s %s in %.1fs (attempt %d/%d)",
+                            method, path, delay, attempt + 1, self._max_retries,
+                            extra={"method": method, "path": path},
+                        )
+                        await asyncio.sleep(delay)
+                        continue
 
-            if response.status_code == 204:
-                return {}
-            return response.json()
+                    _raise_for_status(response, retry_attempts=attempt)
+                    self._tracing.record_response(
+                        span,
+                        status=response.status_code,
+                        duration_ms=duration_ms,
+                        request_id=req_id or None,
+                    )
+
+                    if response.status_code == 204:
+                        return {}
+                    return response.json()
+            except Exception as exc:
+                self._tracing.record_exception(span, exc)
+                raise
 
         if last_exc is not None:
             raise last_exc

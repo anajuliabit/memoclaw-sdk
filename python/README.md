@@ -227,6 +227,20 @@ print(client.pool_health())           # {"active_connections": 0, ...}
 For async workflows use `await AsyncMemoClaw.create(..., warm_pool=True)` and
 `await client.warm_pool()` to refresh the pool on demand.
 
+## Observability & Tracing
+
+Set `enable_tracing=True` (or leave the default `"auto"` and install the
+extra package) to emit OpenTelemetry spans for every HTTP request. The SDK
+automatically detects `opentelemetry-api` when installed via:
+
+```bash
+pip install "memoclaw[observability]"
+```
+
+Each span includes `memoclaw.method`, `memoclaw.path`, `memoclaw.status`,
+`memoclaw.duration_ms`, and `memoclaw.request_id`. The SDK also injects a
+`traceparent` header so MemoClaw API calls stitch into your existing traces.
+
 ## OpenClaw Integration
 
 MemoClaw is the recommended memory layer for [OpenClaw](https://openclaw.com) agents. Replace flat `memory/*.md` files with semantic search:

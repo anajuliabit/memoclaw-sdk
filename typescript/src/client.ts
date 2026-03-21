@@ -172,6 +172,123 @@ function createSdkLogger(
   };
 }
 
+type EnableTracingOption = boolean | 'auto';
+type OtelApi = typeof import('@opentelemetry/api');
+type OtelSpan = import('@opentelemetry/api').Span;
+type OtelContext = import('@opentelemetry/api').Context;
+
+class TracingScope {
+  constructor(
+    private readonly api: OtelApi | null,
+    private readonly span: OtelSpan | null,
+    private readonly context: OtelContext | null,
+  ) {}
+
+  static disabled(): TracingScope {
+    return new TracingScope(null, null, null);
+  }
+
+  async within<T>(fn: () => Promise<T>): Promise<T> {
+    if (!this.api || !this.span || !this.context) {
+      try {
+        return await fn();
+      } finally {
+        this.span?.end();
+      }
+    }
+    try {
+      return await this.api.context.with(this.context, fn);
+    } finally {
+      this.span.end();
+    }
+  }
+
+  inject(headers: Record<string, string>): void {
+    if (!this.span) return;
+    const spanContext = this.span.spanContext();
+    if (!spanContext || !spanContext.traceId || !spanContext.spanId) return;
+    const traceFlags = ((spanContext.traceFlags ?? 1) as number).toString(16).padStart(2, '0');
+    headers['traceparent'] = `00-${spanContext.traceId}-${spanContext.spanId}-${traceFlags}`;
+    const tracestate = spanContext.traceState?.serialize();
+    if (tracestate) headers['tracestate'] = tracestate;
+  }
+
+  recordResponse(status: number, durationMs: number, requestId?: string | null): void {
+    if (!this.span) return;
+    this.span.setAttribute('memoclaw.status', status);
+    this.span.setAttribute('memoclaw.duration_ms', durationMs);
+    if (requestId) {
+      this.span.setAttribute('memoclaw.request_id', requestId);
+    }
+    if (this.api && typeof this.span.setStatus === 'function') {
+      const code = status >= 400 ? this.api.SpanStatusCode.ERROR : this.api.SpanStatusCode.OK;
+      this.span.setStatus({ code });
+    }
+  }
+
+  recordError(error: unknown): void {
+    if (!this.span) return;
+    const name = error instanceof Error ? error.name : 'Error';
+    const message = error instanceof Error ? error.message : String(error);
+    this.span.setAttribute('memoclaw.error', name);
+    if (this.api && typeof this.span.setStatus === 'function') {
+      this.span.setStatus({ code: this.api.SpanStatusCode.ERROR, message });
+    }
+    if (error instanceof Error && typeof this.span.recordException === 'function') {
+      this.span.recordException(error);
+    }
+  }
+
+}
+
+class TracingManager {
+  private readonly mode: EnableTracingOption;
+  private readonly logger?: Required<Logger>;
+  private apiPromise?: Promise<OtelApi | null>;
+
+  constructor(option: EnableTracingOption | undefined, logger?: Required<Logger>) {
+    this.mode = option ?? 'auto';
+    this.logger = logger;
+  }
+
+  private async loadApi(): Promise<OtelApi | null> {
+    if (this.mode === false) return null;
+    if (!this.apiPromise) {
+      this.apiPromise = (async () => {
+        try {
+          const api = await import('@opentelemetry/api') as unknown as OtelApi;
+          if (!api?.trace?.getTracer || !api?.context?.active) {
+            return null;
+          }
+          return api;
+        } catch (err) {
+          if (this.mode !== 'auto') {
+            this.logger?.warn?.('[memoclaw] enableTracing requested but @opentelemetry/api is not installed', err);
+          }
+          return null;
+        }
+      })();
+    }
+    return this.apiPromise;
+  }
+
+  async startSpan(method: string, path: string): Promise<TracingScope> {
+    const api = await this.loadApi();
+    if (!api) return TracingScope.disabled();
+    const tracer = api.trace.getTracer('memoclaw.sdk');
+    const parent = api.context.active();
+    const span = tracer.startSpan(`memoclaw ${method}`, {
+      kind: api.SpanKind.CLIENT,
+      attributes: {
+        'memoclaw.method': method,
+        'memoclaw.path': path,
+      },
+    }, parent);
+    const ctx = api.trace.setSpan(parent, span);
+    return new TracingScope(api, span, ctx);
+  }
+}
+
 /** Options that can be passed to individual API methods. */
 export interface RequestOptions {
   /** An AbortSignal for manual cancellation. */
@@ -219,6 +336,8 @@ export class MemoClawClient {
   private readonly _recallCallbacks: RecallCallback[] = [];
   private readonly _deleteCallbacks: DeleteCallback[] = [];
   private readonly _logger?: Required<Logger>;
+
+  private readonly _tracing: TracingManager;
 
   constructor(options: MemoClawOptions = {}) {
     const config = loadConfig(options.configPath);
@@ -276,6 +395,7 @@ export class MemoClawClient {
       };
       this._logger = createSdkLogger(baseLogger, logLevel, logFormat);
     }
+    this._tracing = new TracingManager(options.enableTracing ?? 'auto', this._logger);
   }
 
   /** Register a hook called before each request. Returns this for chaining. */
@@ -438,131 +558,139 @@ export class MemoClawClient {
       : signals[0] ?? undefined;
 
     let lastError: MemoClawError | undefined;
+    const tracing = await this._tracing.startSpan(method, path);
 
-    for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
-      let res: Response;
+    return tracing.within(async () => {
       try {
-        res = await this._fetch(url, { method, headers, body: jsonBody, signal: combinedSignal });
-      } catch (err) {
-        if (err instanceof DOMException && (err.name === 'AbortError' || err.name === 'TimeoutError')) throw err;
-        if (attempt < this.maxRetries) {
-          const delay = this.retryDelay * Math.pow(2, attempt);
-          const jitter = delay * 0.25 * Math.random();
-          await new Promise((resolve) => setTimeout(resolve, delay + jitter));
-          continue;
-        }
-        throw err;
-      }
+        for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
+          let res: Response;
+          tracing.inject(headers);
+          try {
+            res = await this._fetch(url, { method, headers, body: jsonBody, signal: combinedSignal });
+          } catch (err) {
+            if (err instanceof DOMException && (err.name === 'AbortError' || err.name === 'TimeoutError')) throw err;
+            if (attempt < this.maxRetries) {
+              const delay = this.retryDelay * Math.pow(2, attempt);
+              const jitter = delay * 0.25 * Math.random();
+              await new Promise((resolve) => setTimeout(resolve, delay + jitter));
+              continue;
+            }
+            throw err;
+          }
 
-      // On retryable status, honor Retry-After header if present
-      if (!res.ok && RETRYABLE_STATUS_CODES.has(res.status) && attempt < this.maxRetries) {
-        const retryAfter = res.headers.get('retry-after');
-        let delay: number;
-        if (retryAfter && /^\d+$/.test(retryAfter)) {
-          delay = parseInt(retryAfter, 10) * 1000;
-        } else {
-          delay = this.retryDelay * Math.pow(2, attempt);
-          const jitter = delay * 0.25 * Math.random();
-          delay += jitter;
-        }
+          // On retryable status, honor Retry-After header if present
+          if (!res.ok && RETRYABLE_STATUS_CODES.has(res.status) && attempt < this.maxRetries) {
+            const retryAfter = res.headers.get('retry-after');
+            let delay: number;
+            if (retryAfter && /^\d+$/.test(retryAfter)) {
+              delay = parseInt(retryAfter, 10) * 1000;
+            } else {
+              delay = this.retryDelay * Math.pow(2, attempt);
+              const jitter = delay * 0.25 * Math.random();
+              delay += jitter;
+            }
 
-        // Still need to consume the body for error context
-        let errorBody: MemoClawErrorBody | undefined;
-        try {
-          errorBody = (await res.json()) as MemoClawErrorBody;
-        } catch {
-          // ignore parse failures
-        }
-        const code = errorBody?.error?.code ?? 'UNKNOWN_ERROR';
-        const message = errorBody?.error?.message ?? `HTTP ${res.status}`;
-        const details = errorBody?.error?.details;
-        lastError = createError(res.status, code, message, details);
-        lastError.requestId = res.headers?.get('x-request-id') ?? undefined;
-        lastError.retryAttempts = attempt;
+            // Still need to consume the body for error context
+            let errorBody: MemoClawErrorBody | undefined;
+            try {
+              errorBody = (await res.json()) as MemoClawErrorBody;
+            } catch {
+              // ignore parse failures
+            }
+            const code = errorBody?.error?.code ?? 'UNKNOWN_ERROR';
+            const message = errorBody?.error?.message ?? `HTTP ${res.status}`;
+            const details = errorBody?.error?.details;
+            lastError = createError(res.status, code, message, details);
+            lastError.requestId = res.headers?.get('x-request-id') ?? undefined;
+            lastError.retryAttempts = attempt;
 
-        this._logger?.warn(`${method} ${path} → ${res.status} [${code}], retrying in ${delay}ms (attempt ${attempt + 1}/${this.maxRetries})`, {
-          method, path, status: res.status, request_id: lastError?.requestId,
-        });
-        await new Promise((resolve) => setTimeout(resolve, delay));
-        continue;
-      }
-
-      if (res.ok) {
-        const duration = Date.now() - startTime;
-        const reqId = res.headers?.get('x-request-id') ?? undefined;
-        this._logger?.info(`${method} ${path} → ${res.status} (${duration}ms)`, reqId ? `req=${reqId}` : '', {
-          method, path, status: res.status, duration_ms: duration, request_id: reqId,
-        });
-        let data = (await res.json()) as T;
-        // Run after-response hooks
-        for (const hook of this._afterResponseHooks) {
-          const result = hook(method, path, data);
-          if (result !== undefined) data = result as T;
-        }
-        return data;
-      }
-
-      // 402 → attempt x402 automatic payment and retry once
-      if (res.status === 402) {
-        this._logger?.debug(`${method} ${path} → 402, attempting x402 payment`, { method, path });
-        const paymentHeaders = await this._tryX402Payment(res);
-        if (paymentHeaders) {
-          this._logger?.info(`x402 payment headers created, retrying ${method} ${path}`, { method, path });
-          // Retry the request with payment headers merged in
-          const retryHeaders = { ...headers, ...paymentHeaders };
-          const retryRes = await this._fetch(url, { method, headers: retryHeaders, body: jsonBody, signal: combinedSignal });
-          if (retryRes.ok) {
-            const duration = Date.now() - startTime;
-            const reqId = retryRes.headers?.get('x-request-id') ?? undefined;
-            this._logger?.info(`${method} ${path} → ${retryRes.status} (${duration}ms, x402 paid)`, reqId ? `req=${reqId}` : '', {
-              method, path, status: retryRes.status, duration_ms: duration, request_id: reqId,
+            this._logger?.warn(`${method} ${path} → ${res.status} [${code}], retrying in ${delay}ms (attempt ${attempt + 1}/${this.maxRetries})`, {
+              method, path, status: res.status, request_id: lastError?.requestId,
             });
-            let data = (await retryRes.json()) as T;
+            await new Promise((resolve) => setTimeout(resolve, delay));
+            continue;
+          }
+
+          if (res.ok) {
+            const duration = Date.now() - startTime;
+            const reqId = res.headers?.get('x-request-id') ?? undefined;
+            this._logger?.info(`${method} ${path} → ${res.status} (${duration}ms)`, reqId ? `req=${reqId}` : '', {
+              method, path, status: res.status, duration_ms: duration, request_id: reqId,
+            });
+            let data = (await res.json()) as T;
             for (const hook of this._afterResponseHooks) {
               const result = hook(method, path, data);
               if (result !== undefined) data = result as T;
             }
+            tracing.recordResponse(res.status, duration, reqId);
             return data;
           }
-          // x402 retry failed — fall through to normal error handling with the retry response
-          res = retryRes;
+
+          // 402 → attempt x402 automatic payment and retry once
+          if (res.status === 402) {
+            this._logger?.debug(`${method} ${path} → 402, attempting x402 payment`, { method, path });
+            const paymentHeaders = await this._tryX402Payment(res);
+            if (paymentHeaders) {
+              this._logger?.info(`x402 payment headers created, retrying ${method} ${path}`, { method, path });
+              const retryHeaders = { ...headers, ...paymentHeaders };
+              tracing.inject(retryHeaders);
+              const retryRes = await this._fetch(url, { method, headers: retryHeaders, body: jsonBody, signal: combinedSignal });
+              if (retryRes.ok) {
+                const duration = Date.now() - startTime;
+                const reqId = retryRes.headers?.get('x-request-id') ?? undefined;
+                this._logger?.info(`${method} ${path} → ${retryRes.status} (${duration}ms, x402 paid)`, reqId ? `req=${reqId}` : '', {
+                  method, path, status: retryRes.status, duration_ms: duration, request_id: reqId,
+                });
+                let data = (await retryRes.json()) as T;
+                for (const hook of this._afterResponseHooks) {
+                  const result = hook(method, path, data);
+                  if (result !== undefined) data = result as T;
+                }
+                tracing.recordResponse(retryRes.status, duration, reqId);
+                return data;
+              }
+              res = retryRes;
+            }
+          }
+
+          let errorBody: MemoClawErrorBody | undefined;
+          try {
+            errorBody = (await res.json()) as MemoClawErrorBody;
+          } catch {
+            // ignore parse failures
+          }
+
+          const code = errorBody?.error?.code ?? 'UNKNOWN_ERROR';
+          const message = errorBody?.error?.message ?? `HTTP ${res.status}`;
+          const details = errorBody?.error?.details;
+
+          lastError = createError(res.status, code, message, details);
+          lastError.requestId = res.headers?.get('x-request-id') ?? undefined;
+          lastError.retryAttempts = attempt;
+
+          const duration = Date.now() - startTime;
+          this._logger?.error(`${method} ${path} → ${res.status} [${code}] (${duration}ms)`, lastError.requestId ? `req=${lastError.requestId}` : '', {
+            method, path, status: res.status, duration_ms: duration, request_id: lastError.requestId,
+          });
+
+          if (!RETRYABLE_STATUS_CODES.has(res.status)) {
+            await this.emitErrorHooks(method, path, lastError);
+            throw lastError;
+          }
+
+          this._logger?.warn(`Retrying ${method} ${path} (attempt ${attempt + 1}/${this.maxRetries})`, { method, path });
         }
+
+        if (lastError) {
+          await this.emitErrorHooks(method, path, lastError);
+        }
+        throw lastError!;
+      } catch (err) {
+        tracing.recordError(err as Error);
+        throw err;
       }
-
-      let errorBody: MemoClawErrorBody | undefined;
-      try {
-        errorBody = (await res.json()) as MemoClawErrorBody;
-      } catch {
-        // ignore parse failures
-      }
-
-      const code = errorBody?.error?.code ?? 'UNKNOWN_ERROR';
-      const message = errorBody?.error?.message ?? `HTTP ${res.status}`;
-      const details = errorBody?.error?.details;
-
-      lastError = createError(res.status, code, message, details);
-      lastError.requestId = res.headers?.get('x-request-id') ?? undefined;
-      lastError.retryAttempts = attempt;
-
-      const duration = Date.now() - startTime;
-      this._logger?.error(`${method} ${path} → ${res.status} [${code}] (${duration}ms)`, lastError.requestId ? `req=${lastError.requestId}` : '', {
-        method, path, status: res.status, duration_ms: duration, request_id: lastError.requestId,
-      });
-
-      if (!RETRYABLE_STATUS_CODES.has(res.status)) {
-        await this.emitErrorHooks(method, path, lastError);
-        throw lastError;
-      }
-
-      this._logger?.warn(`Retrying ${method} ${path} (attempt ${attempt + 1}/${this.maxRetries})`, { method, path });
-    }
-
-    if (lastError) {
-      await this.emitErrorHooks(method, path, lastError);
-    }
-    throw lastError!;
+    });
   }
-
   // ── Public API ─────────────────────────────────────
 
   /** Store a single memory. */
