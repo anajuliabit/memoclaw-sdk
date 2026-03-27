@@ -687,6 +687,18 @@ export class MemoClawClient {
         throw lastError!;
       } catch (err) {
         tracing.recordError(err as Error);
+
+        if (err instanceof MemoClawError) {
+          throw err;
+        }
+
+        const transportError = new MemoClawError(
+          0,
+          'TRANSPORT_ERROR',
+          err instanceof Error ? err.message : String(err),
+          err instanceof Error ? { name: err.name } : undefined,
+        );
+        await this.emitErrorHooks(method, path, transportError);
         throw err;
       }
     });
