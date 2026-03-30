@@ -427,6 +427,23 @@ describe('Hooks', () => {
     expect(hook).toHaveBeenCalledWith('GET', '/v1/memories/x', expect.any(NotFoundError));
   });
 
+  it('calls onError hook on terminal transport error', async () => {
+    const f = vi.fn(async () => {
+      throw new Error('socket closed');
+    });
+    const hook = vi.fn();
+    const client = createClient(f).onError(hook);
+
+    await expect(client.status()).rejects.toMatchObject({
+      name: 'MemoClawError',
+      code: 'TRANSPORT_ERROR',
+      status: 0,
+      message: 'socket closed',
+    });
+
+    expect(hook).toHaveBeenCalledWith('GET', '/v1/free-tier/status', expect.any(MemoClawError));
+  });
+
   it('beforeRequest can modify body', async () => {
     const f = mockFetch([{ status: 201, body: { id: 'x', stored: true, deduplicated: false, tokens_used: 1 } }]);
     const client = createClient(f).onBeforeRequest((_method, _path, body) => {
